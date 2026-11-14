@@ -83,7 +83,12 @@ ANSWER_SCHEMA = {
 
 
 class AnswerError(RuntimeError):
-    pass
+    """A question that produced no answer. Carries what happened so far (trace, usage) for logs/eval."""
+
+    def __init__(self, message: str, trace: list | None = None, usage: dict | None = None):
+        super().__init__(message)
+        self.trace = trace or []
+        self.usage = usage or {}
 
 
 def _tools_for_claude(g: GrapheneMCP) -> list[dict[str, Any]]:
@@ -110,12 +115,15 @@ async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit
     for _ in range(max_requests):
         await emit({"type": "thinking"})
         t0 = time.perf_counter()
+        # Once the Graphene call budget is used, Claude must answer: no more tool calls.
+        tool_choice = {"type": "none"} if len(trace) >= config.MAX_TOOL_CALLS else {"type": "auto"}
         resp = await client.messages.create(
             model=config.MODEL,
             max_tokens=config.MAX_TOKENS,
             system=system,
             tools=tools,
             messages=messages,
+            tool_choice=tool_choice,
             thinking={"type": "adaptive"},
             output_config={"effort": config.EFFORT,
                            "format": {"type": "json_schema", "schema": ANSWER_SCHEMA}},
@@ -127,9 +135,9 @@ async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit
             usage[k] += getattr(resp.usage, k, 0) or 0
 
         if resp.stop_reason == "refusal":
-            raise AnswerError("Claude declined to answer this question.")
+            raise AnswerError("Claude declined to answer this question.", trace, usage)
         if resp.stop_reason == "max_tokens":
-            raise AnswerError("The answer was cut off (output limit reached).")
+            raise AnswerError("The answer was cut off (output limit reached).", trace, usage)
 
         tool_uses = [b for b in resp.content if b.type == "tool_use"]
         if resp.stop_reason != "tool_use" or not tool_uses:
@@ -137,7 +145,7 @@ async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit
             try:
                 parsed = json.loads(text)
             except ValueError as e:
-                raise AnswerError("Claude's final answer was not valid JSON.") from e
+                raise AnswerError("Claude's final answer was not valid JSON.", trace, usage) from e
             out = contract.build(parsed, trace, results)
             out["usage"] = usage
             out["timing_ms"] = {"total": int((time.perf_counter() - t_start) * 1000), "claude": claude_ms,
@@ -173,7 +181,7 @@ async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit
                                      "content": f"Graphene call failed: {r.error}"})
         messages.append({"role": "user", "content": tool_results})
 
-    raise AnswerError(f"No final answer after {max_requests} model turns.")
+    raise AnswerError(f"No final answer after {max_requests} model turns.", trace, usage)
 
 
 async def answer_with_timeout(question: str, g: GrapheneMCP, client: Any, emit: Emit = _noop) -> dict[str, Any]:

@@ -30,8 +30,12 @@ OUT_PER_TOOL_TURN = 500
 OUT_FINAL = 1500
 
 
+ONLY: set[str] = set()
+
+
 def cases() -> list[dict]:
-    return [c for c in yaml.safe_load((ROOT / "tests" / "golden_questions.yaml").read_text()) if not c.get("test_only")]
+    all_cases = yaml.safe_load((ROOT / "tests" / "golden_questions.yaml").read_text())
+    return [c for c in all_cases if not c.get("test_only") and (not ONLY or c["id"] in ONLY)]
 
 
 def dollars(u: dict) -> float:
@@ -88,9 +92,13 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
         try:
             out = await agent.answer_with_timeout(c["question"], g, client)
         except agent.AnswerError as e:
-            results.append({"id": c["id"], "question": c["question"], "error": str(e)})
+            cost = dollars(e.usage)
+            total_cost += cost
+            results.append({"id": c["id"], "question": c["question"], "error": str(e),
+                            "tool_trace": e.trace, "usage": e.usage, "cost_usd": round(cost, 4)})
             failures += 1
-            print(f"FAIL {c['id']}: {e}")
+            print(f"FAIL {c['id']}: {e}  ${cost:.4f}  {len(e.trace)} tool calls: "
+                  + ", ".join(f"{t['tool']}{json.dumps(t['arguments'])}" for t in e.trace))
             continue
         exp, problems = c["expect"], []
         called = {t["tool"] for t in out["tool_trace"]}
@@ -126,7 +134,9 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
 async def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--estimate", action="store_true")
+    ap.add_argument("--only", nargs="*", default=[], help="golden case ids to run")
     args = ap.parse_args()
+    ONLY.update(args.only)
     g = GrapheneMCP(config.GRAPHENE_MCP_COMMAND, call_timeout_s=config.TOOL_TIMEOUT_S)
     await g.start()
     client = new_client()

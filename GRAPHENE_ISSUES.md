@@ -62,7 +62,9 @@ Each entry: question, what Graphene returned, what's expected. Graphene `1.30.0`
   0.8833. If "88th percentile" is the wording users should see, Graphene should return it (e.g. a
   `percentile_text`), or the golden expectation should change to 0.8833. Operator to decide.
 
-## G-4 · MCP handshake reports version 0.1.0 (Graphene is v11 / 1.31.0)
+## G-4 · MCP handshake reports version 0.1.0 (Graphene is v11 / 1.31.0) — RESOLVED
+
+- **Resolved 2026-11-14 (same day):** the handshake now reports `1.31.0`; the app's health shows it.
 
 - **Found:** 2026-11-14, after Graphene v11 was installed; the app's health page shows the version
   from the MCP `initialize` handshake.

@@ -85,6 +85,9 @@ def test_tool_call_cap(client, fake_claude):
         fake_claude.messages.override = None
     assert out is not None
     assert len(out["tool_trace"]) == config.MAX_TOOL_CALLS
+    reqs = fake_claude.messages.requests
+    assert reqs[-1]["tool_choice"] == {"type": "none"}  # budget used -> must answer
+    assert [r["tool_choice"]["type"] for r in reqs[-config.MAX_TOOL_CALLS - 1:]] == ["auto"] * config.MAX_TOOL_CALLS + ["none"]
 
 
 def test_request_shape_to_claude(fake_claude):

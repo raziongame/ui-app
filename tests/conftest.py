@@ -31,7 +31,7 @@ class FakeMessages:
                 "model": kw["model"], "stop_sequence": None,
                 "usage": {"input_tokens": 100, "output_tokens": 20}}
         calls = script["calls"]
-        if done < len(calls):
+        if done < len(calls) and kw.get("tool_choice", {}).get("type") != "none":
             c = calls[done]
             return Message.model_validate({**base, "stop_reason": "tool_use", "content": [
                 {"type": "tool_use", "id": f"toolu_{done}", "name": c["tool"], "input": c.get("args", {})}]})
