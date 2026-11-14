@@ -28,3 +28,9 @@ def test_unknown_object_number_and_evidence_flagged():
 def test_pseudonym_must_be_in_results():
     g = check("Job JOB-deadbeef01 runs it.")
     assert [f["token"] for f in g["flags"]] == ["JOB-deadbeef01"]
+
+
+def test_graphene_percentile_label_is_grounded():
+    res = [{"result": {"percentile": 0.8833, "percentile_label": "88th percentile"}}]
+    g = grounding.check({"answer": "It is at the 88th percentile."}, res, [], set())
+    assert g["ok"], g["flags"]

@@ -5,7 +5,11 @@ Each entry: question, what Graphene returned, what's expected. Graphene `1.30.0`
 
 ---
 
-## G-1 · First `assess_transport` on a new MCP session takes 43–59 s (warm: ~0.4 s)
+## G-1 · First `assess_transport` on a new MCP session takes 43–59 s (warm: ~0.4 s) — RESOLVED
+
+- **Resolved in Graphene demo-ready-v10** (re-measured 2026-11-14 on a fresh session): first
+  `assess_transport ZUZK900008` **544 ms** (warm 427 · 441), `comparison_version.source: baseline`,
+  no stale notice. Guarded by `tests/test_latency.py` (< 3 s).
 
 - **Found:** 2026-11-14, while measuring tool latency on one long-lived session (`make latency`).
 - **Question:** any risk question, e.g. "Why is ZUZK900008 high risk?", when it is the first assessment
@@ -31,7 +35,11 @@ Each entry: question, what Graphene returned, what's expected. Graphene `1.30.0`
   (the notice says it is built "without storing it") instead of rebuilding it per reader process.
   Also: the history is reported as stale (built 2026-11-12).
 
-## G-2 · No earlier risk score to answer "riskier than before"
+## G-2 · No earlier risk score to answer "riskier than before" — RESOLVED
+
+- **Resolved in demo-ready-v10:** `result.previous` (score, band, assessed_at, engines, baseline_id) and
+  `result.changes_since_previous`. For ZUZK900006: previous 0.345 / moderate on 2026-11-12, no changes —
+  so it is **not** riskier than before; the golden case now expects the app to say so.
 
 - **Found:** 2026-11-14, golden question 3.
 - **Question:** "Why is ZUZK900006 riskier than before?"
@@ -43,7 +51,9 @@ Each entry: question, what Graphene returned, what's expected. Graphene `1.30.0`
   assessment's score/band (and what changed), or say explicitly that it has none. Today the app can
   only say "Graphene did not return an earlier score".
 
-## G-3 · Percentile is a fraction (0.8833); the golden expectation says "88th percentile"
+## G-3 · Percentile is a fraction (0.8833); the golden expectation says "88th percentile" — RESOLVED
+
+- **Resolved in demo-ready-v10:** `assessment.percentile_label: "88th percentile"`; the app uses it.
 
 - **Found:** 2026-11-14, golden question 2.
 - **Question:** "Why is ZUZK900008 high risk?"

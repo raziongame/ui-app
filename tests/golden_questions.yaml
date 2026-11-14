@@ -1,5 +1,5 @@
 # Golden questions. Expected values come from Graphene's own output (MCP, 2026-11-14,
-# graphene 1.30.0). If a learn run changes them, update from Graphene's output, never by hand-guessing.
+# Graphene demo-ready-v10, reports version 1.30.0). If a learn run changes them, update from Graphene's output, never by hand-guessing.
 #
 # Per case:
 #   facts:   checked in `make test` against the REAL Graphene MCP result of mock.calls
@@ -40,49 +40,59 @@
     - {tool: assess_transport, path: result.assessment.score, equals: 0.47}
     - {tool: assess_transport, path: result.assessment.band, equals: high}
     - {tool: assess_transport, path: result.assessment.percentile, equals: 0.8833}
+    - {tool: assess_transport, path: result.assessment.percentile_label, equals: "88th percentile"}
     - {tool: assess_transport, path: result.assessment.reasons, length: 5}
+    - {tool: assess_transport, path: result.assessment.comparison_version.source, equals: baseline}
   expect:
     tools: [assess_transport]
-    # CLAUDE.md says "88th percentile"; Graphene returns 0.8833 and the app may not convert numbers.
-    answer_contains: ["0.47", "high", "0.8833", "ZS4_IOT_DATA", ["ZS4_IOT_INSERT_DATA", "entry point"]]
-    answer_not_contains: ["88th", "88%", "88 %"]
+    # Graphene's own label (G-3); the app never converts 0.8833 itself (grounding flags that).
+    answer_contains: ["0.47", "high", "88th percentile", "ZS4_IOT_DATA", ["ZS4_IOT_INSERT_DATA", "entry point"]]
     grounding_flags_max: 0
   mock:
     calls:
       - {tool: assess_transport, args: {transport: ZUZK900008}}
     answer:
       answer: |-
-        ZUZK900008 scores 0.47, which is in the high band, at percentile 0.8833 of this system's own transport history.
+        ZUZK900008 scores 0.47, which is in the high band: 88th percentile of this system's own transport history.
         - It changes the table definition of ZS4_IOT_DATA, and 9 objects are affected.
         - It reaches 2 RFC entry points: ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA.
         - 1 dynamic call touches the change, so the impact may be larger.
       claims:
-        - {text: "Score 0.47, band high, percentile 0.8833.", evidence_ids: ["node:TRKORR:ZUZK900008"]}
+        - {text: "Score 0.47, band high, 88th percentile.", evidence_ids: ["node:TRKORR:ZUZK900008"]}
         - {text: "It changes the table definition of ZS4_IOT_DATA.", evidence_ids: ["node:TABL:ZS4_IOT_DATA"]}
         - {text: "It reaches entry points ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA.", evidence_ids: ["path:TABL:ZS4_IOT_DATA > FUNC:ZS4_IOT_INSERT_DATA", "path:TABL:ZS4_IOT_DATA > FUNC:ZS4_IOT_READ_DATA"]}
 
 - id: risk_zuzk900006
   question: "Why is ZUZK900006 riskier than before?"
+  # Graphene (G-2): the previous stored assessment has the SAME score and no changes, so the
+  # answer must correct the premise instead of inventing a reason for a rise.
   facts:
     - {tool: assess_transport, path: result.assessment.score, equals: 0.345}
     - {tool: assess_transport, path: result.assessment.band, equals: moderate}
+    - {tool: assess_transport, path: result.assessment.percentile_label, equals: "66th percentile"}
     - {tool: assess_transport, path: result.assessment.reasons.2.text, equals: "reaches periodic job JOB:JOB-5192e9d4d2ab in 1 hop (runs daily, 12 runs in window)"}
+    - {tool: assess_transport, path: result.previous.score, equals: 0.345}
+    - {tool: assess_transport, path: result.previous.band, equals: moderate}
+    - {tool: assess_transport, path: result.previous.assessed_at, equals: "2026-11-12T14:44:38+00:00"}
+    - {tool: assess_transport, path: result.previous.engines, equals: "impact-4, risk-3"}
+    - {tool: assess_transport, path: result.changes_since_previous, length: 0}
   expect:
     tools: [assess_transport]
-    answer_contains: ["0.345", "ZGR_PRICE_SYNC", "daily", "12 runs"]
+    answer_contains: ["0.345", "2026-11-12", ["not riskier", "unchanged", "same score", "has not changed", "hasn't changed", "no change", "nothing changed", "not changed"], "ZGR_PRICE_SYNC", "daily"]
     grounding_flags_max: 0
   mock:
     calls:
       - {tool: assess_transport, args: {transport: ZUZK900006}}
     answer:
       answer: |-
-        ZUZK900006 scores 0.345 (moderate band). The main reasons:
+        According to Graphene, ZUZK900006 is not riskier than before: it scores 0.345 (moderate band, 66th percentile), the same score and band as its previous assessment on 2026-11-12, and Graphene lists no changes since then.
+        What makes up its current risk:
         - It changes the table definition of ZGR_DISC_RULES.
         - Through program ZGR_PRICE_SYNC it reaches the periodic job JOB-5192e9d4d2ab, which runs daily, 12 runs in window.
         - The same objects were changed by 1 other request.
-        Graphene did not return an earlier score for this transport, so it can't confirm that the risk went up.
       claims:
-        - {text: "Score 0.345, moderate band.", evidence_ids: ["node:TRKORR:ZUZK900006"]}
+        - {text: "Score 0.345, moderate band, 66th percentile.", evidence_ids: ["node:TRKORR:ZUZK900006"]}
+        - {text: "The previous assessment on 2026-11-12 was also 0.345, moderate, with no changes since.", evidence_ids: ["call:1"]}
         - {text: "Reaches the daily job JOB-5192e9d4d2ab through ZGR_PRICE_SYNC (12 runs in window).", evidence_ids: ["path:PROG:ZGR_PRICE_SYNC > JOB:JOB-5192e9d4d2ab"]}
 
 - id: not_found_zfake_table
