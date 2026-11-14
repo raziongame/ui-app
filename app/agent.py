@@ -39,6 +39,13 @@ with an earlier score that no result gives), say plainly that Graphene did not r
 when Graphene's previous assessment has the same score and lists no changes), say so first, with \
 Graphene's numbers and dates, then explain what the results do show. Don't invent a reason for a \
 change Graphene doesn't report.
+- When a result has a history (e.g. a transport's earlier assessments), show how it changed as \
+steps, oldest first. For display only, group consecutive entries whose score, band, engines and \
+affected count are all identical into one line with the first and last date (and time if the dates \
+are the same day); don't state how many entries a group has. Write every score, count, engine \
+version, date and time exactly as Graphene wrote it. Say why a step happened only if Graphene's \
+results state the cause; otherwise state what changed between the steps (score, affected count, \
+engine version) and say that Graphene does not give the cause.
 - Use as few tool calls as answer the question well; you have at most {max_calls}.
 
 Your final reply is JSON matching the response schema:

@@ -61,3 +61,28 @@ Each entry: question, what Graphene returned, what's expected. Graphene `1.30.0`
 - **Expected (CLAUDE.md):** "88th percentile". The app may not convert or round numbers, so it shows
   0.8833. If "88th percentile" is the wording users should see, Graphene should return it (e.g. a
   `percentile_text`), or the golden expectation should change to 0.8833. Operator to decide.
+
+## G-4 · MCP handshake reports version 0.1.0 (Graphene is v11 / 1.31.0)
+
+- **Found:** 2026-11-14, after Graphene v11 was installed; the app's health page shows the version
+  from the MCP `initialize` handshake.
+- **What Graphene returned:** `serverInfo: {"name": "graphene", "version": "0.1.0"}` (raw handshake,
+  no app code involved). Before v11 it returned `1.30.0`, even for demo-ready-v10.
+- **Expected:** `1.31.0`, so partners can tell which Graphene build answered. The app shows what the
+  handshake says and does not override it.
+
+## G-5 · Assessment history has no cause per step
+
+- **Found:** 2026-11-14, golden question 3 on Graphene v11.
+- **Question:** "Why is ZUZK900006 riskier than before?"
+- **What Graphene returned:** `result.history` (23 entries: assessed_at, score, band, engines,
+  affected). Steps: 0.3075 / 1 affected (from 2026-11-10T12:58:39) → 0.3225 / 2 affected
+  (2026-11-12T12:53:47) → 0.345 / 2 affected, engines impact-4 (from 2026-11-12T13:06:32).
+  `changes_since_previous: []`. Nothing says *why* each step happened.
+- **Expected (operator):** "0.3225 after L5 (2 affected)" and "0.345 (periodic-job rule, impact-4)".
+  The only link to L5 is a timestamp in `status` (journal: L5 v2 passed 2026-11-12T12:52:48);
+  the app must not infer a cause from timestamps. Please add a per-step cause to each history entry
+  that changes score (e.g. `"change": "new affected object JOB:JOB-5192e9d4d2ab via L5 v2"`,
+  `"change": "periodic-job rule (impact-4)"`).
+- **Related:** `coverage.this_answer_uses` for this answer lists L1–L4 only, although the current
+  reason "reaches periodic job … (runs daily, 12 runs in window)" comes from L5 operations.

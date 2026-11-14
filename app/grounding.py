@@ -19,6 +19,9 @@ NAME_RE = re.compile(
 )
 PSEUDO_RE = re.compile(r"(?<![A-Za-z0-9])(?:JOB|U)-[0-9a-f]{4,}(?![0-9a-f])")
 NUM_RE = re.compile(r"(?<![A-Za-z0-9_.:/-])-?\d+(?:\.\d+)?(?![0-9])")
+# Dates and times are checked as whole tokens: 2026-11-12, 2026-11-12 13:06, 13:06, 13:06:32.
+DATETIME_RE = re.compile(r"(?<![\d-])(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2})(:\d{2})?)?(?![\d:])")
+TIME_RE = re.compile(r"(?<![\d:])\d{2}:\d{2}(?::\d{2})?(?![\d:])")
 
 # Words that look like names but are ordinary vocabulary in answers.
 IGNORE_NAMES: set[str] = set()
@@ -48,10 +51,22 @@ def _names_in(text: str) -> list[str]:
     return out
 
 
-def build_index(results: list[dict[str, Any]]) -> tuple[set[str], set[str]]:
-    """All names and numbers that appear in the tool results of this question."""
+def _datetime_forms(s: str) -> set[str]:
+    """Every way an answer may quote a timestamp Graphene returned (date, time, date + time)."""
+    out: set[str] = set()
+    for m in DATETIME_RE.finditer(s):
+        d, hm, sec = m.group(1), m.group(2), m.group(3) or ""
+        out.add(d)
+        if hm:
+            out |= {hm, hm + sec, f"{d} {hm}", f"{d} {hm}{sec}", f"{d}T{hm}{sec}"}
+    return out
+
+
+def build_index(results: list[dict[str, Any]]) -> tuple[set[str], set[str], set[str]]:
+    """All names, numbers and dates/times that appear in the tool results of this question."""
     names: set[str] = set()
     nums: set[str] = set()
+    dates: set[str] = set()
     for r in results:
         for v in _walk(r):
             if isinstance(v, tuple) and v[0] == "__len__":
@@ -63,6 +78,7 @@ def build_index(results: list[dict[str, Any]]) -> tuple[set[str], set[str]]:
                 nums.add(_norm_num(v))
                 continue
             s = str(v)
+            dates |= _datetime_forms(s)
             for n in _names_in(s):
                 names.add(n)
                 if ":" in n:
@@ -73,17 +89,25 @@ def build_index(results: list[dict[str, Any]]) -> tuple[set[str], set[str]]:
                     names.add(part.split(":", 1)[1])
             for m in NUM_RE.finditer(s):
                 nums.add(_norm_num(m.group(0)))
-    return names, nums
+    return names, nums, dates
 
 
 def check(texts: dict[str, str], results: list[dict[str, Any]], evidence_used: list[tuple[str, str]],
           valid_evidence: set[str]) -> dict[str, Any]:
     """texts: {"answer": ..., "claim 1": ...}. evidence_used: [(where, evidence_id)]."""
-    names, nums = build_index(results)
+    names, nums, dates = build_index(results)
     flags: list[dict[str, str]] = []
     checked_names = checked_nums = 0
     for where, text in texts.items():
         stripped = text
+        for rx in (DATETIME_RE, TIME_RE):
+            for m in list(rx.finditer(stripped)):
+                tok = m.group(0)
+                checked_nums += 1
+                if tok not in dates:
+                    flags.append({"token": tok, "kind": "date", "where": where,
+                                  "why": "date/time not in this question's Graphene results"})
+            stripped = rx.sub(" ", stripped)
         for n in sorted(set(_names_in(text)), key=len, reverse=True):
             stripped = stripped.replace(n, " ")
             bare = n.split(":", 1)[1] if ":" in n else n

@@ -34,3 +34,11 @@ def test_graphene_percentile_label_is_grounded():
     res = [{"result": {"percentile": 0.8833, "percentile_label": "88th percentile"}}]
     g = grounding.check({"answer": "It is at the 88th percentile."}, res, [], set())
     assert g["ok"], g["flags"]
+
+
+def test_dates_and_times_checked_as_whole_tokens():
+    res = [{"result": {"history": [{"assessed_at": "2026-11-12T13:06:32+00:00", "score": 0.345}]}}]
+    ok = grounding.check({"answer": "0.345 on 2026-11-12 at 13:06 (2026-11-12 13:06:32)."}, res, [], set())
+    assert ok["ok"], ok["flags"]
+    bad = grounding.check({"answer": "0.345 on 2026-11-13 at 13:07."}, res, [], set())
+    assert {f["token"] for f in bad["flags"]} == {"2026-11-13", "13:07"}

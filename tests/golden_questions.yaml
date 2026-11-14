@@ -1,5 +1,5 @@
 # Golden questions. Expected values come from Graphene's own output (MCP, 2026-11-14,
-# Graphene demo-ready-v10, reports version 1.30.0). If a learn run changes them, update from Graphene's output, never by hand-guessing.
+# Graphene v11; its MCP handshake reports version 0.1.0, see GRAPHENE_ISSUES G-4). If a learn run changes them, update from Graphene's output, never by hand-guessing.
 #
 # Per case:
 #   facts:   checked in `make test` against the REAL Graphene MCP result of mock.calls
@@ -64,35 +64,40 @@
 
 - id: risk_zuzk900006
   question: "Why is ZUZK900006 riskier than before?"
-  # Graphene (G-2): the previous stored assessment has the SAME score and no changes, so the
-  # answer must correct the premise instead of inventing a reason for a rise.
+  # Graphene v11 history: 0.3075 (1 affected) -> 0.3225 (2 affected) -> 0.345 (impact-4).
+  # The causes the operator expects ("after L5", "periodic-job rule") are NOT in Graphene's
+  # results yet (GRAPHENE_ISSUES G-5); the app must not infer them. Add them here once Graphene
+  # returns them.
   facts:
     - {tool: assess_transport, path: result.assessment.score, equals: 0.345}
     - {tool: assess_transport, path: result.assessment.band, equals: moderate}
-    - {tool: assess_transport, path: result.assessment.percentile_label, equals: "66th percentile"}
     - {tool: assess_transport, path: result.assessment.reasons.2.text, equals: "reaches periodic job JOB:JOB-5192e9d4d2ab in 1 hop (runs daily, 12 runs in window)"}
+    - {tool: assess_transport, path: result.history, length: 23}
+    - {tool: assess_transport, path: result.history.0, equals: {assessed_at: "2026-11-10T12:58:39+00:00", score: 0.3075, band: moderate, engines: "impact-2, risk-2", affected: 1}}
+    - {tool: assess_transport, path: result.history.10, equals: {assessed_at: "2026-11-12T12:46:55+00:00", score: 0.3075, band: moderate, engines: "impact-3, risk-3", affected: 1}}
+    - {tool: assess_transport, path: result.history.11, equals: {assessed_at: "2026-11-12T12:53:47+00:00", score: 0.3225, band: moderate, engines: "impact-3, risk-3", affected: 2}}
+    - {tool: assess_transport, path: result.history.12, equals: {assessed_at: "2026-11-12T13:06:32+00:00", score: 0.345, band: moderate, engines: "impact-4, risk-3", affected: 2}}
+    - {tool: assess_transport, path: result.history.22, equals: {assessed_at: "2026-11-12T14:44:38+00:00", score: 0.345, band: moderate, engines: "impact-4, risk-3", affected: 2}}
     - {tool: assess_transport, path: result.previous.score, equals: 0.345}
-    - {tool: assess_transport, path: result.previous.band, equals: moderate}
-    - {tool: assess_transport, path: result.previous.assessed_at, equals: "2026-11-12T14:44:38+00:00"}
-    - {tool: assess_transport, path: result.previous.engines, equals: "impact-4, risk-3"}
     - {tool: assess_transport, path: result.changes_since_previous, length: 0}
   expect:
     tools: [assess_transport]
-    answer_contains: ["0.345", "2026-11-12", ["not riskier", "unchanged", "same score", "has not changed", "hasn't changed", "no change", "nothing changed", "not changed"], "ZGR_PRICE_SYNC", "daily"]
+    answer_contains: ["0.3075", "0.3225", "0.345", "2026-11-10", "2026-11-12", "impact-4", "ZGR_PRICE_SYNC", "daily"]
     grounding_flags_max: 0
   mock:
     calls:
       - {tool: assess_transport, args: {transport: ZUZK900006}}
     answer:
       answer: |-
-        According to Graphene, ZUZK900006 is not riskier than before: it scores 0.345 (moderate band, 66th percentile), the same score and band as its previous assessment on 2026-11-12, and Graphene lists no changes since then.
-        What makes up its current risk:
-        - It changes the table definition of ZGR_DISC_RULES.
-        - Through program ZGR_PRICE_SYNC it reaches the periodic job JOB-5192e9d4d2ab, which runs daily, 12 runs in window.
-        - The same objects were changed by 1 other request.
+        ZUZK900006 now scores 0.345 (moderate band, 66th percentile). Graphene's stored assessments show it rose in two steps:
+        - 0.3075, 1 affected (engines impact-2, risk-2): 2026-11-10 12:58
+        - 0.3075, 1 affected (engines impact-3, risk-3): 2026-11-10 13:13 to 2026-11-12 12:46
+        - 0.3225, 2 affected (engines impact-3, risk-3): 2026-11-12 12:53
+        - 0.345, 2 affected (engines impact-4, risk-3): 2026-11-12 13:06 to 2026-11-12 14:44
+        Graphene does not give the cause of each step. Its current reasons include: through program ZGR_PRICE_SYNC it reaches the periodic job JOB-5192e9d4d2ab, which runs daily, 12 runs in window.
       claims:
-        - {text: "Score 0.345, moderate band, 66th percentile.", evidence_ids: ["node:TRKORR:ZUZK900006"]}
-        - {text: "The previous assessment on 2026-11-12 was also 0.345, moderate, with no changes since.", evidence_ids: ["call:1"]}
+        - {text: "Current score 0.345, moderate band, 66th percentile.", evidence_ids: ["node:TRKORR:ZUZK900006"]}
+        - {text: "History: 0.3075 (1 affected) from 2026-11-10, 0.3225 (2 affected) on 2026-11-12 12:53, 0.345 (impact-4) from 2026-11-12 13:06.", evidence_ids: ["call:1"]}
         - {text: "Reaches the daily job JOB-5192e9d4d2ab through ZGR_PRICE_SYNC (12 runs in window).", evidence_ids: ["path:PROG:ZGR_PRICE_SYNC > JOB:JOB-5192e9d4d2ab"]}
 
 - id: not_found_zfake_table
