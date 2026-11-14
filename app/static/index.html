@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAP Assistant · sample partner app</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --panel-2: #f0f2f5; --text: #15181d; --muted: #59616d;
+  --border: #d8dce2; --accent: #1f5fbf; --accent-text: #ffffff; --ok: #1d7a3e; --ok-bg: #e3f4e9;
+  --err: #b42318; --err-bg: #fdecea; --flag-bg: #ffe866; --flag-text: #3d3200; --chip: #e8eefa;
+  --chip-text: #1b3f7a; --code: #eef0f3; --shadow: 0 1px 2px rgba(0,0,0,.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1216; --panel: #171b21; --panel-2: #1e232b; --text: #e8ebef; --muted: #a2abb7;
+    --border: #2d343e; --accent: #6ea4ff; --accent-text: #0b1220; --ok: #6fd394; --ok-bg: #143322;
+    --err: #ff8a80; --err-bg: #3a1714; --flag-bg: #8a7400; --flag-text: #fff8cc; --chip: #1f2c44;
+    --chip-text: #b8d0ff; --code: #222831; --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1216; --panel: #171b21; --panel-2: #1e232b; --text: #e8ebef; --muted: #a2abb7;
+  --border: #2d343e; --accent: #6ea4ff; --accent-text: #0b1220; --ok: #6fd394; --ok-bg: #143322;
+  --err: #ff8a80; --err-bg: #3a1714; --flag-bg: #8a7400; --flag-text: #fff8cc; --chip: #1f2c44;
+  --chip-text: #b8d0ff; --code: #222831; --shadow: none;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 18px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif;
+  display: flex; flex-direction: column;
+}
+header {
+  display: flex; align-items: center; gap: 16px; padding: 14px 24px;
+  background: var(--panel); border-bottom: 1px solid var(--border);
+}
+header h1 { font-size: 24px; margin: 0; font-weight: 650; letter-spacing: -.01em; }
+.badge { font-size: 14px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 2px 12px; }
+.spacer { flex: 1; }
+.pill { font-size: 15px; display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px;
+  border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+.dot.on { background: var(--ok); } .dot.off { background: var(--err); }
+button { font: inherit; cursor: pointer; }
+.iconbtn { background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 8px; padding: 4px 12px; font-size: 15px; }
+main { flex: 1; display: grid; grid-template-columns: 58fr 42fr; min-height: 0; }
+#left { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--border); }
+#convo { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 18px; }
+#right { overflow-y: auto; padding: 20px 24px; background: var(--panel-2); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { background: var(--chip); color: var(--chip-text); border: 1px solid transparent; border-radius: 999px;
+  padding: 6px 14px; font-size: 16px; }
+.chip:hover { border-color: var(--accent); }
+.intro { color: var(--muted); font-size: 16px; margin: 0 0 10px; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px;
+  box-shadow: var(--shadow); }
+.card.selected { outline: 3px solid var(--accent); outline-offset: -1px; }
+.q { font-weight: 650; margin: 0 0 8px; }
+.q::before { content: "Q  "; color: var(--muted); font-weight: 500; }
+.a p { margin: 0 0 10px; } .a ul { margin: 0 0 10px; padding-left: 24px; }
+mark.flag { background: var(--flag-bg); color: var(--flag-text); padding: 0 3px; border-radius: 3px; }
+.meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; font-size: 15px; color: var(--muted); }
+.gbadge { font-size: 15px; padding: 2px 10px; border-radius: 6px; font-weight: 600; }
+.gbadge.ok { background: var(--ok-bg); color: var(--ok); }
+.gbadge.warn { background: var(--flag-bg); color: var(--flag-text); }
+.err { background: var(--err-bg); color: var(--err); border-radius: 8px; padding: 10px 12px; }
+.progress { list-style: none; margin: 6px 0 0; padding: 0; font-size: 16px; color: var(--muted); }
+.progress li { padding: 2px 0; }
+.progress code { color: var(--text); }
+.spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%; animation: s 0.9s linear infinite; vertical-align: -1px; }
+@keyframes s { to { transform: rotate(360deg); } }
+form { display: flex; gap: 10px; padding: 14px 24px; border-top: 1px solid var(--border); background: var(--panel); }
+#q { flex: 1; font: inherit; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); }
+#q:focus { outline: 2px solid var(--accent); }
+#send { background: var(--accent); color: var(--accent-text); border: 0; border-radius: 10px; padding: 0 22px; font-weight: 600; }
+#send:disabled { opacity: .5; cursor: default; }
+h2 { font-size: 20px; margin: 0 0 12px; }
+details { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 12px; }
+summary { cursor: pointer; padding: 10px 14px; font-weight: 600; }
+summary .count { color: var(--muted); font-weight: 400; }
+.dbody { padding: 0 14px 12px; font-size: 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+th, td { text-align: left; vertical-align: top; padding: 6px 6px; border-top: 1px solid var(--border); }
+th { color: var(--muted); font-weight: 600; }
+td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+code, .mono { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size: .92em;
+  background: var(--code); padding: 1px 5px; border-radius: 4px; word-break: break-word; }
+.ev { display: inline-block; margin: 2px 4px 2px 0; font-size: 13px; }
+ol.claims { padding-left: 24px; margin: 0; } ol.claims li { margin-bottom: 8px; }
+ul.plain { margin: 0; padding-left: 20px; } ul.plain li { margin-bottom: 6px; }
+.empty { color: var(--muted); }
+.flagrow td:first-child mark { white-space: nowrap; }
+@media (max-width: 900px) { main { grid-template-columns: 1fr; } #left { border-right: 0; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>SAP Assistant · sample partner app</h1>
+  <span class="badge" title="A sample partner app built by the Graphene team to show how a partner's own AI app plugs into Graphene. Not Graphene, not a real partner.">demo by the Graphene team</span>
+  <span class="spacer"></span>
+  <span class="pill" id="gstatus"><span class="dot" id="gdot"></span><span id="gtext">Graphene: checking…</span></span>
+  <button class="iconbtn" id="theme" type="button" title="Switch light / dark">◐ Theme</button>
+</header>
+<main>
+  <section id="left">
+    <div id="convo">
+      <div>
+        <p class="intro">Ask about the SAP system Graphene has learned. Every fact comes from Graphene's tools; the evidence is on the right.</p>
+        <div class="chips" id="chips"></div>
+      </div>
+    </div>
+    <form id="f" autocomplete="off">
+      <input id="q" maxlength="2000" placeholder="Ask a question about the learned system…" aria-label="Question">
+      <button id="send" type="submit">Ask</button>
+    </form>
+  </section>
+  <aside id="right">
+    <h2>Evidence</h2>
+    <div id="evidence"><p class="empty">Ask a question, or pick one on the left. The tool calls, claims, coverage, freshness, limits and grounding check for the selected answer appear here.</p></div>
+  </aside>
+</main>
+<script>
+"use strict";
+const GOLDEN = [
+  "What breaks if I change ZS4_IOT_DATA?",
+  "Why is ZUZK900008 high risk?",
+  "Why is ZUZK900006 riskier than before?",
+  "What uses table ZFAKE_TABLE?",
+  "What does Graphene not know yet?",
+];
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const answers = [];
+let busy = false;
+
+// ---- theme ----
+(function () {
+  let saved = null;
+  try { saved = localStorage.getItem("theme"); } catch (e) {}
+  if (saved) document.documentElement.dataset.theme = saved;
+  $("theme").onclick = () => {
+    const cur = document.documentElement.dataset.theme ||
+      (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    const next = cur === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem("theme", next); } catch (e) {}
+  };
+})();
+
+// ---- health ----
+async function health() {
+  try {
+    const h = await (await fetch("/api/health")).json();
+    const g = h.graphene;
+    $("gdot").className = "dot " + (g.connected ? "on" : "off");
+    $("gtext").textContent = g.connected
+      ? `Graphene MCP connected · ${g.tools.length} tools`
+      : "Graphene MCP not connected (retrying)";
+    $("gstatus").title = g.connected
+      ? `${g.server} ${g.version} · one session, spawned ${g.spawn_count}× since app start`
+      : (g.last_error || "");
+    if (!h.claude_key_configured) $("gtext").textContent += " · no Claude API key";
+  } catch (e) {
+    $("gdot").className = "dot off"; $("gtext").textContent = "App not reachable";
+  }
+}
+health(); setInterval(health, 15000);
+
+// ---- chips ----
+for (const q of GOLDEN) {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "chip"; b.textContent = q;
+  b.onclick = () => { if (!busy) { $("q").value = q; ask(q); } };
+  $("chips").appendChild(b);
+}
+
+// ---- answer rendering with grounding flags ----
+function highlight(text, flags) {
+  let html = esc(text);
+  const toks = [...new Set(flags.map((f) => f.token))].sort((a, b) => b.length - a.length);
+  for (const t of toks) {
+    const e = esc(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(?<![A-Za-z0-9_.:/-])${e}(?![A-Za-z0-9_])`, "g");
+    html = html.replace(re, `<mark class="flag" title="Not found in this question's Graphene results">${esc(t)}</mark>`);
+  }
+  return html;
+}
+function paragraphs(html) {
+  const out = []; let list = [];
+  const flush = () => { if (list.length) { out.push("<ul>" + list.map((l) => `<li>${l}</li>`).join("") + "</ul>"); list = []; } };
+  for (const block of html.split(/\n{2,}/)) {
+    for (const line of block.split("\n")) {
+      const m = line.match(/^\s*[-•*]\s+(.*)$/);
+      if (m) list.push(m[1]);
+      else if (line.trim()) { flush(); out.push(`<p>${line}</p>`); }
+    }
+    flush();
+  }
+  return out.join("");
+}
+
+function newCard(question) {
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `<p class="q">${esc(question)}</p><div class="a"><span class="spin"></span> <span class="status">Asking Claude…</span><ul class="progress"></ul></div>`;
+  $("convo").appendChild(card);
+  card.scrollIntoView({ behavior: "smooth", block: "end" });
+  return card;
+}
+
+function select(i) {
+  document.querySelectorAll(".card.selected").forEach((c) => c.classList.remove("selected"));
+  const a = answers[i]; if (!a) return;
+  a.card.classList.add("selected");
+  renderEvidence(a.data);
+}
+
+function renderAnswer(card, data, idx) {
+  const flags = data.grounding.flags.filter((f) => f.where === "answer");
+  const g = data.grounding;
+  const t = data.timing_ms || {};
+  card.querySelector(".a").innerHTML = paragraphs(highlight(data.answer, flags)) +
+    `<div class="meta">
+      <span class="gbadge ${g.ok ? "ok" : "warn"}">${g.ok ? "✓ All names and numbers found in Graphene's results" : `⚠ ${g.flags.length} item(s) not found in Graphene's results`}</span>
+      <span>${data.tool_trace.length} Graphene call(s) · ${(t.total / 1000).toFixed(1)} s total (Graphene ${(t.graphene / 1000).toFixed(1)} s)</span>
+    </div>`;
+  card.onclick = () => select(idx);
+  card.style.cursor = "pointer";
+}
+
+function detailsBlock(title, count, body, open) {
+  return `<details ${open ? "open" : ""}><summary>${title} <span class="count">${count}</span></summary><div class="dbody">${body}</div></details>`;
+}
+
+function renderEvidence(d) {
+  const g = d.grounding;
+  const flagRows = g.flags.map((f) => `<tr class="flagrow"><td><mark class="flag">${esc(f.token)}</mark></td><td>${esc(f.kind)}</td><td>${esc(f.where)}</td><td>${esc(f.why)}</td></tr>`).join("");
+  const grounding = g.ok
+    ? `<p>✓ Checked ${g.checked_names} name(s) and ${g.checked_numbers} number(s): every one appears in this question's Graphene results. All cited evidence ids were returned by Graphene.</p>`
+    : `<p>Checked ${g.checked_names} name(s) and ${g.checked_numbers} number(s). These were <b>not</b> found in this question's Graphene results (shown, not hidden):</p>
+       <table><tr><th>Item</th><th>Kind</th><th>Where</th><th>Why</th></tr>${flagRows}</table>`;
+
+  const claims = d.claims.length
+    ? `<ol class="claims">${d.claims.map((c, i) => {
+        const cf = g.flags.filter((f) => f.where === `claim ${i + 1}` && f.kind !== "evidence");
+        const ev = c.evidence_ids.map((e) => {
+          const bad = g.flags.some((f) => f.kind === "evidence" && f.token === e && f.where === `claim ${i + 1}`);
+          return bad ? `<mark class="flag ev mono">${esc(e)}</mark>` : `<span class="ev mono">${esc(e)}</span>`;
+        }).join("") || '<span class="empty">no evidence id</span>';
+        return `<li>${highlight(c.text, cf)}<div>${ev}</div></li>`;
+      }).join("")}</ol>`
+    : '<p class="empty">No claims.</p>';
+
+  const trace = d.tool_trace.length
+    ? `<table><tr><th>#</th><th>Tool</th><th>Arguments</th><th>Result</th><th class="num">ms</th></tr>${d.tool_trace.map((t) =>
+        `<tr><td>${t.n}</td><td><code>${esc(t.tool)}</code></td><td><span class="mono">${esc(JSON.stringify(t.arguments))}</span></td>
+         <td>${t.ok ? "" : "⚠ "}${esc(t.result)}${t.note ? `<br><i>${esc(t.note)}</i>` : ""}</td><td class="num">${t.ms}</td></tr>`).join("")}</table>`
+    : '<p class="empty">No tool calls.</p>';
+
+  const coverage = d.coverage.length
+    ? d.coverage.map((c) => {
+        const uses = c.this_answer_uses ? Object.entries(c.this_answer_uses).map(([k, v]) =>
+          `<li><b>${esc(k)}</b> ${esc(v.name)}: ${esc(v.status)}${v.metric ? ` · ${esc(v.metric)}` : ""}</li>`).join("") : "";
+        return `<p>From call ${c.from_call} (<code>${esc(c.tool)}</code>): stages complete <b>${esc(c.stages_complete ?? "")}</b>${c.stages_done ? ` (${c.stages_done.map(esc).join(", ")})` : ""}</p>${uses ? `<ul class="plain">${uses}</ul>` : ""}`;
+      }).join("")
+    : '<p class="empty">Graphene returned no coverage.</p>';
+
+  const fresh = Object.keys(d.freshness).length
+    ? `<table><tr><th>Stage</th><th>Last success</th><th>Age</th></tr>${Object.entries(d.freshness).map(([k, v]) =>
+        `<tr><td>${esc(k)}</td><td><span class="mono">${esc(v.last_success ?? JSON.stringify(v))}</span></td><td>${esc(v.age ?? "")}</td></tr>`).join("")}</table>`
+    : '<p class="empty">Graphene returned no freshness.</p>';
+
+  const limits = d.limits.length
+    ? `<ul class="plain">${d.limits.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>`
+    : '<p class="empty">Graphene returned no limits.</p>';
+
+  const u = d.usage || {};
+  $("evidence").innerHTML =
+    detailsBlock("Grounding check", g.ok ? "✓" : `⚠ ${g.flags.length}`, grounding, true) +
+    detailsBlock("Claims → evidence", d.claims.length, claims, true) +
+    detailsBlock("Tool trace", d.tool_trace.length, trace, true) +
+    detailsBlock("Limits (Graphene's own words)", d.limits.length, limits, true) +
+    detailsBlock("Coverage", d.coverage.length, coverage, false) +
+    detailsBlock("Freshness", Object.keys(d.freshness).length, fresh, false) +
+    `<p class="intro">Model ${esc(d.model)} · ${u.requests} request(s) · ${u.input_tokens} in / ${u.output_tokens} out tokens (${u.cache_read_input_tokens} cached)</p>`;
+}
+
+// ---- ask (streamed NDJSON progress) ----
+async function ask(question) {
+  question = question.trim(); if (!question || busy) return;
+  busy = true; $("send").disabled = true;
+  const card = newCard(question);
+  const status = card.querySelector(".status"), prog = card.querySelector(".progress");
+  const started = Date.now();
+  const timer = setInterval(() => { status.dataset.t = ((Date.now() - started) / 1000).toFixed(0); status.textContent = (status.dataset.label || "Asking Claude…") + ` ${status.dataset.t} s`; }, 500);
+  const items = {};
+  try {
+    const res = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question }) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
+        if (!line.trim()) continue;
+        const ev = JSON.parse(line);
+        if (ev.type === "thinking") status.dataset.label = "Claude is working…";
+        else if (ev.type === "tool_start") {
+          status.dataset.label = `Calling Graphene: ${ev.tool}…`;
+          const li = document.createElement("li");
+          li.innerHTML = `<span class="spin"></span> <code>${esc(ev.tool)}</code> ${esc(JSON.stringify(ev.arguments))}`;
+          prog.appendChild(li); items[ev.n] = li;
+        } else if (ev.type === "tool_end") {
+          if (items[ev.n]) items[ev.n].innerHTML = `${ev.ok ? "✓" : "⚠"} <code>${esc(ev.tool)}</code> ${esc(JSON.stringify(ev.arguments))} · ${ev.ms} ms`;
+        } else if (ev.type === "final") {
+          const idx = answers.length; answers.push({ card, data: ev.data });
+          renderAnswer(card, ev.data, idx); select(idx);
+        } else if (ev.type === "error") {
+          card.querySelector(".a").innerHTML = `<div class="err">${esc(ev.message)}</div>`;
+        }
+      }
+    }
+  } catch (e) {
+    card.querySelector(".a").innerHTML = `<div class="err">Request failed: ${esc(e.message)}</div>`;
+  } finally {
+    clearInterval(timer); busy = false; $("send").disabled = false;
+    card.scrollIntoView({ behavior: "smooth", block: "end" }); $("q").focus();
+  }
+}
+$("f").addEventListener("submit", (e) => { e.preventDefault(); const q = $("q").value; $("q").value = ""; ask(q); });
+</script>
+</body>
+</html>
