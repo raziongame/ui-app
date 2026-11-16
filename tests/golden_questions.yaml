@@ -1,0 +1,323 @@
+# Golden questions. Expected values come from Graphene's own output (MCP, 2026-11-16,
+# Graphene demo-ready-v13, handshake 1.32.0;
+# Q6 system_profile from Graphene demo-ready-v15, handshake 1.35.0 at 2026-11-16 probe). If a learn run changes them, update from Graphene's output, never by hand-guessing.
+#
+# Per case:
+#   facts:   checked in `make test` against the REAL Graphene MCP result of mock.calls
+#            ({tool, path, equals | length | contains})
+#   expect:  checked in `make eval` against the real Claude answer
+#            tools: tools that must be called; answer_contains: each item is a string, or a list
+#            meaning "any of these" (case-insensitive); answer_not_contains; grounding_flags_max
+#   mock:    scripted Claude for `make test` (mocked Claude, real Graphene): tool calls, then a
+#            final answer that must pass the grounding check against the real results
+
+- id: impact_zs4_iot_data
+  question: "What breaks if I change ZS4_IOT_DATA?"
+  facts:
+    - {tool: impact, path: result.total_affected, equals: 9}
+    - {tool: impact, path: result.entry_points, equals: ["FUNC:ZS4_IOT_INSERT_DATA", "FUNC:ZS4_IOT_READ_DATA"]}
+    - {tool: impact, path: result.dynamic_calls, length: 1}
+    - {tool: impact, path: limits, contains: "1 dynamic call touches this object or what it affects: their targets are candidates, so the impact may be larger."}
+  expect:
+    tools: [impact]
+    max_seconds: 12  # operator 2026-11-16: large impact result; others keep the 10 s target
+    # Operator 2026-11-16: no higher limit; shorter answer (2-3 sentence summary + compact list,
+    # full detail in the evidence panel). Eval 13.5 s had ~150 words.
+    max_words: 110
+    answer_contains: ["9", "ZS4_IOT_INSERT_DATA", "ZS4_IOT_READ_DATA", ["RFC", "entry point"], "dynamic", "candidate"]
+    grounding_flags_max: 0
+  mock:
+    calls:
+      - {tool: impact, args: {name: ZS4_IOT_DATA}}
+    answer:
+      answer: |-
+        Changing table ZS4_IOT_DATA affects 9 objects: 5 CDS views, 2 function modules, 1 function group and 1 class.
+        - 2 entry points are reached: the RFC-enabled function modules ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA.
+        - 1 dynamic call (from ZCL_ZS4_IOT_PROJ_DPC_EXT to ZS4_IOT_INSERT_DATA) is a candidate, not a fact, so the impact may be larger.
+      claims:
+        - {text: "Changing ZS4_IOT_DATA affects 9 objects.", evidence_ids: ["node:TABL:ZS4_IOT_DATA"]}
+        - {text: "Entry points ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA are reached.", evidence_ids: ["path:TABL:ZS4_IOT_DATA > FUNC:ZS4_IOT_INSERT_DATA", "path:TABL:ZS4_IOT_DATA > FUNC:ZS4_IOT_READ_DATA"]}
+        - {text: "1 dynamic call is a candidate.", evidence_ids: ["call:1"]}
+
+- id: risk_zuzk900008
+  question: "Why is ZUZK900008 high risk?"
+  facts:
+    - {tool: assess_transport, path: result.assessment.score, equals: 0.47}
+    - {tool: assess_transport, path: result.assessment.band, equals: high}
+    - {tool: assess_transport, path: result.assessment.percentile, equals: 0.8833}
+    - {tool: assess_transport, path: result.assessment.percentile_label, equals: "88th percentile"}
+    - {tool: assess_transport, path: result.assessment.reasons, length: 5}
+    - {tool: assess_transport, path: result.assessment.comparison_version.source, equals: baseline}
+    # v12 history (2026-11-16): entries before 2026-11-12 13:06 used older engines (not comparable).
+    - {tool: assess_transport, path: result.history.2.score, equals: 0.5381}
+    - {tool: assess_transport, path: result.history.2.comparable, equals: false}
+    - {tool: assess_transport, path: result.history.16.comparable, equals: true}
+    - {tool: assess_transport, path: result.history.16.score, equals: 0.47}
+  expect:
+    tools: [assess_transport]
+    # Operator 2026-11-16: no trend from non-comparable entries; "earlier entries used an older engine"
+    # with Graphene's changelog line.
+    # Operator 2026-11-16: shorter (score, band, percentile, main driver; <= 3 reasons; older-engine line
+    # without the changelog quote); no what-if scores (Q7 covers lowerers). Eval 11.2 s at 165 words.
+    answer_not_contains: ["0.5381", "0.537", "very high", "0.395", "0.3995"]
+    max_words: 120
+    # Graphene's own label (G-3); the app never converts 0.8833 itself (grounding flags that).
+    answer_contains: ["0.47", "high", "88th percentile", "ZS4_IOT_DATA", ["ZS4_IOT_INSERT_DATA", "entry point"], "older engine"]
+    grounding_flags_max: 0
+  mock:
+    calls:
+      - {tool: assess_transport, args: {transport: ZUZK900008}}
+    answer:
+      answer: |-
+        ZUZK900008 scores 0.47, which is in the high band: 88th percentile of this system's own transport history.
+        - It changes the table definition of ZS4_IOT_DATA, and 9 objects are affected.
+        - It reaches 2 RFC entry points: ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA.
+        - 1 dynamic call touches the change, so the impact may be larger.
+      claims:
+        - {text: "Score 0.47, band high, 88th percentile.", evidence_ids: ["node:TRKORR:ZUZK900008"]}
+        - {text: "It changes the table definition of ZS4_IOT_DATA.", evidence_ids: ["node:TABL:ZS4_IOT_DATA"]}
+        - {text: "It reaches entry points ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA.", evidence_ids: ["path:TABL:ZS4_IOT_DATA > FUNC:ZS4_IOT_INSERT_DATA", "path:TABL:ZS4_IOT_DATA > FUNC:ZS4_IOT_READ_DATA"]}
+
+- id: risk_zuzk900006
+  question: "Why is ZUZK900006 riskier than before?"
+  # Operator 2026-11-16: lead with the steps and Graphene's cause for each (0.3075 -> 0.3225: new
+  # affected job learned in L5; -> 0.345: impact-4, quoted changelog), then that nothing changed
+  # since the last assessment. Causes come from Graphene v12 changes_from_previous (G-5 resolved).
+  # Operator 2026-11-16: every history step carries its date (eval run left dates off the steps).
+  facts:
+    - {tool: assess_transport, path: result.assessment.score, equals: 0.345}
+    - {tool: assess_transport, path: result.assessment.band, equals: moderate}
+    - {tool: assess_transport, path: result.assessment.reasons.2.text, equals: "reaches periodic job JOB:JOB-5192e9d4d2ab in 1 hop (runs daily, 12 runs in window)"}
+    - {tool: assess_transport, path: result.history, length: 23}
+    # v12 history (2026-11-16): per-step causes and comparability come from Graphene.
+    - {tool: assess_transport, path: result.history.0.score, equals: 0.3075}
+    - {tool: assess_transport, path: result.history.0.assessed_at, equals: "2026-11-10T12:58:39+00:00"}
+    - {tool: assess_transport, path: result.history.11.score, equals: 0.3225}
+    - {tool: assess_transport, path: result.history.11.comparable, equals: false}
+    - {tool: assess_transport, path: result.history.11.changes_from_previous.2, equals: {what: "new affected object", key: "JOB:JOB-5192e9d4d2ab", label: Job, via: RUNS, learned_in: L5, hop: 1, reach_from: "current assessment"}}
+    - {tool: assess_transport, path: result.history.12.score, equals: 0.345}
+    - {tool: assess_transport, path: result.history.12.comparable, equals: true}
+    - {tool: assess_transport, path: result.history.12.changes_from_previous.1.changelog.0, equals: "impact-4: a periodic job with runs in the learned window is medium criticality ('runs daily/weekly, N runs in window'); one-off jobs stay normal"}
+    - {tool: assess_transport, path: result.history.22.same_as_previous, equals: true}
+    - {tool: assess_transport, path: result.previous.score, equals: 0.345}
+    - {tool: assess_transport, path: result.changes_since_previous, length: 0}
+  expect:
+    tools: [assess_transport]
+    max_seconds: 12  # operator 2026-11-16: like Q1; others keep the 10 s target
+    answer_contains: ["0.3075", "0.3225", "0.345", "2026-11-12", "L5", "JOB-5192e9d4d2ab", "impact-4", "periodic job", "ZGR_PRICE_SYNC", "daily"]
+    lead_with: "0.3075"  # the steps come before "no changes since the last assessment"
+    grounding_flags_max: 0
+  mock:
+    calls:
+      - {tool: assess_transport, args: {transport: ZUZK900006}}
+    answer:
+      answer: |-
+        ZUZK900006 now scores 0.345 (moderate band, 66th percentile). Graphene's stored assessments show it rose in two steps:
+        - 0.3075, 1 affected (engines impact-2, risk-2): 2026-11-10 12:58
+        - 0.3075, 1 affected (engines impact-3, risk-3): 2026-11-10 13:13 to 2026-11-12 12:46
+        - 0.3225, 2 affected (engines impact-3, risk-3): 2026-11-12 12:53
+        - 0.345, 2 affected (engines impact-4, risk-3): 2026-11-12 13:06 to 2026-11-12 14:44
+        Graphene does not give the cause of each step. Its current reasons include: through program ZGR_PRICE_SYNC it reaches the periodic job JOB-5192e9d4d2ab, which runs daily, 12 runs in window.
+      claims:
+        - {text: "Current score 0.345, moderate band, 66th percentile.", evidence_ids: ["node:TRKORR:ZUZK900006"]}
+        - {text: "History: 0.3075 (1 affected) from 2026-11-10, 0.3225 (2 affected) on 2026-11-12 12:53, 0.345 (impact-4) from 2026-11-12 13:06.", evidence_ids: ["call:1"]}
+        - {text: "Reaches the daily job JOB-5192e9d4d2ab through ZGR_PRICE_SYNC (12 runs in window).", evidence_ids: ["path:PROG:ZGR_PRICE_SYNC > JOB:JOB-5192e9d4d2ab"]}
+
+- id: not_found_zfake_table
+  question: "What uses table ZFAKE_TABLE?"
+  facts:
+    - {tool: find_object, path: result.found, equals: false}
+    - {tool: find_object, path: result.message, equals: "not found in the learned system"}
+  expect:
+    tools: [[find_object, impact]]
+    answer_contains: ["not found in the learned system"]
+    grounding_flags_max: 0
+  mock:
+    calls:
+      - {tool: find_object, args: {name: ZFAKE_TABLE}}
+    answer:
+      answer: |-
+        ZFAKE_TABLE is not found in the learned system, so Graphene can't say what uses it.
+        That is not proof it doesn't exist in SAP: it may have been created after the last learn run, or be outside the learned scope.
+      claims:
+        - {text: "ZFAKE_TABLE is not found in the learned system.", evidence_ids: ["call:1"]}
+
+- id: what_graphene_does_not_know
+  question: "What does Graphene not know yet?"
+  facts:
+    - {tool: status, path: result.overall.stages_complete, equals: 6}
+    - {tool: status, path: result.overall.stages_total, equals: 11}
+    - {tool: status, path: limits, contains: "L6 Configuration is not learned yet (not started): this answer can't include it."}
+  expect:
+    tools: [status]
+    answer_contains: ["L6", "L7", "L8", "L9", "L10", ["not started", "not learned"]]
+    grounding_flags_max: 0
+  mock:
+    calls:
+      - {tool: status, args: {}}
+    answer:
+      answer: |-
+        Graphene has completed 6 of 11 learning stages. These are not learned yet (not started):
+        - L6 Configuration, L7 Access, L8 Interfaces, L9 Runtime evidence and L10 Understanding.
+        It also does not check drift (what changed in SAP since a stage learned it), and it never reads business data, ABAP source code, job variants, dump texts or job logs.
+      claims:
+        - {text: "6 of 11 stages are complete.", evidence_ids: ["call:1"]}
+        - {text: "L6 to L10 are not started.", evidence_ids: ["call:1"]}
+
+- id: system_profile_sap_basis
+  question: "What is the component version of SAP_BASIS?"
+  # Operator 2026-11-16 (Graphene v14, handshake 1.33.0): system facts only from system_profile.
+  # SP level exactly as returned ("0000000000"), never "SP 0"; Implemented Notes "not learned yet".
+  # v15 (operator): quote Graphene's sp_level_note; support_package null = not learned (support_package_note).
+  facts:
+    - {tool: system_profile, path: result.learned, equals: true}
+    - {tool: system_profile, path: result.release.sap_basis, equals: "751"}
+    - {tool: system_profile, path: result.components.items.94.component, equals: SAP_BASIS}
+    - {tool: system_profile, path: result.components.items.94.release, equals: "751"}
+    - {tool: system_profile, path: result.components.items.94.sp_level, equals: "0000000000"}
+    - {tool: system_profile, path: result.components.items.94.sp_level_note, equals: "SP 0000 (no support package), as shown in System → Status, operator check 2026-11-16; raw value 0000000000 (CVERS.EXTRELEASE)"}
+    - {tool: system_profile, path: result.components.items.94.support_package, equals: null}
+    - {tool: system_profile, path: result.components.items.94.support_package_note, equals: "not learned (the name isn't in CVERS)"}
+    - {tool: system_profile, path: limits, contains: "sp_level is CVERS.EXTRELEASE exactly as SAP stores it, in 10 or 4 digits; sp_level_note gives the SP level as System → Status shows it (4 digits)."}
+    - {tool: system_profile, path: result.implemented_notes.learned, equals: false}
+    - {tool: system_profile, path: result.l0.last_run, equals: "2026-11-05T14:26:30.307039+00:00"}
+  expect:
+    tools: [system_profile]
+    answer_contains: ["SAP_BASIS", "751", "0000000000", "SP 0000", "no support package"]
+    answer_not_matches: ['\bSP\s*(level\s*)?0\b', 'support package\s*0\b', '7\.51 sp']
+    grounding_flags_max: 0
+  mock:
+    calls:
+      - {tool: system_profile, args: {}}
+    answer:
+      answer: |-
+        SAP_BASIS is at release 751, SP level 0000000000 (raw value).
+        - Graphene's note: "SP 0000 (no support package), as shown in System → Status, operator check 2026-11-16; raw value 0000000000 (CVERS.EXTRELEASE)".
+        - Support package names are not learned.
+        - This is as of Graphene's last L0 run on 2026-11-05 (11 d ago); nothing newer is known.
+      claims:
+        - {text: "SAP_BASIS release 751, SP level 0000000000.", evidence_ids: ["node:SWCOMP:ZUZ:SAP_BASIS"]}
+        - {text: "Graphene's note: SP 0000 (no support package), as shown in System → Status.", evidence_ids: ["node:SWCOMP:ZUZ:SAP_BASIS"]}
+        - {text: "As of the L0 run on 2026-11-05.", evidence_ids: ["run:L0:v8"]}
+
+- id: lowerers_zuzk900008
+  question: "What would lower the risk of ZUZK900008?"
+  # Operator 2026-11-16: from Graphene's assessment.lowerers, each option with its score_after exactly as
+  # returned; never combined, rounded or turned into a difference.
+  facts:
+    - {tool: assess_transport, path: result.assessment.score, equals: 0.47}
+    - {tool: assess_transport, path: result.assessment.lowerers, length: 2}
+    - {tool: assess_transport, path: result.assessment.lowerers.0.text, equals: "resolve the dynamic calls (or confirm their targets) so the impact is known"}
+    - {tool: assess_transport, path: result.assessment.lowerers.0.score_after, equals: 0.395}
+    - {tool: assess_transport, path: result.assessment.lowerers.0.evidence, equals: ["edge:CLAS:ZCL_ZS4_IOT_PROJ_DPC_EXT -UNRESOLVED_DYNAMIC-> FUNC:ZS4_IOT_INSERT_DATA"]}
+    - {tool: assess_transport, path: result.assessment.lowerers.1.text, equals: "import into the test system and confirm return code ≤ 4"}
+    - {tool: assess_transport, path: result.assessment.lowerers.1.score_after, equals: 0.3995}
+  expect:
+    tools: [assess_transport]
+    answer_contains: ["0.47", "0.395", "0.3995", "dynamic", "test system", "return code"]
+    answer_not_matches: ['\b0\.40?(?!\d)', '\b0\.07']
+    grounding_flags_max: 0
+  mock:
+    calls:
+      - {tool: assess_transport, args: {transport: ZUZK900008}}
+    answer:
+      answer: |-
+        ZUZK900008 scores 0.47 now. Graphene names 2 things that would lower it, each on its own:
+        - Resolve the dynamic calls (or confirm their targets) so the impact is known: score after 0.395.
+        - Import into the test system and confirm return code ≤ 4: score after 0.3995.
+        Each score is for that option alone; Graphene doesn't give a score for doing both.
+      claims:
+        - {text: "Current score 0.47.", evidence_ids: ["node:TRKORR:ZUZK900008"]}
+        - {text: "Resolving the dynamic calls: score after 0.395.", evidence_ids: ["edge:CLAS:ZCL_ZS4_IOT_PROJ_DPC_EXT -UNRESOLVED_DYNAMIC-> FUNC:ZS4_IOT_INSERT_DATA"]}
+        - {text: "Test import with return code ≤ 4: score after 0.3995.", evidence_ids: ["call:1"]}
+
+# Negative control (make test only): a mocked answer with an invented number and object
+# must be flagged by the grounding check, not hidden.
+- id: grounding_flags_invented_facts
+  question: "What breaks if I change ZS4_IOT_DATA?"
+  test_only: true
+  expect_flags: ["12", "ZS4_IOT_DELETE_DATA", "edge:made-up"]
+  mock:
+    calls:
+      - {tool: impact, args: {name: ZS4_IOT_DATA}}
+    answer:
+      answer: "Changing ZS4_IOT_DATA affects 12 objects, including ZS4_IOT_DELETE_DATA."
+      claims:
+        - {text: "12 objects are affected.", evidence_ids: ["edge:made-up"]}
+
+# Regression (make test only), make eval 2026-11-14/16: Claude repeated status {} and re-ran
+# assess_transport with show:1. One result per tool and object per question; a second call on the
+# same object (TABL:X == X) runs only if it asks for more; status once.
+- id: repeat_calls_are_skipped
+  question: "What breaks if I change ZS4_IOT_DATA?"
+  test_only: true
+  expect_rounds: 1
+  expect_trace: [impact, status, impact]
+  expect_skipped: 2
+  mock:
+    calls:  # a list = several calls in one turn
+      - [{tool: impact, args: {name: ZS4_IOT_DATA}}, {tool: status, args: {}},
+         {tool: impact, args: {name: TABL:ZS4_IOT_DATA, show: 1}}, {tool: status, args: {}},
+         {tool: impact, args: {name: ZS4_IOT_DATA, show: 50}}]
+    answer:
+      answer: "Changing ZS4_IOT_DATA affects 9 objects. Graphene has completed 6 of 11 stages."
+      claims:
+        - {text: "9 objects are affected.", evidence_ids: ["node:TABL:ZS4_IOT_DATA"]}
+
+# Operator 2026-11-16: one round of Graphene calls per question. A clear result (found, or not
+# found with no similar names) ends the calls: the scripted second round is never requested.
+- id: one_round_only
+  question: "What uses table ZFAKE_TABLE?"
+  test_only: true
+  expect_rounds: 1
+  expect_trace: [find_object]
+  expect_skipped: 0
+  mock:
+    calls:
+      - {tool: find_object, args: {name: ZFAKE_TABLE}}
+      - {tool: status, args: {}}
+    answer:
+      answer: "ZFAKE_TABLE is not found in the learned system."
+      claims:
+        - {text: "ZFAKE_TABLE is not found in the learned system.", evidence_ids: ["call:1"]}
+
+# Exception 1: not found WITH similar names (Graphene: ZS4_IOT_DAT -> similar_names
+# [TABL:ZS4_IOT_DATA]) allows one more round; a third round is never requested.
+- id: second_round_after_similar_names
+  question: "What breaks if I change ZS4_IOT_DAT?"
+  test_only: true
+  facts:
+    - {tool: find_object, path: result.found, equals: false}
+    - {tool: find_object, path: result.similar_names, equals: ["TABL:ZS4_IOT_DATA"]}
+  expect_rounds: 2
+  expect_trace: [find_object, impact]
+  expect_skipped: 0
+  mock:
+    calls:
+      - {tool: find_object, args: {name: ZS4_IOT_DAT}}
+      - {tool: impact, args: {name: ZS4_IOT_DATA}}
+      - {tool: status, args: {}}
+    answer:
+      answer: "ZS4_IOT_DAT is not found in the learned system; Graphene suggests ZS4_IOT_DATA. Changing ZS4_IOT_DATA affects 9 objects."
+      claims:
+        - {text: "ZS4_IOT_DAT is not found; similar name ZS4_IOT_DATA.", evidence_ids: ["call:1"]}
+        - {text: "Changing ZS4_IOT_DATA affects 9 objects.", evidence_ids: ["node:TABL:ZS4_IOT_DATA"]}
+
+# Exception 2: ambiguous (several objects for one name) allows one more round. This learned system
+# has no ambiguous name, so the test returns two real find_object objects for ZS4_IOT_X.
+- id: second_round_after_ambiguous
+  question: "What is ZS4_IOT_X?"
+  test_only: true
+  ambiguous_from: [ZS4_IOT_FG, ZS4_IOT_INSERT_DATA]
+  expect_rounds: 2
+  expect_trace: [find_object, impact]
+  expect_skipped: 0
+  mock:
+    calls:
+      - {tool: find_object, args: {name: ZS4_IOT_X}}
+      - {tool: impact, args: {name: ZS4_IOT_FG}}
+      - {tool: status, args: {}}
+    answer:
+      answer: "ZS4_IOT_X matches 2 objects: ZS4_IOT_FG and ZS4_IOT_INSERT_DATA."
+      claims:
+        - {text: "2 objects match: ZS4_IOT_FG and ZS4_IOT_INSERT_DATA.", evidence_ids: ["call:1"]}
