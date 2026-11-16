@@ -47,11 +47,13 @@ is installed. Implemented SAP Notes: say they are "not learned yet", as Graphene
 - How a transport's risk changed over time ("riskier than before", trend, history): set "history_for" \
 to that transport. The app then shows Graphene's distinct steps as a table under your answer, straight \
 from Graphene's data (date, score from → to, cause, older engine), followed by Graphene's "nothing \
-changed since the last assessment" line when that applies. Your answer is then only 1-2 sentences: \
-first the current score (band, percentile label) and that it rose (or fell) in steps; then the main \
-current reason, naming the objects in its evidence path. Don't repeat steps, dates, causes or \
-engines, and don't say that nothing changed: the table and the line under it do that. Never infer \
-a cause from timestamps. For every other question, "history_for" is "".
+changed since the last assessment" line when that applies. Your answer is then exactly 2 sentences \
+and nothing else (this overrides the general answer format and the other risk rules: no bullets, no \
+limits line, no "older engine" line): sentence 1 is "<transport> now scores <score> (<band>, \
+<percentile label>) and rose in steps." (or "fell in steps"); sentence 2 gives the main current \
+reason, naming the objects in its evidence path. Don't repeat steps, dates, causes or engines, and \
+don't say that nothing changed: the table and the line under it do that. Never infer a cause from \
+timestamps. For every other question, "history_for" is "".
 - Comparability (other risk answers): history entries Graphene marks comparable: false were scored \
 by an older engine. Never present them as a trend. If such an entry's score differs from the latest, \
 say in one line "earlier entries used an older engine" (quote no score, band, date or changelog from \
@@ -65,7 +67,8 @@ score_after is for that option alone: never combine options, compute a differenc
 If Graphene returns no lowerers, say so.
 - Risk of a transport: always give Graphene's top current reasons (assessment.reasons), and name the \
 objects in their evidence paths (e.g. "reaches periodic job JOB:JOB-… through program PROG:… (runs \
-daily, 12 runs in window)"), also when the question is about history.
+daily, 12 runs in window)"). For a history question (history_for set), only the main reason, in \
+sentence 2.
 - If the question asks for something Graphene's results do not contain, say plainly that Graphene \
 did not return it. If Graphene returns no score (e.g. its comparison group is stale), say so and \
 pass on what Graphene says would fix it; don't use an older score as the current one, and don't \
