@@ -270,7 +270,8 @@ async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit
             messages=messages,
             tool_choice=tool_choice,
             # Choosing the first call is routing, not reasoning: no thinking on that turn (speed).
-            thinking={"type": "disabled"} if not trace and usage["requests"] == 0 else {"type": "adaptive"},
+            # On claude-sonnet-5-5 thinking is turned off with "between_tools" ("disabled" is a 400).
+            thinking={"type": "between_tools"} if usage["requests"] == 0 else {"type": "adaptive"},
             output_config={"effort": config.EFFORT,
                            "format": {"type": "json_schema", "schema": ANSWER_SCHEMA}},
             cache_control={"type": "ephemeral"},

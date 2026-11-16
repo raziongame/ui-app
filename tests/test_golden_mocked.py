@@ -96,7 +96,7 @@ def test_request_shape_to_claude(fake_claude):
     assert kw["model"] == "claude-sonnet-5-5"
     assert kw["thinking"] == {"type": "adaptive"}  # the answer turn thinks (briefly)
     for r in fake_claude.messages.requests:  # the routing turn (first of each question) doesn't
-        assert r["thinking"] == ({"type": "disabled"} if r["n_messages"] == 1 else {"type": "adaptive"})
+        assert r["thinking"] == ({"type": "between_tools"} if r["n_messages"] == 1 else {"type": "adaptive"})
     assert kw["output_config"]["effort"] == "low"  # operator 2026-11-16: short thinking, < 10 s
     assert kw["output_config"]["format"]["type"] == "json_schema"
     names = {t["name"] for t in kw["tools"]}
