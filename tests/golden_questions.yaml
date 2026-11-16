@@ -168,19 +168,35 @@
       claims:
         - {text: "12 objects are affected.", evidence_ids: ["edge:made-up"]}
 
-# Regression (make test only), make eval 2026-11-14: Claude repeated status {} up to 6 times per
-# question. Repeats (same tool + arguments; status at most once per question) are not run.
+# Regression (make test only), make eval 2026-11-14/16: Claude repeated status {} and re-ran
+# assess_transport with show:1. One result per tool and object per question; a second call on the
+# same object (TABL:X == X) runs only if it asks for more; status once.
 - id: repeat_calls_are_skipped
   question: "What breaks if I change ZS4_IOT_DATA?"
   test_only: true
-  expect_trace: [impact, status]
+  expect_trace: [impact, status, impact]
   expect_skipped: 3
   mock:
     calls:  # a list = several calls in one turn
-      - {tool: impact, args: {name: ZS4_IOT_DATA}}
-      - [{tool: status, args: {}}, {tool: status, args: {}}]
       - [{tool: impact, args: {name: ZS4_IOT_DATA}}, {tool: status, args: {}}]
+      - [{tool: impact, args: {name: TABL:ZS4_IOT_DATA, show: 1}}, {tool: status, args: {}}, {tool: impact, args: {name: ZS4_IOT_DATA, show: 50}}]
+      - {tool: impact, args: {name: ZS4_IOT_DATA}}
     answer:
       answer: "Changing ZS4_IOT_DATA affects 9 objects. Graphene has completed 6 of 11 stages."
       claims:
         - {text: "9 objects are affected.", evidence_ids: ["node:TABL:ZS4_IOT_DATA"]}
+
+# Regression (make test only), make eval 2026-11-16: status after other results added a turn.
+- id: late_status_is_skipped
+  question: "What uses table ZFAKE_TABLE?"
+  test_only: true
+  expect_trace: [find_object]
+  expect_skipped: 1
+  mock:
+    calls:
+      - {tool: find_object, args: {name: ZFAKE_TABLE}}
+      - {tool: status, args: {}}
+    answer:
+      answer: "ZFAKE_TABLE is not found in the learned system."
+      claims:
+        - {text: "ZFAKE_TABLE is not found in the learned system.", evidence_ids: ["call:1"]}

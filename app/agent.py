@@ -52,6 +52,9 @@ comparable: false whose score differs from the latest, include that one "older e
 - "Riskier than before" questions: lead with the steps (score from → to, date, Graphene's cause for \
 each), then the comparable entries. Only after that, say what Graphene reports about the latest \
 assessment (e.g. the previous stored assessment has the same score, no changes since).
+- Risk of a transport: always give Graphene's top current reasons (assessment.reasons), and name the \
+objects in their evidence paths (e.g. "reaches periodic job JOB:JOB-… through program PROG:… (runs \
+daily, 12 runs in window)"), also when the question is about history.
 - If the question asks for something Graphene's results do not contain, say plainly that Graphene \
 did not return it. If Graphene returns no score (e.g. its comparison group is stale), say so and \
 pass on what Graphene says would fix it; don't use an older score as the current one, and don't \
@@ -62,8 +65,9 @@ status (what Graphene has learned). Make it, then answer; add a call only if tha
 question open, and then request everything still needed in one turn. Every result already \
 carries coverage, freshness and limits, so call status only when the question is about what Graphene \
 has learned; don't look an object up with find_object when impact or assess_transport already \
-answers. Each result stays valid for the whole question: never repeat a call (a repeat is not run), \
-and status at most once. You have at most {max_calls} calls.
+answers. Each result stays valid for the whole question: a second call on the same object runs only \
+if it asks for more (larger show or depth); status runs only in your first turn. Calls that break \
+these rules are not run. You have at most {max_calls} calls.
 - Be quick and brief: think briefly; the answer is read on a projector.
 
 Your final reply is JSON matching the response schema:
@@ -188,9 +192,29 @@ async def _request(client: Any, kw: dict[str, Any], emit: Emit) -> Any:
         return await stream.get_final_message()
 
 
-def _call_key(name: str, args: dict[str, Any]) -> str:
-    """Identity of a Graphene call within one question. status is one result per question."""
-    return "status" if name == "status" else name + json.dumps(args, sort_keys=True, ensure_ascii=False)
+def _target(name: str, args: dict[str, Any]) -> str:
+    """The object a call is about: tool + name/transport, without a TYPE: prefix (TABL:X == X)."""
+    t = str(args.get("name") or args.get("transport") or "").strip().upper()
+    return f"{name}:{t.split(':', 1)[1] if ':' in t else t}"
+
+
+def _skip_reason(name: str, args: dict[str, Any], seen: dict[str, tuple[int, dict[str, Any]]],
+                 defaults: dict[str, Any], results_before_turn: bool) -> str | None:
+    """Why this call is not run, or None to run it. One result per tool and object per question; a
+    second call on the same object runs only if it asks for more (larger show or depth). status
+    runs once, and not after other results: those already carry coverage, freshness and limits."""
+    if name == "status" and results_before_turn and _target(name, args) not in seen:
+        return ("Not run: the results above already carry coverage, freshness and limits; "
+                "answer from them.")
+    prev = seen.get(_target(name, args))
+    if prev is None:
+        return None
+    n, prev_args = prev
+    asks_more = any(isinstance(args.get(k), int) and args[k] > prev_args.get(k, defaults.get(k, 0))
+                    for k in ("show", "depth"))
+    if asks_more:
+        return None
+    return f"Not run: call {n} already returned this for the same object; that result is above and still valid."
 
 
 def _tools_for_claude(g: GrapheneMCP) -> list[dict[str, Any]]:
@@ -211,7 +235,9 @@ async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit
     results: list[dict[str, Any] | None] = []
     usage = {"requests": 0, "input_tokens": 0, "output_tokens": 0,
              "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0, "repeat_calls_skipped": 0}
-    seen: dict[str, int] = {}  # call key -> call number that already answered it
+    seen: dict[str, tuple[int, dict[str, Any]]] = {}  # tool:object -> (call number, its arguments)
+    defaults = {t.name: {k: v.get("default") for k, v in (t.input_schema.get("properties") or {}).items()
+                         if isinstance(v, dict) and "default" in v} for t in g.tools}
     force_answer = False
     claude_ms = 0
     max_requests = config.MAX_TOOL_CALLS + 3
@@ -262,14 +288,13 @@ async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit
         messages.append({"role": "assistant", "content": resp.content})
         tool_results: list[dict[str, Any]] = []
         new_calls = 0
+        results_before_turn = bool(trace)
         for tu in tool_uses:
             args = dict(tu.input or {})
-            key = _call_key(tu.name, args)
-            if key in seen:
+            why = _skip_reason(tu.name, args, seen, defaults.get(tu.name, {}), results_before_turn)
+            if why:
                 usage["repeat_calls_skipped"] += 1
-                tool_results.append({"type": "tool_result", "tool_use_id": tu.id,
-                                     "content": f"Not run: this repeats call {seen[key]} of this question. "
-                                                "That result is above and still valid; use it."})
+                tool_results.append({"type": "tool_result", "tool_use_id": tu.id, "content": why})
                 continue
             if len(trace) >= config.MAX_TOOL_CALLS:
                 tool_results.append({"type": "tool_result", "tool_use_id": tu.id, "is_error": True,
@@ -278,7 +303,7 @@ async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit
                                                 "results you already have."})
                 continue
             n = len(trace) + 1
-            seen[key] = n
+            seen[_target(tu.name, args)] = (n, args)
             new_calls += 1
             await emit({"type": "tool_start", "n": n, "tool": tu.name, "arguments": args})
             r = await g.call(tu.name, args)

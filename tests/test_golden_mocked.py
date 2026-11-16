@@ -103,10 +103,13 @@ def test_request_shape_to_claude(fake_claude):
     assert "sample partner app" in kw["system"]
 
 
-def test_repeated_calls_are_not_run(client, fake_claude):
-    """make eval 2026-11-14: Claude called status {} up to 6 times per question. One status result
-    per question; an identical repeat is answered from the earlier result, not run again."""
-    case = next(c for c in GOLDEN if c["id"] == "repeat_calls_are_skipped")
+SKIP_CASES = [c for c in GOLDEN if "expect_skipped" in c]
+
+
+@pytest.mark.parametrize("case", SKIP_CASES, ids=[c["id"] for c in SKIP_CASES])
+def test_repeated_calls_are_not_run(client, fake_claude, case):
+    """make eval 2026-11-14/16: repeated status and assess_transport calls. Calls that add nothing
+    are answered from the earlier result, not run again; a turn of only those forces the answer."""
     fake_claude.messages.override = case["mock"]
     try:
         out, events = ask(client, case["question"])
@@ -119,7 +122,7 @@ def test_repeated_calls_are_not_run(client, fake_claude):
     # the turn after a repeat-only turn must answer
     assert reqs[-1]["tool_choice"] == {"type": "none"}
     skipped = [b for m in reqs[-1]["messages"] if m["role"] == "user" and isinstance(m["content"], list)
-               for b in m["content"] if "Not run: this repeats call" in str(b.get("content", ""))]
+               for b in m["content"] if str(b.get("content", "")).startswith("Not run:")]
     assert len(skipped) == case["expect_skipped"]
 
 
