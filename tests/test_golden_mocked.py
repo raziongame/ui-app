@@ -117,6 +117,7 @@ def test_request_shape_to_claude(fake_claude):
     assert "lead with Graphene's note" in kw["system"]  # operator, v15 + browser review
     # operator 2026-11-16: steps are an app table from Graphene's data; the model only summarises
     assert "set \"history_for\"" in kw["system"] and "don't say that nothing changed" in kw["system"]
+    assert "relationship → to" in kw["system"] and "Never summarise" in kw["system"]  # v3 paths
     assert "lead with 2-3 sentences" in kw["system"]  # operator: short impact answers (Q1 < 12 s)
     assert "No what-if scores (lowerers) here" in kw["system"]  # operator: short Q2
     assert "answer from assessment.lowerers" in kw["system"]  # operator: golden Q7
@@ -204,4 +205,33 @@ def test_developer_words_detector():
         ["sp_level", "score_after", "null", "false"]
     assert developer_words("SAP_BASIS 751 · SP 0000 (no support package). TABL:ZS4_IOT_DATA, JOB:JOB-5192e9d4d2ab, "
                            "edge:CLAS:ZCL_X -UNRESOLVED_DYNAMIC-> FUNC:Y") == []
+
+
+def test_history_dates_display_only():
+    """Operator 2026-11-16 (v3): "12 Nov 2026, 12:53 UTC" in the table; formatting only, no conversion."""
+    from app.contract import display_utc
+    assert display_utc("2026-11-12T12:53:47+00:00") == "12 Nov 2026, 12:53 UTC"
+    assert display_utc("2026-11-05T14:26:30.307039+00:00") == "5 Nov 2026, 14:26 UTC"
+    assert display_utc("2026-11-12T12:53:47Z") == "12 Nov 2026, 12:53 UTC"
+    assert display_utc("2026-11-12T13:53:47+01:00") == "2026-11-12T13:53:47+01:00"  # not UTC: as given
+    assert display_utc(None) == ""
+
+
+def test_q3_path_checks_catch_the_v2_wording():
+    """The eval's Q3 path checks reject the partner-demo-v2 answer and accept Graphene's path form."""
+    import re
+    case = next(c for c in GOLDEN if c["id"] == "risk_zuzk900006")
+    rx = case["expect"]["answer_not_matches"]
+    v2 = ("The main reason is that the transport contains table definition TABL:ZGR_DISC_RULES, and programs "
+          "ZGR_PRICE_SYNC and ZGR_DISC_REPORT sit on its paths.")
+    assert any(re.search(r, v2, re.I) for r in rx)
+    assert not any(re.search(r, case["mock"]["answer"]["answer"], re.I) for r in rx)
+    # eval 2026-11-16 (23f8db8): Graphene's own path form must pass (was a false positive on "the path")
+    ok = ("The main current reasons are the table definition TABL:ZGR_DISC_RULES in the transport, and the path "
+          "PROG:ZGR_PRICE_SYNC → RUNS → JOB:JOB-5192e9d4d2ab (runs daily, 12 runs in window). A further reason "
+          "is the path TABL:ZGR_DISC_RULES → READS_TABLE → PROG:ZGR_DISC_REPORT.")
+    assert not any(re.search(r, ok, re.I) for r in rx)
+    for bad in ("ZGR_DISC_RULES reaches ZGR_PRICE_SYNC.", "TABL:ZGR_DISC_RULES → READS_TABLE → PROG:ZGR_PRICE_SYNC.",
+                "The change to ZGR_DISC_RULES affects ZGR_PRICE_SYNC and the job."):
+        assert any(re.search(r, bad, re.I) for r in rx), bad
 

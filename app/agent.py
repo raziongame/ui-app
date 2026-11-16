@@ -51,7 +51,8 @@ changed since the last assessment" line when that applies. Your answer is then e
 and nothing else (this overrides the general answer format and the other risk rules: no bullets, no \
 limits line, no "older engine" line): sentence 1 is "<transport> now scores <score> (<band>, \
 <percentile label>) and rose in steps." (or "fell in steps"); sentence 2 gives the main current \
-reason, naming the objects in its evidence path. Don't repeat steps, dates, causes or engines, and \
+reasons (at most two, joined with "and"; no third sentence), each object path written as Graphene \
+states it. Don't repeat steps, dates, causes or engines, and \
 don't say that nothing changed: the table and the line under it do that. Never infer a cause from \
 timestamps. For every other question, "history_for" is "".
 - Comparability (other risk answers): history entries Graphene marks comparable: false were scored \
@@ -66,9 +67,13 @@ each option with its "text" and its "score_after" exactly as returned, one bulle
 score_after is for that option alone: never combine options, compute a difference or name a new band. \
 If Graphene returns no lowerers, say so.
 - Risk of a transport: always give Graphene's top current reasons (assessment.reasons), and name the \
-objects in their evidence paths (e.g. "reaches periodic job JOB:JOB-… through program PROG:… (runs \
-daily, 12 runs in window)"). For a history question (history_for set), only the main reason, in \
-sentence 2.
+objects in their paths. For a history question (history_for set), only the main reasons, in sentence 2.
+- Paths: describe how an object is reached only as one of Graphene's paths states it, from → \
+relationship → to, using the path's from_key, via_rel and key (e.g. "PROG:ZGR_PRICE_SYNC → RUNS → \
+JOB:JOB-5192e9d4d2ab (runs daily, 12 runs in window)"). One path per statement. Never summarise \
+several paths with one verb (e.g. "sit on its paths", "are reached"), and never say an object is \
+reached from anything other than its path's from object. An object changed in the transport is \
+"in the transport", not reached.
 - If the question asks for something Graphene's results do not contain, say plainly that Graphene \
 did not return it. If Graphene returns no score (e.g. its comparison group is stale), say so and \
 pass on what Graphene says would fix it; don't use an older score as the current one, and don't \
