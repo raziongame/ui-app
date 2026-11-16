@@ -42,3 +42,22 @@ def test_dates_and_times_checked_as_whole_tokens():
     assert ok["ok"], ok["flags"]
     bad = grounding.check({"answer": "0.345 on 2026-11-13 at 13:07."}, res, [], set())
     assert {f["token"] for f in bad["flags"]} == {"2026-11-13", "13:07"}
+
+
+def test_iso_timestamp_with_offset_is_one_token():
+    """make eval 2026-11-16: '2026-11-12T14:44:40+00:00' in an answer flagged '00:00' as a time."""
+    res = [{"result": {"previous": {"assessed_at": "2026-11-12T14:44:40+00:00"}},
+            "freshness": {"L1": {"last_success": "2026-11-10T10:45:44.258476+00:00"}}}]
+    ok = grounding.check({"answer": "Last stored 2026-11-12T14:44:40+00:00; L1 learned "
+                                    "2026-11-10T10:45:44.258476+00:00 (2026-11-10 10:45)."}, res, [], set())
+    assert ok["ok"], ok["flags"]
+    bad = grounding.check({"answer": "Last stored 2026-11-12T14:44:41+00:00."}, res, [], set())
+    assert {f["token"] for f in bad["flags"]} == {"2026-11-12T14:44:41+00:00"}
+
+
+def test_time_followed_by_prose_colon():
+    """make eval 2026-11-16: '- 2026-11-12 13:06:32: 0.3225 to 0.345' flagged '13' as a number."""
+    res = [{"result": {"history": [{"assessed_at": "2026-11-12T13:06:32+00:00", "score": 0.345},
+                                   {"assessed_at": "2026-11-12T12:53:47+00:00", "score": 0.3225}]}}]
+    ok = grounding.check({"answer": "- 2026-11-12 13:06:32: 0.3225 to 0.345\n- at 12:53: 0.3225"}, res, [], set())
+    assert ok["ok"], ok["flags"]

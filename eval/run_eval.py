@@ -31,6 +31,7 @@ OUT_FINAL = 1500
 
 
 ONLY: set[str] = set()
+TARGET_S = 10.0  # operator 2026-11-16: under 10 s per answer (a case may set expect.max_seconds)
 
 
 def cases() -> list[dict]:
@@ -111,9 +112,19 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
             opts = item if isinstance(item, list) else [item]
             if not any(str(o).lower() in text for o in opts):
                 problems.append(f"answer lacks {opts}")
+        if exp.get("lead_with"):
+            lead, rest = exp["lead_with"].lower(), out["answer"].lower()
+            for later in ("no changes", "nothing changed", "same score"):
+                if later in rest and lead in rest and rest.index(later) < rest.index(lead):
+                    problems.append(f"{later!r} comes before {exp['lead_with']!r}")
         for bad in exp.get("answer_not_contains", []):
             if str(bad).lower() in text:
                 problems.append(f"answer contains {bad!r}")
+        secs = time.time() - t0
+        if secs > exp.get("max_seconds", TARGET_S):
+            problems.append(f"slow: {secs:.1f} s > {exp.get('max_seconds', TARGET_S)} s")
+        if [t["tool"] for t in out["tool_trace"]].count("status") > 1:
+            problems.append("status called more than once")
         if len(out["grounding"]["flags"]) > exp.get("grounding_flags_max", 0):
             problems.append(f"grounding flags: {[f['token'] for f in out['grounding']['flags']]}")
         cost = dollars(out["usage"])
@@ -122,6 +133,8 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
         results.append({"id": c["id"], "question": c["question"], "ok": not problems, "problems": problems,
                         "cost_usd": round(cost, 4), "seconds": round(time.time() - t0, 1), **out})
         print(f"{'PASS' if not problems else 'FAIL'} {c['id']}  ${cost:.4f}  {time.time() - t0:.1f}s"
+              + f"  {out['usage']['requests']} requests, {len(out['tool_trace'])} calls"
+              + (f", {out['usage']['repeat_calls_skipped']} repeat(s) skipped" if out["usage"].get("repeat_calls_skipped") else "")
               + ("".join(f"\n     - {p}" for p in problems)))
     outdir = ROOT / "eval" / "results"
     outdir.mkdir(exist_ok=True)

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,12 @@ class FakeMessages:
         self.override: dict[str, Any] | None = None  # force a script regardless of question
 
     async def create(self, **kw: Any) -> Message:
+        return self._reply(kw)
+
+    def stream(self, **kw: Any) -> "FakeStream":
+        return FakeStream(self._reply(kw))
+
+    def _reply(self, kw: dict[str, Any]) -> Message:
         self.requests.append(kw)
         msgs = kw["messages"]
         script = self.override or self.scripts[msgs[0]["content"]]
@@ -32,11 +39,35 @@ class FakeMessages:
                 "usage": {"input_tokens": 100, "output_tokens": 20}}
         calls = script["calls"]
         if done < len(calls) and kw.get("tool_choice", {}).get("type") != "none":
-            c = calls[done]
+            turn = calls[done] if isinstance(calls[done], list) else [calls[done]]  # list = one turn
             return Message.model_validate({**base, "stop_reason": "tool_use", "content": [
-                {"type": "tool_use", "id": f"toolu_{done}", "name": c["tool"], "input": c.get("args", {})}]})
+                {"type": "tool_use", "id": f"toolu_{done}_{j}", "name": c["tool"], "input": c.get("args", {})}
+                for j, c in enumerate(turn)]})
         return Message.model_validate({**base, "stop_reason": "end_turn", "content": [
             {"type": "text", "text": json.dumps(script["answer"])}]})
+
+
+class FakeStream:
+    """Stand-in for client.messages.stream(): text events in small chunks, then the final message."""
+
+    def __init__(self, msg: Message):
+        self.msg = msg
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def __aiter__(self):
+        for block in self.msg.content:
+            yield SimpleNamespace(type="content_block_start", content_block=block)
+            if block.type == "text":
+                for i in range(0, len(block.text), 7):
+                    yield SimpleNamespace(type="text", text=block.text[i:i + 7])
+
+    async def get_final_message(self) -> Message:
+        return self.msg
 
 
 class FakeClaude:

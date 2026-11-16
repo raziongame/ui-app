@@ -73,7 +73,15 @@ Each entry: question, what Graphene returned, what's expected. Graphene `1.30.0`
 - **Expected:** `1.31.0`, so partners can tell which Graphene build answered. The app shows what the
   handshake says and does not override it.
 
-## G-5 · Assessment history has no cause per step
+## G-5 · Assessment history has no cause per step — RESOLVED
+
+- **Resolved 2026-11-16 (v12 data):** each history entry has `comparable`, `same_as_previous`,
+  `changes_from_previous` (e.g. `new affected object JOB:JOB-5192e9d4d2ab via RUNS, learned_in L5`;
+  `impact engine impact-3 → impact-4` with its `changelog` line) and `engine_changes_since`.
+- **Open question for the operator:** Graphene marks the 0.3075 and 0.3225 entries of ZUZK900006
+  `comparable: false` (only impact-4 entries are comparable), so the app shows them as steps with
+  their causes, labelled "older engine", not as a comparable trend. If they should count as
+  comparable, that is a Graphene change.
 
 - **Found:** 2026-11-14, golden question 3 on Graphene v11.
 - **Question:** "Why is ZUZK900006 riskier than before?"
@@ -88,3 +96,26 @@ Each entry: question, what Graphene returned, what's expected. Graphene `1.30.0`
   `"change": "periodic-job rule (impact-4)"`).
 - **Related:** `coverage.this_answer_uses` for this answer lists L1–L4 only, although the current
   reason "reaches periodic job … (runs daily, 12 runs in window)" comes from L5 operations.
+
+## G-6 · Risk comparison group is stale: no risk score for any transport — RESOLVED
+
+- **Resolved in demo-ready-v13 (2026-11-16 11:06 baseline, refreshes daily at 00:10):** comparison group
+  `current`; ZUZK900008 0.47 / high / "88th percentile", ZUZK900006 0.345 / moderate / "66th percentile".
+
+- **Found:** 2026-11-16, golden questions 2 and 3 (and `make test`: 5 failures, all from this).
+- **What Graphene returned:** `assess_transport` → `result.assessment: null`,
+  `comparison_group: {"status": "stale", "reason": "risk history is stale: built on 2026-11-14,
+  quality signals count days", "fix": "Run `graphene risk baseline` on the Graphene host …"}`.
+  `changes_since_previous` is absent with it. First call on a fresh session took 10.5 s (G-1 test
+  expects < 3 s); later calls 0.4–0.8 s.
+- **Expected:** a current score (0.47 / high / "88th percentile"; 0.345 / moderate).
+  Graphene's own fix: `graphene risk baseline` on the Graphene host. The app can't and won't run it.
+- **Also seen:** one warm `impact ZS4_IOT_DATA` took 5,712 ms (usually ~700 ms).
+
+## G-7 · MCP handshake still reports 1.31.0 with v12 results — RESOLVED
+
+- **Resolved in demo-ready-v13 (installed 11:13):** the handshake reports `1.32.0`.
+
+- **Found:** 2026-11-16. Results carry new v12 fields (`comparable`, `changes_from_previous`, …), but
+  `serverInfo.version` is `1.31.0`, the same as v11. Partners can't tell which build answered.
+  Expected: the v12 version.

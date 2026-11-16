@@ -76,7 +76,9 @@ def test_invented_facts_are_flagged_not_hidden(client, fake_claude):
 
 def test_tool_call_cap(client, fake_claude):
     from app import config
-    many = {"calls": [{"tool": "status", "args": {}}] * (config.MAX_TOOL_CALLS + 2),
+    # distinct calls (repeats are skipped, see test_repeated_calls_are_not_run)
+    many = {"calls": [{"tool": "find_object", "args": {"name": f"ZCAP_TEST_{i}"}}
+                      for i in range(config.MAX_TOOL_CALLS + 2)],
             "answer": {"answer": "Graphene has completed 6 of 11 stages.", "claims": []}}
     fake_claude.messages.override = many
     try:
@@ -94,7 +96,38 @@ def test_request_shape_to_claude(fake_claude):
     kw = fake_claude.messages.requests[-1]
     assert kw["model"] == "claude-sonnet-5-5"
     assert kw["thinking"] == {"type": "adaptive"}
+    assert kw["output_config"]["effort"] == "low"  # operator 2026-11-16: short thinking, < 10 s
     assert kw["output_config"]["format"]["type"] == "json_schema"
     names = {t["name"] for t in kw["tools"]}
     assert names == {"find_object", "impact", "assess_transport", "status", "operations"}
     assert "sample partner app" in kw["system"]
+
+
+def test_repeated_calls_are_not_run(client, fake_claude):
+    """make eval 2026-11-14: Claude called status {} up to 6 times per question. One status result
+    per question; an identical repeat is answered from the earlier result, not run again."""
+    case = next(c for c in GOLDEN if c["id"] == "repeat_calls_are_skipped")
+    fake_claude.messages.override = case["mock"]
+    try:
+        out, events = ask(client, case["question"])
+    finally:
+        fake_claude.messages.override = None
+    assert out is not None, [e for e in events if e["type"] == "error"]
+    assert [t["tool"] for t in out["tool_trace"]] == case["expect_trace"]
+    assert out["usage"]["repeat_calls_skipped"] == case["expect_skipped"]
+    reqs = fake_claude.messages.requests
+    # the turn after a repeat-only turn must answer
+    assert reqs[-1]["tool_choice"] == {"type": "none"}
+    skipped = [b for m in reqs[-1]["messages"] if m["role"] == "user" and isinstance(m["content"], list)
+               for b in m["content"] if "Not run: this repeats call" in str(b.get("content", ""))]
+    assert len(skipped) == case["expect_skipped"]
+
+
+@pytest.mark.parametrize("case", CASES, ids=[c["id"] for c in CASES])
+def test_answer_text_is_streamed(client, fake_claude, case):
+    fake_claude.messages.override = None
+    out, events = ask(client, case["question"])
+    deltas = [e for e in events if e["type"] == "answer_delta"]
+    assert len(deltas) > 1  # arrives in pieces, before the final event
+    assert events.index(deltas[-1]) < next(i for i, e in enumerate(events) if e["type"] == "final")
+    assert "".join(d["text"] for d in deltas) == out["answer"]

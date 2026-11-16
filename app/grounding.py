@@ -19,9 +19,11 @@ NAME_RE = re.compile(
 )
 PSEUDO_RE = re.compile(r"(?<![A-Za-z0-9])(?:JOB|U)-[0-9a-f]{4,}(?![0-9a-f])")
 NUM_RE = re.compile(r"(?<![A-Za-z0-9_.:/-])-?\d+(?:\.\d+)?(?![0-9])")
-# Dates and times are checked as whole tokens: 2026-11-12, 2026-11-12 13:06, 13:06, 13:06:32.
-DATETIME_RE = re.compile(r"(?<![\d-])(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2})(:\d{2})?)?(?![\d:])")
-TIME_RE = re.compile(r"(?<![\d:])\d{2}:\d{2}(?::\d{2})?(?![\d:])")
+# Dates and times are checked as whole tokens: 2026-11-12, 2026-11-12 13:06, 13:06, 13:06:32,
+# 2026-11-12T14:44:40+00:00 (fraction and UTC offset belong to the token, never a separate "00:00").
+DATETIME_RE = re.compile(r"(?<![\d-])(\d{4}-\d{2}-\d{2})"
+                         r"(?:[T ](\d{2}:\d{2})(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?(?!\d|:\d)")
+TIME_RE = re.compile(r"(?<![\d:])\d{2}:\d{2}(?::\d{2})?(?!\d|:\d)")  # "13:06: text" is a time
 
 # Words that look like names but are ordinary vocabulary in answers.
 IGNORE_NAMES: set[str] = set()
@@ -55,10 +57,12 @@ def _datetime_forms(s: str) -> set[str]:
     """Every way an answer may quote a timestamp Graphene returned (date, time, date + time)."""
     out: set[str] = set()
     for m in DATETIME_RE.finditer(s):
-        d, hm, sec = m.group(1), m.group(2), m.group(3) or ""
+        d, hm, sec, frac, tz = m.group(1), m.group(2), m.group(3) or "", m.group(4) or "", m.group(5) or ""
         out.add(d)
         if hm:
-            out |= {hm, hm + sec, f"{d} {hm}", f"{d} {hm}{sec}", f"{d}T{hm}{sec}"}
+            out |= {hm, hm + sec, f"{d} {hm}", f"{d} {hm}{sec}", f"{d}T{hm}{sec}", m.group(0)}
+            if tz:
+                out |= {f"{d}T{hm}{sec}{tz}", f"{d} {hm}{sec}{tz}"}
     return out
 
 

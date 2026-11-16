@@ -69,6 +69,8 @@ mark.flag { background: var(--flag-bg); color: var(--flag-text); padding: 0 3px;
 .err { background: var(--err-bg); color: var(--err); border-radius: 8px; padding: 10px 12px; }
 .progress { list-style: none; margin: 6px 0 0; padding: 0; font-size: 16px; color: var(--muted); }
 .progress li { padding: 2px 0; }
+.live { margin-top: 10px; }
+.live .pending { font-size: 15px; color: var(--muted); margin-top: 6px; }
 .progress code { color: var(--text); }
 .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border);
   border-top-color: var(--accent); border-radius: 50%; animation: s 0.9s linear infinite; vertical-align: -1px; }
@@ -207,7 +209,7 @@ function paragraphs(html) {
 function newCard(question) {
   const card = document.createElement("div");
   card.className = "card";
-  card.innerHTML = `<p class="q">${esc(question)}</p><div class="a"><span class="spin"></span> <span class="status">Asking Claude…</span><ul class="progress"></ul></div>`;
+  card.innerHTML = `<p class="q">${esc(question)}</p><div class="a"><span class="spin"></span> <span class="status">Asking Claude…</span><ul class="progress"></ul><div class="live" hidden><div class="text"></div><div class="pending">Still writing · names and numbers are checked against Graphene's results when the answer is complete</div></div></div>`;
   $("convo").appendChild(card);
   card.scrollIntoView({ behavior: "smooth", block: "end" });
   return card;
@@ -299,6 +301,8 @@ async function ask(question) {
   const started = Date.now();
   const timer = setInterval(() => { status.dataset.t = ((Date.now() - started) / 1000).toFixed(0); status.textContent = (status.dataset.label || "Asking Claude…") + ` ${status.dataset.t} s`; }, 500);
   const items = {};
+  const live = card.querySelector(".live"), liveText = live.querySelector(".text");
+  let streamed = "";
   try {
     const res = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question }) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -319,6 +323,13 @@ async function ask(question) {
           prog.appendChild(li); items[ev.n] = li;
         } else if (ev.type === "tool_end") {
           if (items[ev.n]) items[ev.n].innerHTML = `${ev.ok ? "✓" : "⚠"} <code>${esc(ev.tool)}</code> ${esc(JSON.stringify(ev.arguments))} · ${ev.ms} ms`;
+        } else if (ev.type === "answer_delta") {
+          // Unchecked text, shown as it is written; replaced by the grounding-checked answer on "final".
+          streamed += ev.text; live.hidden = false;
+          status.dataset.label = "Writing the answer…";
+          liveText.innerHTML = paragraphs(esc(streamed));
+        } else if (ev.type === "answer_reset") {
+          streamed = ""; liveText.innerHTML = ""; live.hidden = true;
         } else if (ev.type === "final") {
           const idx = answers.length; answers.push({ card, data: ev.data });
           renderAnswer(card, ev.data, idx); select(idx);

@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 GRAPHENE_MCP_COMMAND = "/home/grpadm/graphene/.venv/bin/graphene-mcp"
 MODEL = "claude-sonnet-5-5"
-EFFORT = "medium"
+EFFORT = "low"  # operator 2026-11-16: keep thinking short (target < 10 s per answer)
 MAX_TOOL_CALLS = 8
 TOOL_TIMEOUT_S = 90.0
 CLAUDE_REQUEST_TIMEOUT_S = 120.0

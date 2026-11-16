@@ -1,5 +1,5 @@
-# Golden questions. Expected values come from Graphene's own output (MCP, 2026-11-14,
-# Graphene v11; its MCP handshake reports version 0.1.0, see GRAPHENE_ISSUES G-4). If a learn run changes them, update from Graphene's output, never by hand-guessing.
+# Golden questions. Expected values come from Graphene's own output (MCP, 2026-11-16,
+# Graphene demo-ready-v13, handshake 1.32.0). If a learn run changes them, update from Graphene's output, never by hand-guessing.
 #
 # Per case:
 #   facts:   checked in `make test` against the REAL Graphene MCP result of mock.calls
@@ -43,10 +43,18 @@
     - {tool: assess_transport, path: result.assessment.percentile_label, equals: "88th percentile"}
     - {tool: assess_transport, path: result.assessment.reasons, length: 5}
     - {tool: assess_transport, path: result.assessment.comparison_version.source, equals: baseline}
+    # v12 history (2026-11-16): entries before 2026-11-12 13:06 used older engines (not comparable).
+    - {tool: assess_transport, path: result.history.2.score, equals: 0.5381}
+    - {tool: assess_transport, path: result.history.2.comparable, equals: false}
+    - {tool: assess_transport, path: result.history.16.comparable, equals: true}
+    - {tool: assess_transport, path: result.history.16.score, equals: 0.47}
   expect:
     tools: [assess_transport]
+    # Operator 2026-11-16: no trend from non-comparable entries; "earlier entries used an older engine"
+    # with Graphene's changelog line.
+    answer_not_contains: ["0.5381", "0.537"]
     # Graphene's own label (G-3); the app never converts 0.8833 itself (grounding flags that).
-    answer_contains: ["0.47", "high", "88th percentile", "ZS4_IOT_DATA", ["ZS4_IOT_INSERT_DATA", "entry point"]]
+    answer_contains: ["0.47", "high", "88th percentile", "ZS4_IOT_DATA", ["ZS4_IOT_INSERT_DATA", "entry point"], "older engine"]
     grounding_flags_max: 0
   mock:
     calls:
@@ -64,25 +72,30 @@
 
 - id: risk_zuzk900006
   question: "Why is ZUZK900006 riskier than before?"
-  # Graphene v11 history: 0.3075 (1 affected) -> 0.3225 (2 affected) -> 0.345 (impact-4).
-  # The causes the operator expects ("after L5", "periodic-job rule") are NOT in Graphene's
-  # results yet (GRAPHENE_ISSUES G-5); the app must not infer them. Add them here once Graphene
-  # returns them.
+  # Operator 2026-11-16: lead with the steps and Graphene's cause for each (0.3075 -> 0.3225: new
+  # affected job learned in L5; -> 0.345: impact-4, quoted changelog), then that nothing changed
+  # since the last assessment. Causes come from Graphene v12 changes_from_previous (G-5 resolved).
   facts:
     - {tool: assess_transport, path: result.assessment.score, equals: 0.345}
     - {tool: assess_transport, path: result.assessment.band, equals: moderate}
     - {tool: assess_transport, path: result.assessment.reasons.2.text, equals: "reaches periodic job JOB:JOB-5192e9d4d2ab in 1 hop (runs daily, 12 runs in window)"}
     - {tool: assess_transport, path: result.history, length: 23}
-    - {tool: assess_transport, path: result.history.0, equals: {assessed_at: "2026-11-10T12:58:39+00:00", score: 0.3075, band: moderate, engines: "impact-2, risk-2", affected: 1}}
-    - {tool: assess_transport, path: result.history.10, equals: {assessed_at: "2026-11-12T12:46:55+00:00", score: 0.3075, band: moderate, engines: "impact-3, risk-3", affected: 1}}
-    - {tool: assess_transport, path: result.history.11, equals: {assessed_at: "2026-11-12T12:53:47+00:00", score: 0.3225, band: moderate, engines: "impact-3, risk-3", affected: 2}}
-    - {tool: assess_transport, path: result.history.12, equals: {assessed_at: "2026-11-12T13:06:32+00:00", score: 0.345, band: moderate, engines: "impact-4, risk-3", affected: 2}}
-    - {tool: assess_transport, path: result.history.22, equals: {assessed_at: "2026-11-12T14:44:38+00:00", score: 0.345, band: moderate, engines: "impact-4, risk-3", affected: 2}}
+    # v12 history (2026-11-16): per-step causes and comparability come from Graphene.
+    - {tool: assess_transport, path: result.history.0.score, equals: 0.3075}
+    - {tool: assess_transport, path: result.history.0.assessed_at, equals: "2026-11-10T12:58:39+00:00"}
+    - {tool: assess_transport, path: result.history.11.score, equals: 0.3225}
+    - {tool: assess_transport, path: result.history.11.comparable, equals: false}
+    - {tool: assess_transport, path: result.history.11.changes_from_previous.2, equals: {what: "new affected object", key: "JOB:JOB-5192e9d4d2ab", label: Job, via: RUNS, learned_in: L5, hop: 1, reach_from: "current assessment"}}
+    - {tool: assess_transport, path: result.history.12.score, equals: 0.345}
+    - {tool: assess_transport, path: result.history.12.comparable, equals: true}
+    - {tool: assess_transport, path: result.history.12.changes_from_previous.1.changelog.0, equals: "impact-4: a periodic job with runs in the learned window is medium criticality ('runs daily/weekly, N runs in window'); one-off jobs stay normal"}
+    - {tool: assess_transport, path: result.history.22.same_as_previous, equals: true}
     - {tool: assess_transport, path: result.previous.score, equals: 0.345}
     - {tool: assess_transport, path: result.changes_since_previous, length: 0}
   expect:
     tools: [assess_transport]
-    answer_contains: ["0.3075", "0.3225", "0.345", "2026-11-10", "2026-11-12", "impact-4", "ZGR_PRICE_SYNC", "daily"]
+    answer_contains: ["0.3075", "0.3225", "0.345", "2026-11-12", "L5", "JOB-5192e9d4d2ab", "impact-4", "periodic job", "ZGR_PRICE_SYNC", "daily"]
+    lead_with: "0.3075"  # the steps come before "no changes since the last assessment"
     grounding_flags_max: 0
   mock:
     calls:
@@ -154,3 +167,20 @@
       answer: "Changing ZS4_IOT_DATA affects 12 objects, including ZS4_IOT_DELETE_DATA."
       claims:
         - {text: "12 objects are affected.", evidence_ids: ["edge:made-up"]}
+
+# Regression (make test only), make eval 2026-11-14: Claude repeated status {} up to 6 times per
+# question. Repeats (same tool + arguments; status at most once per question) are not run.
+- id: repeat_calls_are_skipped
+  question: "What breaks if I change ZS4_IOT_DATA?"
+  test_only: true
+  expect_trace: [impact, status]
+  expect_skipped: 3
+  mock:
+    calls:  # a list = several calls in one turn
+      - {tool: impact, args: {name: ZS4_IOT_DATA}}
+      - [{tool: status, args: {}}, {tool: status, args: {}}]
+      - [{tool: impact, args: {name: ZS4_IOT_DATA}}, {tool: status, args: {}}]
+    answer:
+      answer: "Changing ZS4_IOT_DATA affects 9 objects. Graphene has completed 6 of 11 stages."
+      claims:
+        - {text: "9 objects are affected.", evidence_ids: ["node:TABL:ZS4_IOT_DATA"]}
