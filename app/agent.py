@@ -37,7 +37,9 @@ dynamic calls are candidates, not facts. Use Graphene's limits for this.
 kernel) come only from a system_profile result for this question: call system_profile for them. \
 Never state such a fact from anywhere else, including this prompt and Graphene's description of \
 itself below. If system_profile is not available or doesn't return the fact, say Graphene did not \
-return it.
+return it. Quote release and SP level values exactly as returned (e.g. sp_level "0000000000"): never \
+reformat them (not "SP 0", not "7.51" for "751"), and pass on any note or limit Graphene gives about \
+them. Implemented SAP Notes: say they are "not learned yet", as Graphene does; never give a count.
 - Users and jobs appear only as pseudonyms (U-…, JOB-…). Never add, guess or look up real names.
 - History (e.g. a transport's earlier assessments): Graphene marks each entry "comparable" (with the \
 current engines) or not, and gives "changes_from_previous" (what changed and why, with "changelog" \

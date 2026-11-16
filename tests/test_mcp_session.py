@@ -13,7 +13,8 @@ def test_health_reports_one_live_session(client):
     h = client.get("/api/health").json()
     g = h["graphene"]
     assert g["connected"] and g["server"] == "graphene"
-    assert g["tools"] == ["find_object", "impact", "assess_transport", "status", "operations"]
+    assert g["tools"] == ["find_object", "impact", "assess_transport", "status", "operations",
+                          "system_profile"]  # Graphene v14 (1.33.0)
     assert g["spawn_count"] == 1
 
 

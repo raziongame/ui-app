@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -126,6 +127,9 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
         for bad in exp.get("answer_not_contains", []):
             if str(bad).lower() in text:
                 problems.append(f"answer contains {bad!r}")
+        for rx in exp.get("answer_not_matches", []):
+            if re.search(rx, text, re.I):
+                problems.append(f"answer matches {rx!r}")
         secs = time.time() - t0
         if secs > exp.get("max_seconds", TARGET_S):
             problems.append(f"slow: {secs:.1f} s > {exp.get('max_seconds', TARGET_S)} s")

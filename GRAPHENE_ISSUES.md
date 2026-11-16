@@ -119,3 +119,14 @@ Each entry: question, what Graphene returned, what's expected. Graphene `1.30.0`
 - **Found:** 2026-11-16. Results carry new v12 fields (`comparable`, `changes_from_previous`, …), but
   `serverInfo.version` is `1.31.0`, the same as v11. Partners can't tell which build answered.
   Expected: the v12 version.
+
+## G-8 · system_profile: no note about what an SP level value means — OPEN (question)
+
+- **Found:** 2026-11-16, golden question 6 "What is the component version of SAP_BASIS?" (v14, 1.33.0).
+- **What Graphene returned:** `components.items[SAP_BASIS]` = `{"release": "751", "sp_level": "0000000000",
+  "comp_type": "S"}`. SP levels come in two widths (`"0000000000"`, `"0036"`), and no field, note
+  or limit says how to read them (e.g. whether `0000000000` means "no SP" or "not reported").
+  The only note-like items are about Implemented Notes (`learned: false`, "count is unknown, not zero").
+- **Expected (operator):** the app shows the SP level exactly as returned and passes on Graphene's
+  note about it. There is no note to pass on yet. The app quotes the value as-is and never turns it
+  into "SP 0" itself. Please add the note (a `limits` line or a field on the component).

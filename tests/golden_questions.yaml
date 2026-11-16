@@ -1,5 +1,6 @@
 # Golden questions. Expected values come from Graphene's own output (MCP, 2026-11-16,
-# Graphene demo-ready-v13, handshake 1.32.0). If a learn run changes them, update from Graphene's output, never by hand-guessing.
+# Graphene demo-ready-v13, handshake 1.32.0;
+# Q6 system_profile from Graphene v14, handshake 1.33.0). If a learn run changes them, update from Graphene's output, never by hand-guessing.
 #
 # Per case:
 #   facts:   checked in `make test` against the REAL Graphene MCP result of mock.calls
@@ -155,6 +156,34 @@
       claims:
         - {text: "6 of 11 stages are complete.", evidence_ids: ["call:1"]}
         - {text: "L6 to L10 are not started.", evidence_ids: ["call:1"]}
+
+- id: system_profile_sap_basis
+  question: "What is the component version of SAP_BASIS?"
+  # Operator 2026-11-16 (Graphene v14, handshake 1.33.0): system facts only from system_profile.
+  # SP level exactly as returned ("0000000000"), never "SP 0"; Implemented Notes "not learned yet".
+  facts:
+    - {tool: system_profile, path: result.learned, equals: true}
+    - {tool: system_profile, path: result.release.sap_basis, equals: "751"}
+    - {tool: system_profile, path: result.components.items.94.component, equals: SAP_BASIS}
+    - {tool: system_profile, path: result.components.items.94.release, equals: "751"}
+    - {tool: system_profile, path: result.components.items.94.sp_level, equals: "0000000000"}
+    - {tool: system_profile, path: result.implemented_notes.learned, equals: false}
+    - {tool: system_profile, path: result.l0.last_run, equals: "2026-11-05T14:26:30.307039+00:00"}
+  expect:
+    tools: [system_profile]
+    answer_contains: ["SAP_BASIS", "751", "0000000000"]
+    answer_not_matches: ['\bSP\s*(level\s*)?0\b', 'support package\s*0\b', '7\.51 sp']
+    grounding_flags_max: 0
+  mock:
+    calls:
+      - {tool: system_profile, args: {}}
+    answer:
+      answer: |-
+        SAP_BASIS is at release 751, with SP level 0000000000 exactly as Graphene returns it.
+        - This is as of Graphene's last L0 run on 2026-11-05 (11 d ago); nothing newer is known.
+      claims:
+        - {text: "SAP_BASIS release 751, SP level 0000000000.", evidence_ids: ["node:SWCOMP:ZUZ:SAP_BASIS"]}
+        - {text: "As of the L0 run on 2026-11-05.", evidence_ids: ["run:L0:v8"]}
 
 # Negative control (make test only): a mocked answer with an invented number and object
 # must be flagged by the grounding check, not hidden.
