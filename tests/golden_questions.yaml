@@ -84,6 +84,9 @@
   # affected job learned in L5; -> 0.345: impact-4, quoted changelog), then that nothing changed
   # since the last assessment. Causes come from Graphene v12 changes_from_previous (G-5 resolved).
   # Operator 2026-11-16: every history step carries its date (eval run left dates off the steps).
+  # Operator 2026-11-16: the app renders the distinct steps as a table straight from Graphene's history
+  # (date, score from -> to, cause); the model writes a 1-2 sentence summary only: current score and
+  # "rose in steps" first, never "nothing changed" before the end (the app's line under the table).
   facts:
     - {tool: assess_transport, path: result.assessment.score, equals: 0.345}
     - {tool: assess_transport, path: result.assessment.band, equals: moderate}
@@ -104,24 +107,26 @@
   expect:
     tools: [assess_transport]
     max_seconds: 12  # operator 2026-11-16: like Q1; others keep the 10 s target
-    answer_contains: ["0.3075", "0.3225", "0.345", "2026-11-12", "L5", "JOB-5192e9d4d2ab", "impact-4", "periodic job", "ZGR_PRICE_SYNC", "daily"]
-    lead_with: "0.3075"  # the steps come before "no changes since the last assessment"
+    answer_contains: ["0.345", "in steps", "ZGR_PRICE_SYNC", "daily"]
+    first_sentence_contains: ["0.345", "in steps"]
+    no_change_only_at_end: true
+    max_words: 70
+    # the app's table, from Graphene's history (verbatim)
+    history_steps:
+      - {at: "2026-11-12T12:53:47+00:00", from: 0.3075, to: 0.3225, older_engine: true, causes: ["new affected object JOB:JOB-5192e9d4d2ab via RUNS, learned in L5"]}
+      - {at: "2026-11-12T13:06:32+00:00", from: 0.3225, to: 0.345, older_engine: false, causes: ["engine change impact-4: a periodic job with runs in the learned window is medium criticality ('runs daily/weekly, N runs in window'); one-off jobs stay normal"]}
+    nothing_changed_since_last: true
     grounding_flags_max: 0
   mock:
     calls:
       - {tool: assess_transport, args: {transport: ZUZK900006}}
     answer:
       answer: |-
-        ZUZK900006 now scores 0.345 (moderate band, 66th percentile). Graphene's stored assessments show it rose in two steps:
-        - 0.3075, 1 affected (engines impact-2, risk-2): 2026-11-10 12:58
-        - 0.3075, 1 affected (engines impact-3, risk-3): 2026-11-10 13:13 to 2026-11-12 12:46
-        - 0.3225, 2 affected (engines impact-3, risk-3): 2026-11-12 12:53
-        - 0.345, 2 affected (engines impact-4, risk-3): 2026-11-12 13:06 to 2026-11-12 14:44
-        Graphene does not give the cause of each step. Its current reasons include: through program ZGR_PRICE_SYNC it reaches the periodic job JOB-5192e9d4d2ab, which runs daily, 12 runs in window.
+        ZUZK900006 now scores 0.345 (moderate, 66th percentile) and rose in steps. Its main current reason: through program ZGR_PRICE_SYNC it reaches the periodic job JOB:JOB-5192e9d4d2ab (runs daily, 12 runs in window).
       claims:
         - {text: "Current score 0.345, moderate band, 66th percentile.", evidence_ids: ["node:TRKORR:ZUZK900006"]}
-        - {text: "History: 0.3075 (1 affected) from 2026-11-10, 0.3225 (2 affected) on 2026-11-12 12:53, 0.345 (impact-4) from 2026-11-12 13:06.", evidence_ids: ["call:1"]}
         - {text: "Reaches the daily job JOB-5192e9d4d2ab through ZGR_PRICE_SYNC (12 runs in window).", evidence_ids: ["path:PROG:ZGR_PRICE_SYNC > JOB:JOB-5192e9d4d2ab"]}
+      history_for: ZUZK900006
 
 - id: not_found_zfake_table
   question: "What uses table ZFAKE_TABLE?"

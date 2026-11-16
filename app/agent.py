@@ -44,26 +44,18 @@ answer; only if Graphene gives no note does the answer show the raw value. A sup
 Graphene hasn't learned is "not learned yet" (give Graphene's reason in plain words); never say none \
 is installed. Implemented SAP Notes: say they are "not learned yet", as Graphene does; never give a count.
 - Users and jobs appear only as pseudonyms (U-…, JOB-…). Never add, guess or look up real names.
-- History (e.g. a transport's earlier assessments): Graphene marks each entry "comparable" (with the \
-current engines) or not, and gives "changes_from_previous" (what changed and why, with "changelog" \
-lines for engine changes). Show changes as steps, oldest first. Every step starts with its date \
-(and time) from Graphene, e.g. "2026-11-12 12:53: 0.3075 to 0.3225, …": the date of the entry where \
-the change appears. Never leave a step without its date. For display only, merge consecutive \
-entries Graphene marks "same_as_previous" into one line with the first and last date (and time if \
-the dates are the same day); don't say how many entries were merged. Write every score, count, \
-engine, date and time exactly as Graphene wrote it.
-- Give each step its cause from Graphene's changes_from_previous, in plain words (e.g. "new affected \
-object JOB:JOB-… via RUNS, learned in L5"; for an engine change, quote its changelog line). If \
-Graphene gives no cause, say so. Never infer a cause from timestamps.
-- Comparability: entries Graphene marks comparable: false were scored by an older engine. Never \
-present a series of such entries as a trend. If the only differences among them are engine changes, \
-say in one line "earlier entries used an older engine" (quote no score, band or date from those \
-entries; add Graphene's changelog line only in "riskier than before" answers), and give the trend only for comparable entries. A step whose cause is not an engine (e.g. a new affected \
-object) may be shown with its cause, marked "older engine". Whenever a risk answer has history entries marked \
-comparable: false whose score differs from the latest, include that one "older engine" line.
-- "Riskier than before" questions: lead with the steps (score from → to, date, Graphene's cause for \
-each), then the comparable entries. Only after that, say what Graphene reports about the latest \
-assessment (e.g. the previous stored assessment has the same score, no changes since).
+- How a transport's risk changed over time ("riskier than before", trend, history): set "history_for" \
+to that transport. The app then shows Graphene's distinct steps as a table under your answer, straight \
+from Graphene's data (date, score from → to, cause, older engine), followed by Graphene's "nothing \
+changed since the last assessment" line when that applies. Your answer is then only 1-2 sentences: \
+first the current score (band, percentile label) and that it rose (or fell) in steps; then the main \
+current reason, naming the objects in its evidence path. Don't repeat steps, dates, causes or \
+engines, and don't say that nothing changed: the table and the line under it do that. Never infer \
+a cause from timestamps. For every other question, "history_for" is "".
+- Comparability (other risk answers): history entries Graphene marks comparable: false were scored \
+by an older engine. Never present them as a trend. If such an entry's score differs from the latest, \
+say in one line "earlier entries used an older engine" (quote no score, band, date or changelog from \
+those entries).
 - "Why is <transport> high risk" answers: lead with the score, band, percentile and the main driver \
 in 1-2 sentences, then at most 3 reasons as bullets, then the one "older engine" line (no changelog \
 quote) and the main limit. No what-if scores (lowerers) here. About 110 words at most.
@@ -109,6 +101,7 @@ label where they differ (e.g. "SAP_BASIS sp_level 0000000000; Graphene's note: S
 Graphene's own evidence ids (from "evidence_ids" or "evidence" in the results). If Graphene returned \
 no evidence id for a fact (e.g. "not found"), cite the tool call instead as "call:N" (N = 1 for the \
 first tool call of this question, 2 for the second, ...).
+- "history_for": the transport whose score history the app shows as a table (see above), else "".
 
 What Graphene says about itself:
 {instructions}
@@ -130,8 +123,9 @@ ANSWER_SCHEMA = {
                 "additionalProperties": False,
             },
         },
+        "history_for": {"type": "string"},
     },
-    "required": ["answer", "claims"],
+    "required": ["answer", "claims", "history_for"],
     "additionalProperties": False,
 }
 

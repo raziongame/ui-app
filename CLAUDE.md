@@ -43,6 +43,9 @@ partner. Say "sample partner app" in the UI, docs and demo.
 
 `answer` (plain language), `claims[]` each with `evidence_ids`, `tool_trace` (tool, arguments,
 short result, ms), `coverage`, `freshness`, `limits`, and a `grounding` result.
+For "how did the risk change" questions also `history`: the distinct score steps (date, score from → to,
+cause, older engine) built by the app straight from Graphene's history, never written by the model
+(operator, 2026-11-16).
 
 **Grounding check** runs after every answer: any object/transport name or number in the answer
 that is not in this question's tool results is flagged in the UI (yellow), never hidden.
