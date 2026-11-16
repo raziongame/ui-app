@@ -116,7 +116,7 @@
     # ZGR_PRICE_SYNC from the table.
     answer_not_matches:
       - 'ZGR_DISC_RULES[^.]*(→|->|>)[^.]*ZGR_PRICE_SYNC'
-      - 'ZGR_DISC_RULES[^.]*\b(reach\w*|affect\w*|sits? on|lead\w* to|paths?)\b[^.]*ZGR_PRICE_SYNC'
+      - 'ZGR_DISC_RULES[^.→]*\b(reach\w*|affect\w*|lead\w* to)\b[^.→]*ZGR_PRICE_SYNC(?!\s*→)'
       - 'ZGR_PRICE_SYNC[^.]*\b(is|are|gets?) (reached|affected)\b[^.]*ZGR_DISC_RULES'
       - '\bsits? on\b'
       - '\b(on|along) (its|their) paths\b'

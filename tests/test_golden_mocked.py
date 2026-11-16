@@ -226,4 +226,12 @@ def test_q3_path_checks_catch_the_v2_wording():
           "ZGR_PRICE_SYNC and ZGR_DISC_REPORT sit on its paths.")
     assert any(re.search(r, v2, re.I) for r in rx)
     assert not any(re.search(r, case["mock"]["answer"]["answer"], re.I) for r in rx)
+    # eval 2026-11-16 (23f8db8): Graphene's own path form must pass (was a false positive on "the path")
+    ok = ("The main current reasons are the table definition TABL:ZGR_DISC_RULES in the transport, and the path "
+          "PROG:ZGR_PRICE_SYNC → RUNS → JOB:JOB-5192e9d4d2ab (runs daily, 12 runs in window). A further reason "
+          "is the path TABL:ZGR_DISC_RULES → READS_TABLE → PROG:ZGR_DISC_REPORT.")
+    assert not any(re.search(r, ok, re.I) for r in rx)
+    for bad in ("ZGR_DISC_RULES reaches ZGR_PRICE_SYNC.", "TABL:ZGR_DISC_RULES → READS_TABLE → PROG:ZGR_PRICE_SYNC.",
+                "The change to ZGR_DISC_RULES affects ZGR_PRICE_SYNC and the job."):
+        assert any(re.search(r, bad, re.I) for r in rx), bad
 

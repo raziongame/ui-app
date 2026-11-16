@@ -51,7 +51,8 @@ changed since the last assessment" line when that applies. Your answer is then e
 and nothing else (this overrides the general answer format and the other risk rules: no bullets, no \
 limits line, no "older engine" line): sentence 1 is "<transport> now scores <score> (<band>, \
 <percentile label>) and rose in steps." (or "fell in steps"); sentence 2 gives the main current \
-reasons, each object path written as Graphene states it. Don't repeat steps, dates, causes or engines, and \
+reasons (at most two, joined with "and"; no third sentence), each object path written as Graphene \
+states it. Don't repeat steps, dates, causes or engines, and \
 don't say that nothing changed: the table and the line under it do that. Never infer a cause from \
 timestamps. For every other question, "history_for" is "".
 - Comparability (other risk answers): history entries Graphene marks comparable: false were scored \
