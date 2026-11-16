@@ -90,8 +90,14 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
     results, failures, total_cost = [], 0, 0.0
     for c in cases():
         t0 = time.time()
+        first_text: list[float] = []  # seconds until the first answer text is visible in the UI
+
+        async def emit(ev: dict, _t0: float = t0, _ft: list = first_text) -> None:
+            if ev.get("type") == "answer_delta" and not _ft:
+                _ft.append(time.time() - _t0)
+
         try:
-            out = await agent.answer_with_timeout(c["question"], g, client)
+            out = await agent.answer_with_timeout(c["question"], g, client, emit)
         except agent.AnswerError as e:
             cost = dollars(e.usage)
             total_cost += cost
@@ -131,7 +137,8 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
         total_cost += cost
         failures += bool(problems)
         results.append({"id": c["id"], "question": c["question"], "ok": not problems, "problems": problems,
-                        "cost_usd": round(cost, 4), "seconds": round(time.time() - t0, 1), **out})
+                        "cost_usd": round(cost, 4), "seconds": round(time.time() - t0, 1),
+                        "first_text_s": round(first_text[0], 1) if first_text else None, **out})
         print(f"{'PASS' if not problems else 'FAIL'} {c['id']}  ${cost:.4f}  {time.time() - t0:.1f}s"
               + f"  {out['usage']['requests']} requests, {len(out['tool_trace'])} calls"
               + (f", {out['usage']['repeat_calls_skipped']} repeat(s) skipped" if out["usage"].get("repeat_calls_skipped") else "")
@@ -140,6 +147,13 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
     outdir.mkdir(exist_ok=True)
     path = outdir / f"eval-{time.strftime('%Y%m%dT%H%M%S')}.json"
     path.write_text(json.dumps(results, indent=1, ensure_ascii=False))
+    print(f"\n{'question':45} {'first text':>10} {'total':>7} {'limit':>6} {'cost':>8}  result")
+    for r, c in zip(results, cases()):
+        ft = f"{r['first_text_s']:.1f} s" if r.get("first_text_s") is not None else "-"
+        tot = f"{r['seconds']:.1f} s" if "seconds" in r else "-"
+        lim = f"{c['expect'].get('max_seconds', TARGET_S):g} s"
+        print(f"{r['question'][:45]:45} {ft:>10} {tot:>7} {lim:>6} {'$%.4f' % r['cost_usd']:>8}  "
+              + ("PASS" if r.get("ok") else "FAIL"))
     print(f"\n{len(results) - failures}/{len(results)} passed · actual cost ${total_cost:.4f} · {path.relative_to(ROOT)}")
     return 1 if failures else 0
 

@@ -19,6 +19,7 @@
     - {tool: impact, path: limits, contains: "1 dynamic call touches this object or what it affects: their targets are candidates, so the impact may be larger."}
   expect:
     tools: [impact]
+    max_seconds: 12  # operator 2026-11-16: large impact result; others keep the 10 s target
     answer_contains: ["9", "ZS4_IOT_INSERT_DATA", "ZS4_IOT_READ_DATA", ["RFC", "entry point"], "dynamic", "candidate"]
     grounding_flags_max: 0
   mock:
