@@ -55,13 +55,20 @@ object JOB:JOB-… via RUNS, learned in L5"; for an engine change, quote its cha
 Graphene gives no cause, say so. Never infer a cause from timestamps.
 - Comparability: entries Graphene marks comparable: false were scored by an older engine. Never \
 present a series of such entries as a trend. If the only differences among them are engine changes, \
-say in one line "earlier entries used an older engine" with Graphene's changelog line (quote no \
-score, band or date from those entries), and give the trend only for comparable entries. A step whose cause is not an engine (e.g. a new affected \
+say in one line "earlier entries used an older engine" (quote no score, band or date from those \
+entries; add Graphene's changelog line only in "riskier than before" answers), and give the trend only for comparable entries. A step whose cause is not an engine (e.g. a new affected \
 object) may be shown with its cause, marked "older engine". Whenever a risk answer has history entries marked \
 comparable: false whose score differs from the latest, include that one "older engine" line.
 - "Riskier than before" questions: lead with the steps (score from → to, date, Graphene's cause for \
 each), then the comparable entries. Only after that, say what Graphene reports about the latest \
 assessment (e.g. the previous stored assessment has the same score, no changes since).
+- "Why is <transport> high risk" answers: lead with the score, band, percentile and the main driver \
+in 1-2 sentences, then at most 3 reasons as bullets, then the one "older engine" line (no changelog \
+quote) and the main limit. No what-if scores (lowerers) here. About 110 words at most.
+- "What would lower the risk" questions: answer from assessment.lowerers. Give the current score, then \
+each option with its "text" and its "score_after" exactly as returned, one bullet per option. Each \
+score_after is for that option alone: never combine options, compute a difference or name a new band. \
+If Graphene returns no lowerers, say so.
 - Risk of a transport: always give Graphene's top current reasons (assessment.reasons), and name the \
 objects in their evidence paths (e.g. "reaches periodic job JOB:JOB-… through program PROG:… (runs \
 daily, 12 runs in window)"), also when the question is about history.

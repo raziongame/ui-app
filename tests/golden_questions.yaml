@@ -57,7 +57,10 @@
     tools: [assess_transport]
     # Operator 2026-11-16: no trend from non-comparable entries; "earlier entries used an older engine"
     # with Graphene's changelog line.
-    answer_not_contains: ["0.5381", "0.537", "very high"]
+    # Operator 2026-11-16: shorter (score, band, percentile, main driver; <= 3 reasons; older-engine line
+    # without the changelog quote); no what-if scores (Q7 covers lowerers). Eval 11.2 s at 165 words.
+    answer_not_contains: ["0.5381", "0.537", "very high", "0.395", "0.3995"]
+    max_words: 120
     # Graphene's own label (G-3); the app never converts 0.8833 itself (grounding flags that).
     answer_contains: ["0.47", "high", "88th percentile", "ZS4_IOT_DATA", ["ZS4_IOT_INSERT_DATA", "entry point"], "older engine"]
     grounding_flags_max: 0
@@ -196,6 +199,37 @@
         - {text: "SAP_BASIS release 751, SP level 0000000000.", evidence_ids: ["node:SWCOMP:ZUZ:SAP_BASIS"]}
         - {text: "Graphene's note: SP 0000 (no support package), as shown in System → Status.", evidence_ids: ["node:SWCOMP:ZUZ:SAP_BASIS"]}
         - {text: "As of the L0 run on 2026-11-05.", evidence_ids: ["run:L0:v8"]}
+
+- id: lowerers_zuzk900008
+  question: "What would lower the risk of ZUZK900008?"
+  # Operator 2026-11-16: from Graphene's assessment.lowerers, each option with its score_after exactly as
+  # returned; never combined, rounded or turned into a difference.
+  facts:
+    - {tool: assess_transport, path: result.assessment.score, equals: 0.47}
+    - {tool: assess_transport, path: result.assessment.lowerers, length: 2}
+    - {tool: assess_transport, path: result.assessment.lowerers.0.text, equals: "resolve the dynamic calls (or confirm their targets) so the impact is known"}
+    - {tool: assess_transport, path: result.assessment.lowerers.0.score_after, equals: 0.395}
+    - {tool: assess_transport, path: result.assessment.lowerers.0.evidence, equals: ["edge:CLAS:ZCL_ZS4_IOT_PROJ_DPC_EXT -UNRESOLVED_DYNAMIC-> FUNC:ZS4_IOT_INSERT_DATA"]}
+    - {tool: assess_transport, path: result.assessment.lowerers.1.text, equals: "import into the test system and confirm return code ≤ 4"}
+    - {tool: assess_transport, path: result.assessment.lowerers.1.score_after, equals: 0.3995}
+  expect:
+    tools: [assess_transport]
+    answer_contains: ["0.47", "0.395", "0.3995", "dynamic", "test system", "return code"]
+    answer_not_matches: ['\b0\.40?(?!\d)', '\b0\.07']
+    grounding_flags_max: 0
+  mock:
+    calls:
+      - {tool: assess_transport, args: {transport: ZUZK900008}}
+    answer:
+      answer: |-
+        ZUZK900008 scores 0.47 now. Graphene names 2 things that would lower it, each on its own:
+        - Resolve the dynamic calls (or confirm their targets) so the impact is known: score after 0.395.
+        - Import into the test system and confirm return code ≤ 4: score after 0.3995.
+        Each score is for that option alone; Graphene doesn't give a score for doing both.
+      claims:
+        - {text: "Current score 0.47.", evidence_ids: ["node:TRKORR:ZUZK900008"]}
+        - {text: "Resolving the dynamic calls: score after 0.395.", evidence_ids: ["edge:CLAS:ZCL_ZS4_IOT_PROJ_DPC_EXT -UNRESOLVED_DYNAMIC-> FUNC:ZS4_IOT_INSERT_DATA"]}
+        - {text: "Test import with return code ≤ 4: score after 0.3995.", evidence_ids: ["call:1"]}
 
 # Negative control (make test only): a mocked answer with an invented number and object
 # must be flagged by the grounding check, not hidden.

@@ -108,6 +108,8 @@ def test_request_shape_to_claude(fake_claude):
     assert '"sp_level_note"' in kw["system"]  # operator, v15: quote Graphene's note
     assert "Never leave a step without its date" in kw["system"]  # operator: date on every step
     assert "lead with 2-3 sentences" in kw["system"]  # operator: short impact answers (Q1 < 12 s)
+    assert "No what-if scores (lowerers) here" in kw["system"]  # operator: short Q2
+    assert "answer from assessment.lowerers" in kw["system"]  # operator: golden Q7
 
 
 SKIP_CASES = [c for c in GOLDEN if "expect_trace" in c]
