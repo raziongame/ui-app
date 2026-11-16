@@ -21,7 +21,7 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app import agent, config  # noqa: E402
+from app import agent, contract, config  # noqa: E402
 from app.mcp_client import GrapheneMCP  # noqa: E402
 
 # Claude Sonnet 5.5, $ per million tokens (Anthropic first-party pricing).
@@ -127,6 +127,33 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
         for bad in exp.get("answer_not_contains", []):
             if str(bad).lower() in text:
                 problems.append(f"answer contains {bad!r}")
+        prose, claims_text = out["answer"].lower(), "\n".join(cl["text"] for cl in out["claims"]).lower()
+        dev = contract.developer_words(out["answer"])
+        if dev:  # operator 2026-11-16: plain language; field names stay in the evidence panel
+            problems.append(f"field names / JSON words in the answer: {dev}")
+        for bad in exp.get("prose_not_contains", []):
+            if str(bad).lower() in prose:
+                problems.append(f"answer text contains {bad!r} (belongs in the evidence panel)")
+        for item in exp.get("claims_contain", []):
+            if str(item).lower() not in claims_text:
+                problems.append(f"claims lack {item!r}")
+        sentences = [x for x in re.split(r"(?<=[.!?])\s+", out["answer"].strip()) if x]
+        for item in exp.get("first_sentence_contains", []):
+            if not sentences or str(item).lower() not in sentences[0].lower():
+                problems.append(f"first sentence lacks {item!r}")
+        if exp.get("no_change_only_at_end"):  # operator 2026-11-16: never before the end
+            for i, sent in enumerate(sentences[:-1]):
+                if re.search(r"nothing (has )?changed|no changes?\b|unchanged|same score", sent, re.I):
+                    problems.append(f"'no change' wording before the end: {sent[:60]!r}")
+        hist = out.get("history") or {}
+        if "history_steps" in exp:
+            got = [{k: st[k] for k in ("at", "from", "to", "older_engine", "causes")} for st in hist.get("steps", [])]
+            if got != exp["history_steps"]:
+                problems.append(f"history table differs from Graphene's steps: {got}")
+            if hist.get("nothing_changed_since_last") != exp.get("nothing_changed_since_last"):
+                problems.append("history table: 'nothing changed' line missing or wrong")
+        elif hist.get("steps"):
+            problems.append(f"history table shown for {hist.get('transport')} (not a history question)")
         if exp.get("max_words") and len(out["answer"].split()) > exp["max_words"]:
             problems.append(f"answer has {len(out['answer'].split())} words > {exp['max_words']}")
         for rx in exp.get("answer_not_matches", []):

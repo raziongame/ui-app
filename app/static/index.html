@@ -96,6 +96,9 @@ code, .mono { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, mono
 ol.claims { padding-left: 24px; margin: 0; } ol.claims li { margin-bottom: 8px; }
 ul.plain { margin: 0; padding-left: 20px; } ul.plain li { margin-bottom: 6px; }
 .empty { color: var(--muted); }
+.muted { color: var(--muted); }
+.steps { margin: 12px 0 4px; } .steps-title { font-weight: 600; margin-bottom: 4px; }
+.steps table { font-size: 16px; } .steps-foot { margin: 8px 0 0; }
 .flagrow td:first-child mark { white-space: nowrap; }
 @media (max-width: 900px) { main { grid-template-columns: 1fr; } #left { border-right: 0; } }
 </style>
@@ -228,13 +231,27 @@ function renderAnswer(card, data, idx) {
   const flags = data.grounding.flags.filter((f) => f.where === "answer");
   const g = data.grounding;
   const t = data.timing_ms || {};
-  card.querySelector(".a").innerHTML = paragraphs(highlight(data.answer, flags)) +
+  card.querySelector(".a").innerHTML = paragraphs(highlight(data.answer, flags)) + historyTable(data.history) +
     `<div class="meta">
       <span class="gbadge ${g.ok ? "ok" : "warn"}">${g.ok ? "✓ All names and numbers found in Graphene's results" : `⚠ ${g.flags.length} item(s) not found in Graphene's results`}</span>
       <span>${data.tool_trace.length} Graphene call(s) · ${(t.total / 1000).toFixed(1)} s total (Graphene ${(t.graphene / 1000).toFixed(1)} s)</span>
     </div>`;
   card.onclick = () => select(idx);
   card.style.cursor = "pointer";
+}
+
+// Operator 2026-11-16: score steps are rendered by the app straight from Graphene's history data
+// (date, score from → to, cause), never written by the model. Values verbatim.
+function historyTable(h) {
+  if (!h || !h.steps || !h.steps.length) return "";
+  const rows = h.steps.map((st) => `<tr>
+      <td><span class="mono">${esc(st.at)}</span></td>
+      <td class="num">${esc(String(st.from))} → ${esc(String(st.to))}${st.band_from != null ? `<br><span class="muted">${esc(st.band_from)} → ${esc(st.band_to)}</span>` : ""}</td>
+      <td>${st.causes.length ? st.causes.map((c) => `<div>${esc(c)}</div>`).join("") : '<span class="muted">Graphene gives no cause</span>'}</td>
+      <td>${st.older_engine ? "older engine" : "current engines"}</td></tr>`).join("");
+  return `<div class="steps"><div class="steps-title">Score steps for ${esc(h.transport)} · from Graphene's history</div>
+    <table><tr><th>Date</th><th class="num">Score</th><th>Cause (Graphene)</th><th>Engine</th></tr>${rows}</table>
+    ${h.nothing_changed_since_last === true ? '<p class="steps-foot">Nothing changed since the last assessment.</p>' : ""}</div>`;
 }
 
 function detailsBlock(title, count, body, open) {

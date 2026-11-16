@@ -39,6 +39,15 @@ def test_golden_contract_and_grounding(client, fake_claude, case):
     # Graphene's limits are passed through verbatim and non-empty
     assert out["limits"] and all(isinstance(x, str) for x in out["limits"])
 
+    # operator 2026-11-16: history steps table, built by the app from Graphene's data
+    exp = case.get("expect", {})
+    if "history_steps" in exp:
+        got = [{k: st[k] for k in ("at", "from", "to", "older_engine", "causes")} for st in out["history"]["steps"]]
+        assert got == exp["history_steps"]
+        assert out["history"]["nothing_changed_since_last"] == exp["nothing_changed_since_last"]
+    else:
+        assert out["history"] is None
+
 
 @pytest.mark.parametrize("case", CASES, ids=[c["id"] for c in CASES])
 def test_golden_facts_from_real_graphene(client, case):
@@ -104,12 +113,15 @@ def test_request_shape_to_claude(fake_claude):
     assert "sample partner app" in kw["system"]
     # operator 2026-11-16: system facts only from system_profile, never from the prompt
     assert "come only from a system_profile result" in kw["system"]
-    assert 'not "SP 0"' in kw["system"] and '"not learned yet"' in kw["system"]  # operator, v14
-    assert '"sp_level_note"' in kw["system"]  # operator, v15: quote Graphene's note
-    assert "Never leave a step without its date" in kw["system"]  # operator: date on every step
+    assert '(e.g. "SP 0")' in kw["system"] and '"not learned yet"' in kw["system"]  # operator, v14
+    assert "lead with Graphene's note" in kw["system"]  # operator, v15 + browser review
+    # operator 2026-11-16: steps are an app table from Graphene's data; the model only summarises
+    assert "set \"history_for\"" in kw["system"] and "don't say that nothing changed" in kw["system"]
     assert "lead with 2-3 sentences" in kw["system"]  # operator: short impact answers (Q1 < 12 s)
     assert "No what-if scores (lowerers) here" in kw["system"]  # operator: short Q2
     assert "answer from assessment.lowerers" in kw["system"]  # operator: golden Q7
+    assert "never show field names or JSON words in the answer" in kw["system"]  # operator: browser review
+    assert kw["output_config"]["format"]["schema"]["required"] == ["answer", "claims", "history_for"]
 
 
 SKIP_CASES = [c for c in GOLDEN if "expect_trace" in c]
@@ -175,3 +187,21 @@ def test_second_round_predicate_uses_graphene_fields():
     assert needs_second_round({"result": {"found": True, "objects": [{"key": "A:X"}, {"key": "B:X"}]}})
     assert not needs_second_round({"result": {"found": True, "objects": [{"key": "A:X"}]}})
     assert not needs_second_round(None)
+
+
+@pytest.mark.parametrize("case", [c for c in GOLDEN if "mock" in c and c["id"] != "grounding_flags_invented_facts"],
+                         ids=lambda c: c["id"])
+def test_mock_answers_are_plain_language(case):
+    """Operator 2026-11-16 (browser review): no field names or JSON words in the answer text; they
+    stay in the evidence panel (claims, tool trace)."""
+    from app.contract import developer_words
+    assert developer_words(case["mock"]["answer"]["answer"]) == []
+
+
+def test_developer_words_detector():
+    from app.contract import developer_words
+    assert developer_words("its sp_level is null, score_after 0.395, comparable: false") == \
+        ["sp_level", "score_after", "null", "false"]
+    assert developer_words("SAP_BASIS 751 · SP 0000 (no support package). TABL:ZS4_IOT_DATA, JOB:JOB-5192e9d4d2ab, "
+                           "edge:CLAS:ZCL_X -UNRESOLVED_DYNAMIC-> FUNC:Y") == []
+

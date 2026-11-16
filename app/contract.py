@@ -6,6 +6,7 @@ this module never computes or rewrites a fact.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from . import grounding
@@ -49,6 +50,58 @@ def collect_evidence(obj: Any, out: set[str]) -> None:
             collect_evidence(v, out)
 
 
+# Graphene change kinds that are effects or reference lines, not causes of a score step.
+_NOT_CAUSES = ("score", "band", "factor raw value")
+
+
+def _cause(ch: dict[str, Any]) -> list[str]:
+    """Graphene's own words for one change, with only connecting labels added by the app."""
+    what = str(ch.get("what", ""))
+    if what in _NOT_CAUSES or what.startswith("band line"):
+        return []
+    if ch.get("changelog"):
+        return [f"engine change {line}" for line in ch["changelog"]]
+    if what == "new affected object":
+        out = f"new affected object {ch.get('key', '')}"
+        if ch.get("via"):
+            out += f" via {ch['via']}"
+        if ch.get("learned_in"):
+            out += f", learned in {ch['learned_in']}"
+        return [out]
+    if "from" in ch and "to" in ch:
+        return [f"{what} {ch['from']} → {ch['to']}"]
+    return [f"{what} {ch.get('key', '')}".strip()]
+
+
+def history_steps(results: list[dict[str, Any]], transport: str) -> dict[str, Any] | None:
+    """Operator 2026-11-16: the distinct score steps of a transport's history, rendered by the app
+    from Graphene's data (date, score from → to, cause), never written by the model. Values verbatim."""
+    want = (transport or "").strip().upper()
+    if not want:
+        return None
+    for r in results:
+        if r.get("tool") != "assess_transport":
+            continue
+        res = r.get("result") or {}
+        if str(res.get("transport", "")).upper() != want or not isinstance(res.get("history"), list):
+            continue
+        steps = []
+        for e in res["history"]:
+            changes = e.get("changes_from_previous") or []
+            score = next((c for c in changes if c.get("what") == "score"), None)
+            if not score:
+                continue
+            band = next((c for c in changes if c.get("what") == "band"), None)
+            causes = [x for c in changes for x in _cause(c)]
+            steps.append({"at": e.get("assessed_at"), "from": score.get("from"), "to": score.get("to"),
+                          "band_from": band.get("from") if band else None, "band_to": band.get("to") if band else None,
+                          "older_engine": e.get("comparable") is False, "causes": causes})
+        csp = res.get("changes_since_previous")
+        return {"transport": res.get("transport"), "steps": steps,
+                "nothing_changed_since_last": csp == [] if isinstance(csp, list) else None}
+    return None
+
+
 def build(answer: dict[str, Any], trace: list[dict[str, Any]], results: list[dict[str, Any] | None]) -> dict[str, Any]:
     ok_results = [r for r in results if isinstance(r, dict)]
 
@@ -90,4 +143,18 @@ def build(answer: dict[str, Any], trace: list[dict[str, Any]], results: list[dic
         "freshness": freshness,
         "limits": limits,
         "grounding": g,
+        "history": history_steps(ok_results, answer.get("history_for", "")),
     }
+
+
+# Operator 2026-11-16 (browser review): the answer text is plain language. Field names and JSON
+# words stay in the evidence panel (claims, tool trace). Object names are upper case, so a lower-case
+# snake_case word is a Graphene field name.
+FIELD_NAME_RE = re.compile(r"(?<![A-Za-z0-9_:/.-])[a-z]+(?:_[a-z0-9]+)+(?![A-Za-z0-9_])")
+JSON_WORD_RE = re.compile(r"\b(?:null|true|false|None|True|False)\b")
+
+
+def developer_words(text: str) -> list[str]:
+    """Field names and JSON words in an answer's text (should be none)."""
+    return [m.group(0) for rx in (FIELD_NAME_RE, JSON_WORD_RE) for m in rx.finditer(text)]
+
