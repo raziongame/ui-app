@@ -21,6 +21,9 @@
   expect:
     tools: [impact]
     max_seconds: 12  # operator 2026-11-16: large impact result; others keep the 10 s target
+    # Operator 2026-11-16: no higher limit; shorter answer (2-3 sentence summary + compact list,
+    # full detail in the evidence panel). Eval 13.5 s had ~150 words.
+    max_words: 110
     answer_contains: ["9", "ZS4_IOT_INSERT_DATA", "ZS4_IOT_READ_DATA", ["RFC", "entry point"], "dynamic", "candidate"]
     grounding_flags_max: 0
   mock:
@@ -77,6 +80,7 @@
   # Operator 2026-11-16: lead with the steps and Graphene's cause for each (0.3075 -> 0.3225: new
   # affected job learned in L5; -> 0.345: impact-4, quoted changelog), then that nothing changed
   # since the last assessment. Causes come from Graphene v12 changes_from_previous (G-5 resolved).
+  # Operator 2026-11-16: every history step carries its date (eval run left dates off the steps).
   facts:
     - {tool: assess_transport, path: result.assessment.score, equals: 0.345}
     - {tool: assess_transport, path: result.assessment.band, equals: moderate}

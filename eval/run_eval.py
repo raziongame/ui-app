@@ -127,6 +127,8 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
         for bad in exp.get("answer_not_contains", []):
             if str(bad).lower() in text:
                 problems.append(f"answer contains {bad!r}")
+        if exp.get("max_words") and len(out["answer"].split()) > exp["max_words"]:
+            problems.append(f"answer has {len(out['answer'].split())} words > {exp['max_words']}")
         for rx in exp.get("answer_not_matches", []):
             if re.search(rx, text, re.I):
                 problems.append(f"answer matches {rx!r}")
