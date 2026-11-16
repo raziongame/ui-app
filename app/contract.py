@@ -6,6 +6,7 @@ this module never computes or rewrites a fact.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from . import grounding
@@ -91,3 +92,16 @@ def build(answer: dict[str, Any], trace: list[dict[str, Any]], results: list[dic
         "limits": limits,
         "grounding": g,
     }
+
+
+# Operator 2026-11-16 (browser review): the answer text is plain language. Field names and JSON
+# words stay in the evidence panel (claims, tool trace). Object names are upper case, so a lower-case
+# snake_case word is a Graphene field name.
+FIELD_NAME_RE = re.compile(r"(?<![A-Za-z0-9_:/.-])[a-z]+(?:_[a-z0-9]+)+(?![A-Za-z0-9_])")
+JSON_WORD_RE = re.compile(r"\b(?:null|true|false|None|True|False)\b")
+
+
+def developer_words(text: str) -> list[str]:
+    """Field names and JSON words in an answer's text (should be none)."""
+    return [m.group(0) for rx in (FIELD_NAME_RE, JSON_WORD_RE) for m in rx.finditer(text)]
+

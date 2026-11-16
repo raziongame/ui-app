@@ -183,7 +183,11 @@
     - {tool: system_profile, path: result.l0.last_run, equals: "2026-11-05T14:26:30.307039+00:00"}
   expect:
     tools: [system_profile]
-    answer_contains: ["SAP_BASIS", "751", "0000000000", "SP 0000", "no support package"]
+    # Operator 2026-11-16 (browser review): plain language; lead with Graphene's note ("SP 0000 (no
+    # support package) … System → Status"); the raw 0000000000 only in the claims (evidence panel).
+    answer_contains: ["SAP_BASIS", "751", "SP 0000", "no support package", ["System → Status", "System > Status", "System->Status", "System Status"], "not learned yet"]
+    prose_not_contains: ["0000000000"]
+    claims_contain: ["0000000000"]
     answer_not_matches: ['\bSP\s*(level\s*)?0\b', 'support package\s*0\b', '7\.51 sp']
     grounding_flags_max: 0
   mock:
@@ -191,13 +195,12 @@
       - {tool: system_profile, args: {}}
     answer:
       answer: |-
-        SAP_BASIS is at release 751, SP level 0000000000 (raw value).
-        - Graphene's note: "SP 0000 (no support package), as shown in System → Status, operator check 2026-11-16; raw value 0000000000 (CVERS.EXTRELEASE)".
-        - Support package names are not learned.
+        SAP_BASIS 751 · SP 0000 (no support package, as System → Status shows).
+        - The support package name is not learned yet: Graphene reads it from a table that doesn't hold it.
         - This is as of Graphene's last L0 run on 2026-11-05 (11 d ago); nothing newer is known.
       claims:
-        - {text: "SAP_BASIS release 751, SP level 0000000000.", evidence_ids: ["node:SWCOMP:ZUZ:SAP_BASIS"]}
-        - {text: "Graphene's note: SP 0000 (no support package), as shown in System → Status.", evidence_ids: ["node:SWCOMP:ZUZ:SAP_BASIS"]}
+        - {text: "SAP_BASIS release 751, sp_level 0000000000; Graphene's note: SP 0000 (no support package), as shown in System → Status.", evidence_ids: ["node:SWCOMP:ZUZ:SAP_BASIS"]}
+        - {text: "support_package null: not learned (the name isn't in CVERS).", evidence_ids: ["node:SWCOMP:ZUZ:SAP_BASIS"]}
         - {text: "As of the L0 run on 2026-11-05.", evidence_ids: ["run:L0:v8"]}
 
 - id: lowerers_zuzk900008

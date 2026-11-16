@@ -21,7 +21,7 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app import agent, config  # noqa: E402
+from app import agent, contract, config  # noqa: E402
 from app.mcp_client import GrapheneMCP  # noqa: E402
 
 # Claude Sonnet 5.5, $ per million tokens (Anthropic first-party pricing).
@@ -127,6 +127,16 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
         for bad in exp.get("answer_not_contains", []):
             if str(bad).lower() in text:
                 problems.append(f"answer contains {bad!r}")
+        prose, claims_text = out["answer"].lower(), "\n".join(cl["text"] for cl in out["claims"]).lower()
+        dev = contract.developer_words(out["answer"])
+        if dev:  # operator 2026-11-16: plain language; field names stay in the evidence panel
+            problems.append(f"field names / JSON words in the answer: {dev}")
+        for bad in exp.get("prose_not_contains", []):
+            if str(bad).lower() in prose:
+                problems.append(f"answer text contains {bad!r} (belongs in the evidence panel)")
+        for item in exp.get("claims_contain", []):
+            if str(item).lower() not in claims_text:
+                problems.append(f"claims lack {item!r}")
         if exp.get("max_words") and len(out["answer"].split()) > exp["max_words"]:
             problems.append(f"answer has {len(out['answer'].split())} words > {exp['max_words']}")
         for rx in exp.get("answer_not_matches", []):
