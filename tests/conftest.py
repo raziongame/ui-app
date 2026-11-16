@@ -30,7 +30,7 @@ class FakeMessages:
         return FakeStream(self._reply(kw))
 
     def _reply(self, kw: dict[str, Any]) -> Message:
-        self.requests.append(kw)
+        self.requests.append({**kw, "n_messages": len(kw["messages"])})  # messages grows in place
         msgs = kw["messages"]
         script = self.override or self.scripts[msgs[0]["content"]]
         done = sum(1 for m in msgs if m["role"] == "user" and isinstance(m["content"], list))

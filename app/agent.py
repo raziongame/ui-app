@@ -45,8 +45,8 @@ object JOB:JOB-… via RUNS, learned in L5"; for an engine change, quote its cha
 Graphene gives no cause, say so. Never infer a cause from timestamps.
 - Comparability: entries Graphene marks comparable: false were scored by an older engine. Never \
 present a series of such entries as a trend. If the only differences among them are engine changes, \
-say in one line "earlier entries used an older engine" with Graphene's changelog line, and give \
-the trend only for comparable entries. A step whose cause is not an engine (e.g. a new affected \
+say in one line "earlier entries used an older engine" with Graphene's changelog line (quote no \
+score, band or date from those entries), and give the trend only for comparable entries. A step whose cause is not an engine (e.g. a new affected \
 object) may be shown with its cause, marked "older engine". Whenever a risk answer has history entries marked \
 comparable: false whose score differs from the latest, include that one "older engine" line.
 - "Riskier than before" questions: lead with the steps (score from → to, date, Graphene's cause for \
@@ -269,7 +269,8 @@ async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit
             tools=tools,
             messages=messages,
             tool_choice=tool_choice,
-            thinking={"type": "adaptive"},
+            # Choosing the first call is routing, not reasoning: no thinking on that turn (speed).
+            thinking={"type": "disabled"} if not trace and usage["requests"] == 0 else {"type": "adaptive"},
             output_config={"effort": config.EFFORT,
                            "format": {"type": "json_schema", "schema": ANSWER_SCHEMA}},
             cache_control={"type": "ephemeral"},

@@ -52,7 +52,7 @@
     tools: [assess_transport]
     # Operator 2026-11-16: no trend from non-comparable entries; "earlier entries used an older engine"
     # with Graphene's changelog line.
-    answer_not_contains: ["0.5381", "0.537"]
+    answer_not_contains: ["0.5381", "0.537", "very high"]
     # Graphene's own label (G-3); the app never converts 0.8833 itself (grounding flags that).
     answer_contains: ["0.47", "high", "88th percentile", "ZS4_IOT_DATA", ["ZS4_IOT_INSERT_DATA", "entry point"], "older engine"]
     grounding_flags_max: 0
