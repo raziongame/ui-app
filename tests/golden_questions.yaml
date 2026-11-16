@@ -174,24 +174,27 @@
 - id: repeat_calls_are_skipped
   question: "What breaks if I change ZS4_IOT_DATA?"
   test_only: true
+  expect_rounds: 1
   expect_trace: [impact, status, impact]
-  expect_skipped: 3
+  expect_skipped: 2
   mock:
     calls:  # a list = several calls in one turn
-      - [{tool: impact, args: {name: ZS4_IOT_DATA}}, {tool: status, args: {}}]
-      - [{tool: impact, args: {name: TABL:ZS4_IOT_DATA, show: 1}}, {tool: status, args: {}}, {tool: impact, args: {name: ZS4_IOT_DATA, show: 50}}]
-      - {tool: impact, args: {name: ZS4_IOT_DATA}}
+      - [{tool: impact, args: {name: ZS4_IOT_DATA}}, {tool: status, args: {}},
+         {tool: impact, args: {name: TABL:ZS4_IOT_DATA, show: 1}}, {tool: status, args: {}},
+         {tool: impact, args: {name: ZS4_IOT_DATA, show: 50}}]
     answer:
       answer: "Changing ZS4_IOT_DATA affects 9 objects. Graphene has completed 6 of 11 stages."
       claims:
         - {text: "9 objects are affected.", evidence_ids: ["node:TABL:ZS4_IOT_DATA"]}
 
-# Regression (make test only), make eval 2026-11-16: status after other results added a turn.
-- id: late_status_is_skipped
+# Operator 2026-11-16: one round of Graphene calls per question. A clear result (found, or not
+# found with no similar names) ends the calls: the scripted second round is never requested.
+- id: one_round_only
   question: "What uses table ZFAKE_TABLE?"
   test_only: true
+  expect_rounds: 1
   expect_trace: [find_object]
-  expect_skipped: 1
+  expect_skipped: 0
   mock:
     calls:
       - {tool: find_object, args: {name: ZFAKE_TABLE}}
@@ -200,3 +203,44 @@
       answer: "ZFAKE_TABLE is not found in the learned system."
       claims:
         - {text: "ZFAKE_TABLE is not found in the learned system.", evidence_ids: ["call:1"]}
+
+# Exception 1: not found WITH similar names (Graphene: ZS4_IOT_DAT -> similar_names
+# [TABL:ZS4_IOT_DATA]) allows one more round; a third round is never requested.
+- id: second_round_after_similar_names
+  question: "What breaks if I change ZS4_IOT_DAT?"
+  test_only: true
+  facts:
+    - {tool: find_object, path: result.found, equals: false}
+    - {tool: find_object, path: result.similar_names, equals: ["TABL:ZS4_IOT_DATA"]}
+  expect_rounds: 2
+  expect_trace: [find_object, impact]
+  expect_skipped: 0
+  mock:
+    calls:
+      - {tool: find_object, args: {name: ZS4_IOT_DAT}}
+      - {tool: impact, args: {name: ZS4_IOT_DATA}}
+      - {tool: status, args: {}}
+    answer:
+      answer: "ZS4_IOT_DAT is not found in the learned system; Graphene suggests ZS4_IOT_DATA. Changing ZS4_IOT_DATA affects 9 objects."
+      claims:
+        - {text: "ZS4_IOT_DAT is not found; similar name ZS4_IOT_DATA.", evidence_ids: ["call:1"]}
+        - {text: "Changing ZS4_IOT_DATA affects 9 objects.", evidence_ids: ["node:TABL:ZS4_IOT_DATA"]}
+
+# Exception 2: ambiguous (several objects for one name) allows one more round. This learned system
+# has no ambiguous name, so the test returns two real find_object objects for ZS4_IOT_X.
+- id: second_round_after_ambiguous
+  question: "What is ZS4_IOT_X?"
+  test_only: true
+  ambiguous_from: [ZS4_IOT_FG, ZS4_IOT_INSERT_DATA]
+  expect_rounds: 2
+  expect_trace: [find_object, impact]
+  expect_skipped: 0
+  mock:
+    calls:
+      - {tool: find_object, args: {name: ZS4_IOT_X}}
+      - {tool: impact, args: {name: ZS4_IOT_FG}}
+      - {tool: status, args: {}}
+    answer:
+      answer: "ZS4_IOT_X matches 2 objects: ZS4_IOT_FG and ZS4_IOT_INSERT_DATA."
+      claims:
+        - {text: "2 objects match: ZS4_IOT_FG and ZS4_IOT_INSERT_DATA.", evidence_ids: ["call:1"]}

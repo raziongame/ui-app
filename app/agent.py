@@ -59,10 +59,11 @@ daily, 12 runs in window)"), also when the question is about history.
 did not return it. If Graphene returns no score (e.g. its comparison group is stale), say so and \
 pass on what Graphene says would fix it; don't use an older score as the current one, and don't \
 speculate about what drives a score Graphene didn't return.
-- Tool calls: most questions need exactly one: impact (what a change to an object breaks), \
-assess_transport (a transport's risk and impact), find_object (what an object is or what uses it), \
-status (what Graphene has learned). Make it, then answer; add a call only if that result leaves the \
-question open, and then request everything still needed in one turn. Every result already \
+- Tool calls: you get one round. Request everything you need in your first turn; most questions \
+need exactly one call: impact (what a change to an object breaks), assess_transport (a transport's \
+risk and impact), find_object (what an object is or what uses it), status (what Graphene has \
+learned). After that round you answer. Only if a result is ambiguous (several objects for the name) \
+or not found with similar names do you get one more round, e.g. for the similar name. Every result already \
 carries coverage, freshness and limits, so call status only when the question is about what Graphene \
 has learned; don't look an object up with find_object when impact or assess_transport already \
 answers. Each result stays valid for the whole question: a second call on the same object runs only \
@@ -217,6 +218,17 @@ def _skip_reason(name: str, args: dict[str, Any], seen: dict[str, tuple[int, dic
     return f"Not run: call {n} already returned this for the same object; that result is above and still valid."
 
 
+def needs_second_round(structured: dict[str, Any] | None) -> bool:
+    """A first-round result that justifies one more round of calls, by Graphene's own fields:
+    ambiguous (several objects for one name) or not found with similar names."""
+    res = (structured or {}).get("result")
+    if not isinstance(res, dict):
+        return False
+    if res.get("found") is False and res.get("similar_names"):
+        return True
+    return isinstance(res.get("objects"), list) and len(res["objects"]) > 1
+
+
 def _tools_for_claude(g: GrapheneMCP) -> list[dict[str, Any]]:
     return [{"name": t.name, "description": t.description, "input_schema": t.input_schema} for t in g.tools]
 
@@ -239,6 +251,7 @@ async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit
     defaults = {t.name: {k: v.get("default") for k, v in (t.input_schema.get("properties") or {}).items()
                          if isinstance(v, dict) and "default" in v} for t in g.tools}
     force_answer = False
+    rounds = 0  # rounds of Graphene calls that ran
     claude_ms = 0
     max_requests = config.MAX_TOOL_CALLS + 3
 
@@ -321,7 +334,12 @@ async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit
                 tool_results.append({"type": "tool_result", "tool_use_id": tu.id, "is_error": True,
                                      "content": f"Graphene call failed: {r.error}"})
         messages.append({"role": "user", "content": tool_results})
-        force_answer = new_calls == 0  # nothing new was asked: answer from what is there
+        if new_calls:
+            rounds += 1
+        # One round of Graphene calls per question; a second only if a first-round result is ambiguous
+        # or not found with similar names. A turn that ran nothing new also ends the calls.
+        second_ok = rounds == 1 and any(needs_second_round(r) for r in results)
+        force_answer = new_calls == 0 or not second_ok
 
     raise AnswerError(f"No final answer after {max_requests} model turns.", trace, usage)
 

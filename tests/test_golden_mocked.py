@@ -76,9 +76,9 @@ def test_invented_facts_are_flagged_not_hidden(client, fake_claude):
 
 def test_tool_call_cap(client, fake_claude):
     from app import config
-    # distinct calls (repeats are skipped, see test_repeated_calls_are_not_run)
-    many = {"calls": [{"tool": "find_object", "args": {"name": f"ZCAP_TEST_{i}"}}
-                      for i in range(config.MAX_TOOL_CALLS + 2)],
+    # one turn asking for more distinct calls than the budget
+    many = {"calls": [[{"tool": "find_object", "args": {"name": f"ZCAP_TEST_{i}"}}
+                       for i in range(config.MAX_TOOL_CALLS + 2)]],
             "answer": {"answer": "Graphene has completed 6 of 11 stages.", "claims": []}}
     fake_claude.messages.override = many
     try:
@@ -88,8 +88,7 @@ def test_tool_call_cap(client, fake_claude):
     assert out is not None
     assert len(out["tool_trace"]) == config.MAX_TOOL_CALLS
     reqs = fake_claude.messages.requests
-    assert reqs[-1]["tool_choice"] == {"type": "none"}  # budget used -> must answer
-    assert [r["tool_choice"]["type"] for r in reqs[-config.MAX_TOOL_CALLS - 1:]] == ["auto"] * config.MAX_TOOL_CALLS + ["none"]
+    assert [r["tool_choice"]["type"] for r in reqs[-2:]] == ["auto", "none"]  # budget used -> must answer
 
 
 def test_request_shape_to_claude(fake_claude):
@@ -103,24 +102,47 @@ def test_request_shape_to_claude(fake_claude):
     assert "sample partner app" in kw["system"]
 
 
-SKIP_CASES = [c for c in GOLDEN if "expect_skipped" in c]
+SKIP_CASES = [c for c in GOLDEN if "expect_trace" in c]
 
 
 @pytest.mark.parametrize("case", SKIP_CASES, ids=[c["id"] for c in SKIP_CASES])
-def test_repeated_calls_are_not_run(client, fake_claude, case):
-    """make eval 2026-11-14/16: repeated status and assess_transport calls. Calls that add nothing
-    are answered from the earlier result, not run again; a turn of only those forces the answer."""
+def test_call_rounds_and_repeats(client, fake_claude, case):
+    """Repeats are answered from the earlier result, not run (make eval 2026-11-14/16). One round of
+    Graphene calls per question; a second only after an ambiguous or not-found-with-similar-names
+    result (operator 2026-11-16); then Claude must answer."""
+    g = client.app.state.graphene
+    real_call = g.call
+    if case.get("ambiguous_from"):
+        parts = [client.portal.call(real_call, "find_object", {"name": n}) for n in case["ambiguous_from"]]
+        merged = {**parts[0].structured, "result": {"query": case["mock"]["calls"][0]["args"]["name"], "found": True,
+                  "objects": [o for p in parts for o in p.structured["result"]["objects"]]}}
+
+        async def call(name, args):
+            if name == "find_object" and args.get("name") == merged["result"]["query"]:
+                r = await real_call("find_object", {"name": case["ambiguous_from"][0]})
+                r.structured = merged
+                return r
+            return await real_call(name, args)
+        g.call = call
+    for fact in case.get("facts", []):  # the exception's trigger is Graphene's real output
+        call = next(c for c in case["mock"]["calls"] if not isinstance(c, list) and c["tool"] == fact["tool"])
+        assert dig(client.portal.call(real_call, call["tool"], call["args"]).structured, fact["path"]) == fact["equals"]
     fake_claude.messages.override = case["mock"]
+    before = len(fake_claude.messages.requests)
     try:
         out, events = ask(client, case["question"])
     finally:
         fake_claude.messages.override = None
+        g.call = real_call
     assert out is not None, [e for e in events if e["type"] == "error"]
     assert [t["tool"] for t in out["tool_trace"]] == case["expect_trace"]
     assert out["usage"]["repeat_calls_skipped"] == case["expect_skipped"]
     reqs = fake_claude.messages.requests
-    # the turn after a repeat-only turn must answer
+    # the calls end (round limit or nothing new) and the last request must answer
     assert reqs[-1]["tool_choice"] == {"type": "none"}
+    # exactly the allowed rounds ran, then one answer request; later scripted calls never happen
+    mine = reqs[before:]
+    assert [r["tool_choice"]["type"] for r in mine] == ["auto"] * case["expect_rounds"] + ["none"]
     skipped = [b for m in reqs[-1]["messages"] if m["role"] == "user" and isinstance(m["content"], list)
                for b in m["content"] if str(b.get("content", "")).startswith("Not run:")]
     assert len(skipped) == case["expect_skipped"]
@@ -134,3 +156,12 @@ def test_answer_text_is_streamed(client, fake_claude, case):
     assert len(deltas) > 1  # arrives in pieces, before the final event
     assert events.index(deltas[-1]) < next(i for i, e in enumerate(events) if e["type"] == "final")
     assert "".join(d["text"] for d in deltas) == out["answer"]
+
+
+def test_second_round_predicate_uses_graphene_fields():
+    from app.agent import needs_second_round
+    assert needs_second_round({"result": {"found": False, "similar_names": ["TABL:ZS4_IOT_DATA"]}})
+    assert not needs_second_round({"result": {"found": False, "similar_names": []}})
+    assert needs_second_round({"result": {"found": True, "objects": [{"key": "A:X"}, {"key": "B:X"}]}})
+    assert not needs_second_round({"result": {"found": True, "objects": [{"key": "A:X"}]}})
+    assert not needs_second_round(None)
