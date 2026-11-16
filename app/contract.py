@@ -73,6 +73,20 @@ def _cause(ch: dict[str, Any]) -> list[str]:
     return [f"{what} {ch.get('key', '')}".strip()]
 
 
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+_UTC_TS = re.compile(r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(?:Z|\+00:00)$")
+
+
+def display_utc(ts: Any) -> str:
+    """Operator 2026-11-16: "2026-11-12T12:53:47+00:00" -> "12 Nov 2026, 12:53 UTC". Display formatting
+    only: no time-zone conversion; a timestamp that isn't UTC is shown exactly as Graphene gave it."""
+    m = _UTC_TS.match(str(ts or ""))
+    if not m:
+        return str(ts or "")
+    y, mo, d, hh, mm = m.groups()
+    return f"{int(d)} {_MONTHS[int(mo) - 1]} {y}, {hh}:{mm} UTC"
+
+
 def history_steps(results: list[dict[str, Any]], transport: str) -> dict[str, Any] | None:
     """Operator 2026-11-16: the distinct score steps of a transport's history, rendered by the app
     from Graphene's data (date, score from → to, cause), never written by the model. Values verbatim."""
@@ -93,7 +107,7 @@ def history_steps(results: list[dict[str, Any]], transport: str) -> dict[str, An
                 continue
             band = next((c for c in changes if c.get("what") == "band"), None)
             causes = [x for c in changes for x in _cause(c)]
-            steps.append({"at": e.get("assessed_at"), "from": score.get("from"), "to": score.get("to"),
+            steps.append({"at": e.get("assessed_at"), "at_display": display_utc(e.get("assessed_at")), "from": score.get("from"), "to": score.get("to"),
                           "band_from": band.get("from") if band else None, "band_to": band.get("to") if band else None,
                           "older_engine": e.get("comparable") is False, "causes": causes})
         csp = res.get("changes_since_previous")

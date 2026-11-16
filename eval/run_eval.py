@@ -141,6 +141,8 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
         for item in exp.get("first_sentence_contains", []):
             if not sentences or str(item).lower() not in sentences[0].lower():
                 problems.append(f"first sentence lacks {item!r}")
+        if exp.get("max_sentences") and len(sentences) > exp["max_sentences"]:
+            problems.append(f"answer has {len(sentences)} sentences > {exp['max_sentences']}")
         if exp.get("no_change_only_at_end"):  # operator 2026-11-16: never before the end
             for i, sent in enumerate(sentences[:-1]):
                 if re.search(r"nothing (has )?changed|no changes?\b|unchanged|same score", sent, re.I):

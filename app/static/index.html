@@ -98,7 +98,7 @@ ul.plain { margin: 0; padding-left: 20px; } ul.plain li { margin-bottom: 6px; }
 .empty { color: var(--muted); }
 .muted { color: var(--muted); }
 .steps { margin: 12px 0 4px; } .steps-title { font-weight: 600; margin-bottom: 4px; }
-.steps table { font-size: 16px; } .steps-foot { margin: 8px 0 0; }
+.steps table { font-size: 16px; } .ts { white-space: nowrap; border-bottom: 1px dotted var(--muted); cursor: help; } .steps-foot { margin: 8px 0 0; }
 .flagrow td:first-child mark { white-space: nowrap; }
 @media (max-width: 900px) { main { grid-template-columns: 1fr; } #left { border-right: 0; } }
 </style>
@@ -245,7 +245,7 @@ function renderAnswer(card, data, idx) {
 function historyTable(h) {
   if (!h || !h.steps || !h.steps.length) return "";
   const rows = h.steps.map((st) => `<tr>
-      <td><span class="mono">${esc(st.at)}</span></td>
+      <td><span class="ts" title="Graphene: ${esc(st.at)}">${esc(st.at_display || st.at)}</span></td>
       <td class="num">${esc(String(st.from))} → ${esc(String(st.to))}${st.band_from != null ? `<br><span class="muted">${esc(st.band_from)} → ${esc(st.band_to)}</span>` : ""}</td>
       <td>${st.causes.length ? st.causes.map((c) => `<div>${esc(c)}</div>`).join("") : '<span class="muted">Graphene gives no cause</span>'}</td>
       <td>${st.older_engine ? "older engine" : "current engines"}</td></tr>`).join("");
@@ -300,12 +300,20 @@ function renderEvidence(d) {
     ? `<ul class="plain">${d.limits.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>`
     : '<p class="empty">Graphene returned no limits.</p>';
 
+  // Operator 2026-11-16: the full Graphene timestamps of the history steps stay in the evidence panel.
+  const hs = d.history && d.history.steps ? d.history.steps : [];
+  const histEv = hs.length
+    ? `<table><tr><th>Graphene timestamp</th><th class="num">Score</th><th>Engine</th></tr>${hs.map((st) =>
+        `<tr><td><span class="mono">${esc(st.at)}</span></td><td class="num">${esc(String(st.from))} → ${esc(String(st.to))}</td><td>${st.older_engine ? "older engine" : "current engines"}</td></tr>`).join("")}</table>`
+    : "";
+
   const u = d.usage || {};
   $("evidence").innerHTML =
     detailsBlock("Grounding check", g.ok ? "✓" : `⚠ ${g.flags.length}`, grounding, true) +
     detailsBlock("Claims → evidence", d.claims.length, claims, true) +
     detailsBlock("Tool trace", d.tool_trace.length, trace, true) +
     detailsBlock("Limits (Graphene's own words)", d.limits.length, limits, true) +
+    (hs.length ? detailsBlock(`History steps · ${esc(d.history.transport)}`, hs.length, histEv, false) : "") +
     detailsBlock("Coverage", d.coverage.length, coverage, false) +
     detailsBlock("Freshness", Object.keys(d.freshness).length, fresh, false) +
     `<p class="intro">Model ${esc(d.model)} · ${u.requests} request(s) · ${u.input_tokens} in / ${u.output_tokens} out tokens (${u.cache_read_input_tokens} cached)</p>`;

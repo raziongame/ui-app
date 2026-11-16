@@ -107,8 +107,19 @@
   expect:
     tools: [assess_transport]
     max_seconds: 12  # operator 2026-11-16: like Q1; others keep the 10 s target
-    answer_contains: ["0.345", "in steps", "ZGR_PRICE_SYNC", "daily"]
+    answer_contains: ["0.345", "in steps", "ZGR_PRICE_SYNC", "RUNS", "daily"]
     first_sentence_contains: ["0.345", "in steps"]
+    max_sentences: 2
+    # Operator 2026-11-16 (v3): paths only as Graphene states them (from -> relationship -> to). In
+    # Graphene, PROG:ZGR_PRICE_SYNC -> RUNS -> JOB and TABL:ZGR_DISC_RULES -> READS_TABLE ->
+    # PROG:ZGR_DISC_REPORT; both the program and the table are in the transport: nothing reaches
+    # ZGR_PRICE_SYNC from the table.
+    answer_not_matches:
+      - 'ZGR_DISC_RULES[^.]*(→|->|>)[^.]*ZGR_PRICE_SYNC'
+      - 'ZGR_DISC_RULES[^.]*\b(reach\w*|affect\w*|sits? on|lead\w* to|paths?)\b[^.]*ZGR_PRICE_SYNC'
+      - 'ZGR_PRICE_SYNC[^.]*\b(is|are|gets?) (reached|affected)\b[^.]*ZGR_DISC_RULES'
+      - '\bsits? on\b'
+      - '\b(on|along) (its|their) paths\b'
     no_change_only_at_end: true
     max_words: 70
     # the app's table, from Graphene's history (verbatim)
@@ -122,7 +133,7 @@
       - {tool: assess_transport, args: {transport: ZUZK900006}}
     answer:
       answer: |-
-        ZUZK900006 now scores 0.345 (moderate, 66th percentile) and rose in steps. Its main current reason: through program ZGR_PRICE_SYNC it reaches the periodic job JOB:JOB-5192e9d4d2ab (runs daily, 12 runs in window).
+        ZUZK900006 now scores 0.345 (moderate, 66th percentile) and rose in steps. Its main current reasons: table definition TABL:ZGR_DISC_RULES is in the transport, and PROG:ZGR_PRICE_SYNC → RUNS → JOB:JOB-5192e9d4d2ab, a periodic job (runs daily, 12 runs in window).
       claims:
         - {text: "Current score 0.345, moderate band, 66th percentile.", evidence_ids: ["node:TRKORR:ZUZK900006"]}
         - {text: "Reaches the daily job JOB-5192e9d4d2ab through ZGR_PRICE_SYNC (12 runs in window).", evidence_ids: ["path:PROG:ZGR_PRICE_SYNC > JOB:JOB-5192e9d4d2ab"]}
