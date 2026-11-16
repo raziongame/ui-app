@@ -95,6 +95,7 @@
     - {tool: assess_transport, path: result.changes_since_previous, length: 0}
   expect:
     tools: [assess_transport]
+    max_seconds: 12  # operator 2026-11-16: like Q1; others keep the 10 s target
     answer_contains: ["0.3075", "0.3225", "0.345", "2026-11-12", "L5", "JOB-5192e9d4d2ab", "impact-4", "periodic job", "ZGR_PRICE_SYNC", "daily"]
     lead_with: "0.3075"  # the steps come before "no changes since the last assessment"
     grounding_flags_max: 0
