@@ -120,7 +120,15 @@ Each entry: question, what Graphene returned, what's expected. Graphene `1.30.0`
   `serverInfo.version` is `1.31.0`, the same as v11. Partners can't tell which build answered.
   Expected: the v12 version.
 
-## G-8 · system_profile: no note about what an SP level value means — OPEN (question)
+## G-8 · system_profile: no note about what an SP level value means — RESOLVED
+
+- **Resolved in demo-ready-v15:** each component has `sp_level_note` (SAP_BASIS: "SP 0000 (no support
+  package), as shown in System → Status, …"), `support_package` (null = not learned) and
+  `support_package_note`, plus limits on reading both. (Handshake 1.34.0 returned `support_package: "–"`;
+  minutes later 1.35.0 returned `null`, as the operator described.)
+- **Open wording question:** `sp_level_note` says "(no support package)" while the limit says null
+  `support_package` "is not 'no support package'". Both are true (SP level 0000 vs. SP name unknown), but a
+  reader can mix them up; the app quotes both as given.
 
 - **Found:** 2026-11-16, golden question 6 "What is the component version of SAP_BASIS?" (v14, 1.33.0).
 - **What Graphene returned:** `components.items[SAP_BASIS]` = `{"release": "751", "sp_level": "0000000000",

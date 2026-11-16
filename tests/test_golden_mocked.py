@@ -105,6 +105,7 @@ def test_request_shape_to_claude(fake_claude):
     # operator 2026-11-16: system facts only from system_profile, never from the prompt
     assert "come only from a system_profile result" in kw["system"]
     assert 'not "SP 0"' in kw["system"] and '"not learned yet"' in kw["system"]  # operator, v14
+    assert '"sp_level_note"' in kw["system"]  # operator, v15: quote Graphene's note
 
 
 SKIP_CASES = [c for c in GOLDEN if "expect_trace" in c]

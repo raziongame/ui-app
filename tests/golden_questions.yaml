@@ -1,6 +1,6 @@
 # Golden questions. Expected values come from Graphene's own output (MCP, 2026-11-16,
 # Graphene demo-ready-v13, handshake 1.32.0;
-# Q6 system_profile from Graphene v14, handshake 1.33.0). If a learn run changes them, update from Graphene's output, never by hand-guessing.
+# Q6 system_profile from Graphene demo-ready-v15, handshake 1.35.0 at 2026-11-16 probe). If a learn run changes them, update from Graphene's output, never by hand-guessing.
 #
 # Per case:
 #   facts:   checked in `make test` against the REAL Graphene MCP result of mock.calls
@@ -161,17 +161,22 @@
   question: "What is the component version of SAP_BASIS?"
   # Operator 2026-11-16 (Graphene v14, handshake 1.33.0): system facts only from system_profile.
   # SP level exactly as returned ("0000000000"), never "SP 0"; Implemented Notes "not learned yet".
+  # v15 (operator): quote Graphene's sp_level_note; support_package null = not learned (support_package_note).
   facts:
     - {tool: system_profile, path: result.learned, equals: true}
     - {tool: system_profile, path: result.release.sap_basis, equals: "751"}
     - {tool: system_profile, path: result.components.items.94.component, equals: SAP_BASIS}
     - {tool: system_profile, path: result.components.items.94.release, equals: "751"}
     - {tool: system_profile, path: result.components.items.94.sp_level, equals: "0000000000"}
+    - {tool: system_profile, path: result.components.items.94.sp_level_note, equals: "SP 0000 (no support package), as shown in System → Status, operator check 2026-11-16; raw value 0000000000 (CVERS.EXTRELEASE)"}
+    - {tool: system_profile, path: result.components.items.94.support_package, equals: null}
+    - {tool: system_profile, path: result.components.items.94.support_package_note, equals: "not learned (the name isn't in CVERS)"}
+    - {tool: system_profile, path: limits, contains: "sp_level is CVERS.EXTRELEASE exactly as SAP stores it, in 10 or 4 digits; sp_level_note gives the SP level as System → Status shows it (4 digits)."}
     - {tool: system_profile, path: result.implemented_notes.learned, equals: false}
     - {tool: system_profile, path: result.l0.last_run, equals: "2026-11-05T14:26:30.307039+00:00"}
   expect:
     tools: [system_profile]
-    answer_contains: ["SAP_BASIS", "751", "0000000000"]
+    answer_contains: ["SAP_BASIS", "751", "0000000000", "SP 0000", "no support package"]
     answer_not_matches: ['\bSP\s*(level\s*)?0\b', 'support package\s*0\b', '7\.51 sp']
     grounding_flags_max: 0
   mock:
@@ -179,10 +184,13 @@
       - {tool: system_profile, args: {}}
     answer:
       answer: |-
-        SAP_BASIS is at release 751, with SP level 0000000000 exactly as Graphene returns it.
+        SAP_BASIS is at release 751, SP level 0000000000 (raw value).
+        - Graphene's note: "SP 0000 (no support package), as shown in System → Status, operator check 2026-11-16; raw value 0000000000 (CVERS.EXTRELEASE)".
+        - Support package names are not learned.
         - This is as of Graphene's last L0 run on 2026-11-05 (11 d ago); nothing newer is known.
       claims:
         - {text: "SAP_BASIS release 751, SP level 0000000000.", evidence_ids: ["node:SWCOMP:ZUZ:SAP_BASIS"]}
+        - {text: "Graphene's note: SP 0000 (no support package), as shown in System → Status.", evidence_ids: ["node:SWCOMP:ZUZ:SAP_BASIS"]}
         - {text: "As of the L0 run on 2026-11-05.", evidence_ids: ["run:L0:v8"]}
 
 # Negative control (make test only): a mocked answer with an invented number and object
