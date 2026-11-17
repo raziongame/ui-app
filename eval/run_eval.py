@@ -158,7 +158,7 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
             problems.append(f"field names / JSON words in the answer: {dev}")
         for bad in exp.get("prose_not_contains", []):
             if str(bad).lower() in prose:
-                problems.append(f"answer text contains {bad!r} (belongs in the evidence panel)")
+                problems.append(f"answer text contains {bad!r} (belongs in the sources, How do I know?)")
         for item in exp.get("claims_contain", []):
             if str(item).lower() not in claims_text:
                 problems.append(f"claims lack {item!r}")

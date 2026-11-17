@@ -122,7 +122,7 @@
     # ZGR_PRICE_SYNC from the table.
     answer_not_matches:
       - 'ZGR_DISC_RULES[^.]*(→|->|>)[^.]*ZGR_PRICE_SYNC'
-      - 'ZGR_DISC_RULES[^.→]*\b(reach\w*|affect\w*|lead\w* to)\b[^.→]*ZGR_PRICE_SYNC(?!\s*→)'
+      - 'ZGR_DISC_RULES[^.→]*\b(reach\w*|affect\w*|lead\w* to)\b(?!\s+from\b)[^.→]*ZGR_PRICE_SYNC(?!\s*→)'
       - 'ZGR_PRICE_SYNC[^.]*\b(is|are|gets?) (reached|affected)\b[^.]*ZGR_DISC_RULES'
       - '\bsits? on\b'
       - '\b(on|along) (its|their) paths\b'
@@ -154,6 +154,8 @@
     tools: [[find_object, impact]]
     # Operator 2026-11-17 voice: "I don't know a table called ZFAKE_TABLE in this system, and I won't guess."
     answer_contains: [["don't know", "do not know"], "ZFAKE_TABLE", ["won't guess", "will not guess"]]
+    max_sentences: 2  # operator 2026-11-17: short and clear (eval 4bb6543: 6 sentences, 75 words)
+    max_words: 45
     grounding_flags_max: 0
   mock:
     calls:

@@ -131,6 +131,8 @@ def test_request_shape_to_claude(fake_claude):
         assert "I don't know a table called ZFAKE_TABLE in this system, and I won't guess." in text
         assert "come only from a system_profile result" in text
         assert '(e.g. "SP 0")' in text and "lead with the result's note" in text  # operator, v14/v15
+        assert 'goes only in the sources ("claims"), never in the answer' in text  # browser review 11-16
+        assert "Keep it to 1-2 short sentences" in text  # not found: short and clear (11-17)
         assert "set \"history_for\"" in text and "don't say that nothing changed" in text
         assert "relationship → to" in text and "Never summarise" in text  # v3 paths
         assert "lead with 2-3 sentences" in text  # operator: short impact answers (Q1 < 12 s)
@@ -320,6 +322,10 @@ def test_q3_path_checks_catch_the_v2_wording():
           "PROG:ZGR_PRICE_SYNC → RUNS → JOB:JOB-5192e9d4d2ab (runs daily, 12 runs in window). A further reason "
           "is the path TABL:ZGR_DISC_RULES → READS_TABLE → PROG:ZGR_DISC_REPORT.")
     assert not any(re.search(r, ok, re.I) for r in rx)
+    # eval 2026-11-17 (4bb6543): correct, the job is reached from the program (was a false positive)
+    ok2 = ("The main reasons are the table definition TABL:ZGR_DISC_RULES in the transport and the periodic "
+           "job reached from PROG:ZGR_PRICE_SYNC.")
+    assert not any(re.search(r, ok2, re.I) for r in rx)
     for bad in ("ZGR_DISC_RULES reaches ZGR_PRICE_SYNC.", "TABL:ZGR_DISC_RULES → READS_TABLE → PROG:ZGR_PRICE_SYNC.",
                 "The change to ZGR_DISC_RULES affects ZGR_PRICE_SYNC and the job."):
         assert any(re.search(r, bad, re.I) for r in rx), bad
