@@ -37,13 +37,15 @@ def test_partner_page_never_names_the_engine(client):
 def test_direct_page_is_graphene_by_niraamai(client):
     html = client.get("/direct").text
     assert "<title>Graphene</title>" in html
-    assert '"byline": "by NiraamAI"' in html and '"logo_image": "/brand/niraamai-logo.png"' in html
+    assert '"byline": "by NiraamAI"' in html and '"logo_image": "/brand/logo.png"' in html
     assert "#003858" in html and "#4AC2E0" in html  # NiraamAI colours
     for bad in FORBIDDEN_IN_ANY_SKIN:
         assert bad not in html, bad
 
 
 def test_brand_assets_only_named_logos(client):
+    r = client.get("/brand/logo.png")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png"
     assert client.get("/brand/..%2Fbrands.yaml").status_code == 404
     assert client.get("/brand/other.png").status_code == 404
 

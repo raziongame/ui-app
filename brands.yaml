@@ -52,8 +52,8 @@ direct:
   name: "Graphene"
   tagline: "Ask about your SAP system"
   logo_text: "G"
-  # Operator puts the file at ~/ui-app/static/brand/niraamai-logo.png; until then the text mark shows.
-  logo_image: "niraamai-logo.png"
+  # NiraamAI logo (operator, 2026-11-17: static/brand/logo.png, 150x100, wordmark in the image).
+  logo_image: "logo.png"
   byline: "by NiraamAI"
   product_name_allowed: true
   # NiraamAI logo colours: navy #003858 (header, headings), ocean blue #2A82B4 (buttons, links),

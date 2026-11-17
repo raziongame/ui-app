@@ -10,7 +10,7 @@ same engine behind both:
 | Skin | Path | Name | Product name "Graphene" |
 |---|---|---|---|
 | partner | `/` | Cloudbox · SAP Assistant (text logo, warm graphite/amber theme) | **never**, anywhere: page, title, answers, sources, progress, errors |
-| direct | `/direct` | Graphene, "by NiraamAI" (logo `static/brand/niraamai-logo.png`, navy/ocean/teal/cyan) | it is the product name |
+| direct | `/direct` | Graphene, "by NiraamAI" (logo `static/brand/logo.png`, navy/ocean/teal/cyan) | it is the product name |
 
 Neither skin says "sample partner app" or "demo by the Graphene team", or shows MCP, tool names,
 field names, ids or JSON words (e.g. sp_level, null, true/false, call:1). The browser gets only
