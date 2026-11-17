@@ -1,4 +1,4 @@
-.PHONY: setup test run eval eval-estimate latency
+.PHONY: setup test run eval eval-estimate latency install-service
 export VIRTUAL_ENV :=
 UV := uv run --frozen
 
@@ -23,3 +23,9 @@ eval:
 # Graphene MCP tool latency on one warm session.
 latency:
 	$(UV) python scripts/measure_latency.py 4
+
+# systemd user service (linger on: starts at boot, restarts on crash). See README "Service".
+install-service:
+	install -D -m 644 deploy/sap-assistant.service $(HOME)/.config/systemd/user/sap-assistant.service
+	systemctl --user daemon-reload
+	systemctl --user enable sap-assistant.service

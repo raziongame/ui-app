@@ -166,19 +166,19 @@ async function health() {
   try {
     const h = await (await fetch("/api/health")).json();
     const g = h.graphene;
-    $("gdot").className = "dot " + (g.connected ? "on" : "off");
-    $("gtext").textContent = g.connected
+    $("gdot").className = "dot " + (g.ready ? "on" : "off");
+    $("gtext").textContent = g.ready
       ? `Graphene MCP connected · ${g.tools.length} tools`
-      : "Graphene MCP not connected (retrying)";
-    $("gstatus").title = g.connected
+      : (g.connected ? "Graphene starting: waiting for its databases (retrying)" : "Graphene MCP not connected (retrying)");
+    $("gstatus").title = g.ready
       ? `${g.server} ${g.version} · one session, spawned ${g.spawn_count}× since app start`
-      : (g.last_error || "");
+      : (g.not_ready_reason || g.last_error || "");
     if (!h.claude_key_configured) $("gtext").textContent += " · no Claude API key";
   } catch (e) {
     $("gdot").className = "dot off"; $("gtext").textContent = "App not reachable";
   }
 }
-health(); setInterval(health, 15000);
+health(); setInterval(health, 5000);
 
 // ---- chips ----
 for (const q of GOLDEN) {

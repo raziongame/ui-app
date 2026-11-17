@@ -1,0 +1,25 @@
+# Sample partner app (SAP Assistant) as a systemd *user* service. Install: make install-service
+# Linger is on for grpadm, so default.target (and this service) starts at boot without a login.
+[Unit]
+Description=SAP Assistant: sample partner app for Graphene (127.0.0.1:8080)
+Documentation=file:///home/grpadm/ui-app/README.md
+# Never give up restarting (no start-rate limit).
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=/home/grpadm/ui-app
+# The app reads ANTHROPIC_API_KEY from .env itself; the key is never put in the unit or its environment.
+ExecStart=/home/grpadm/ui-app/.venv/bin/uvicorn app.server:app --host 127.0.0.1 --port 8080 --no-access-log
+Environment=PYTHONUNBUFFERED=1
+# Restart after a crash (or any exit not asked for by systemctl stop).
+Restart=always
+RestartSec=5
+# Graphene MCP and its Neo4j/Postgres: the app itself retries with backoff (1, 2, 4 … 30 s) until
+# Graphene's status says both are up, so no ordering on (system) database units is needed here.
+TimeoutStopSec=20
+KillMode=mixed
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

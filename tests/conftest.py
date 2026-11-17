@@ -101,6 +101,10 @@ def client(fake_claude, tmp_path_factory):
     config.LOG_PATH = tmp_path_factory.mktemp("logs") / "app.jsonl"
     from app.server import create_app
     with TestClient(create_app(claude_client=fake_claude)) as c:
+        import time
+        deadline = time.time() + 90  # startup no longer blocks on Graphene: wait until it is ready
+        while not c.get("/api/health").json()["graphene"]["ready"] and time.time() < deadline:
+            time.sleep(0.2)
         yield c
 
 
