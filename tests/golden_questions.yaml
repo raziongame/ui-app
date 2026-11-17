@@ -210,7 +210,8 @@
     tools: [system_profile]
     # Operator 2026-11-16 (browser review): plain language; lead with Graphene's note ("SP 0000 (no
     # support package) … System → Status"); the raw 0000000000 only in the claims (evidence panel).
-    answer_contains: ["SAP_BASIS", "751", "SP 0000", "no support package", ["System → Status", "System > Status", "System->Status", "System Status"], ["haven't learned", "not learned"]]
+    # eval 2026-11-17: "SP level is 0000 (no support package, as System → Status shows)" is the same note
+    answer_contains: ["SAP_BASIS", "751", ["SP 0000", "SP level 0000", "SP level is 0000"], "no support package", ["System → Status", "System > Status", "System->Status", "System Status"], ["haven't learned", "not learned"]]
     prose_not_contains: ["0000000000"]
     claims_contain: ["0000000000"]
     answer_not_matches: ['\bSP\s*(level\s*)?0\b', 'support package\s*0\b', '7\.51 sp']
@@ -278,7 +279,8 @@
   expect:
     tools: [operations]
     answer_contains: ["41", "4305", "SM21", ["haven't learned", "not learned"]]
-    answer_not_matches: ["\\bI(['’]ll| will) (check|look)", "\\blet me (check|look)"]
+    # eval 2026-11-17 (76cfc6f): 112 words with a per-day breakdown and "about 288 a day"
+    answer_not_matches: ["\\bI(['’]ll| will) (check|look)", "\\blet me (check|look)", "\\babout \\d", "\\bpeak"]
     max_words: 110
     grounding_flags_max: 0
   mock:
