@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -19,6 +20,15 @@ from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
 log = logging.getLogger("ui_app.mcp")
+
+
+_PRODUCT_RE = re.compile(r"(?i)\S*graphene\S*")
+
+
+def neutral(text: str) -> str:
+    """Operator 2026-11-17: text a partner's IT team can see (journal, /api/health, the log file)
+    never names the engine's product, not even inside a path or command."""
+    return _PRODUCT_RE.sub("engine", str(text))
 
 
 class GrapheneUnavailable(RuntimeError):
@@ -138,16 +148,16 @@ class GrapheneMCP:
                             self.connected_at = time.time()
                             self.last_error = None
                             self._st.ready.set()
-                            log.info("graphene-mcp connected (spawn #%d, pid %s, %d tools)",
+                            log.info("engine connected (spawn #%d, pid %s, %d tools)",
                                      self.spawn_count, self.pid, len(self.tools))
                             backoff = 1.0
                             await self._hold()  # returns when stopping, asked to restart, or the process died
                             if not self._closing:
-                                self.last_error = self.last_error or "graphene-mcp process exited"
-                                log.warning("graphene-mcp is gone (%s); respawning", self.last_error)
+                                self.last_error = self.last_error or "engine process exited"
+                                log.warning("engine is gone (%s); respawning", self.last_error)
             except Exception as e:  # process died, pipe closed, init failed
-                self.last_error = f"{type(e).__name__}: {e}"[:300]
-                log.warning("graphene-mcp session ended: %s", self.last_error)
+                self.last_error = neutral(f"{type(e).__name__}: {e}")[:300]
+                log.warning("engine session ended: %s", self.last_error)
             finally:
                 self._st.session = None
                 self._st.ready = asyncio.Event()
@@ -181,7 +191,7 @@ class GrapheneMCP:
         try:
             await asyncio.wait_for(self._st.ready.wait(), timeout=self.connect_timeout_s)
         except asyncio.TimeoutError as e:
-            raise GrapheneUnavailable(f"Graphene MCP not available: {self.last_error or 'timeout'}") from e
+            raise GrapheneUnavailable(f"engine not available: {self.last_error or 'timeout'}") from e
         assert self._st.session is not None
         return self._st.session
 
@@ -201,20 +211,20 @@ class GrapheneMCP:
                     )
                 except asyncio.TimeoutError:
                     ms = int((time.perf_counter() - t0) * 1000)
-                    return ToolCallResult(False, ms, error=f"Graphene tool '{name}' timed out after {ms} ms")
+                    return ToolCallResult(False, ms, error=f"engine tool '{name}' timed out after {ms} ms")
                 except Exception as e:
                     ms = int((time.perf_counter() - t0) * 1000)
                     died = (not self._alive() or self._st.session is None or self._st.generation != gen
                             or "connection closed" in str(e).lower())
                     if died:
-                        self.last_error = f"{type(e).__name__}: {e}"[:300]
+                        self.last_error = neutral(f"{type(e).__name__}: {e}")[:300]
                         self._restart.set()  # make the supervisor drop this session and respawn
                         await asyncio.sleep(0.1)
                     if died and attempt == 1:
-                        log.warning("graphene-mcp died during %s; reconnecting and retrying once", name)
+                        log.warning("engine died during %s; reconnecting and retrying once", name)
                         reconnected = True
                         continue
-                    return ToolCallResult(False, ms, error=f"{type(e).__name__}: {e}"[:500], reconnected=reconnected)
+                    return ToolCallResult(False, ms, error=neutral(f"{type(e).__name__}: {e}")[:500], reconnected=reconnected)
                 ms = int((time.perf_counter() - t0) * 1000)
                 structured = res.structured_content
                 if structured is None:  # fall back to the JSON text block
@@ -229,6 +239,6 @@ class GrapheneMCP:
                 if res.is_error:
                     msg = structured.get("error") if isinstance(structured, dict) else None
                     return ToolCallResult(False, ms, structured=structured,
-                                          error=str(msg or "Graphene returned an error"), reconnected=reconnected)
+                                          error=neutral(str(msg or "the engine returned an error")), reconnected=reconnected)
                 return ToolCallResult(True, ms, structured=structured, reconnected=reconnected)
             raise GrapheneUnavailable("unreachable")

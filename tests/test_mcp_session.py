@@ -11,8 +11,9 @@ from conftest import ask
 
 def test_health_reports_one_live_session(client):
     h = client.get("/api/health").json()
-    g = h["graphene"]
-    assert g["connected"] and g["server"] == "graphene"
+    g = h["engine"]
+    assert g["connected"] and g["ready"]
+    assert "graphene" not in str(h).lower()  # operator 2026-11-17: a partner's IT team may read it
     assert g["tools"] == ["find_object", "impact", "assess_transport", "status", "operations",
                           "system_profile"]  # Graphene v14 (1.33.0)
     assert g["spawn_count"] == 1

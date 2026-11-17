@@ -14,7 +14,8 @@ make test         # mocked Claude, real Graphene MCP — no API spend
 make run          # http://127.0.0.1:8080 (localhost only)
 make latency      # Graphene tool latency on one warm MCP session
 make eval-estimate  # token count + cost estimate for the golden questions (free)
-make eval         # golden questions in both skins against the real Claude API (costs money)
+make eval-cases CASES="id ..."  # while fixing: only the affected golden questions, cap $1 per run
+make eval         # every golden question in both skins (costs ~$0.9): only before a tag
 ```
 
 ## Service (systemd user unit)

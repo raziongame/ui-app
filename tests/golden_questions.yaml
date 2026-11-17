@@ -40,9 +40,9 @@
         - 2 of them are RFC entry points: ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA.
         - 1 dynamic call (from ZCL_ZS4_IOT_PROJ_DPC_EXT to ZS4_IOT_INSERT_DATA) is a candidate, not a fact, so the impact may be larger.
       claims:
-        - {text: "Table ZS4_IOT_DATA has 9 dependent objects.", evidence_ids: ["node:TABL:ZS4_IOT_DATA"]}
-        - {text: "Function modules ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA use ZS4_IOT_DATA and are RFC-enabled.", evidence_ids: ["path:TABL:ZS4_IOT_DATA > FUNC:ZS4_IOT_INSERT_DATA", "path:TABL:ZS4_IOT_DATA > FUNC:ZS4_IOT_READ_DATA"]}
-        - {text: "Class ZCL_ZS4_IOT_PROJ_DPC_EXT calls ZS4_IOT_INSERT_DATA dynamically (a candidate).", evidence_ids: ["call:1"]}
+        - {text: "Table ZS4_IOT_DATA has 9 dependent objects.", results: [1]}
+        - {text: "Function modules ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA use ZS4_IOT_DATA and are RFC-enabled.", results: [1]}
+        - {text: "Class ZCL_ZS4_IOT_PROJ_DPC_EXT calls ZS4_IOT_INSERT_DATA dynamically (a candidate).", results: [1]}
 
 - id: risk_zuzk900008
   question: "Why is ZUZK900008 high risk?"
@@ -80,9 +80,9 @@
         - 1 dynamic call touches the change, so the impact may be larger.
         My earlier scores used an older method.
       claims:
-        - {text: "Transport ZUZK900008 scores 0.47: high, 88th percentile.", evidence_ids: ["node:TRKORR:ZUZK900008"]}
-        - {text: "ZUZK900008 changes the table definition of ZS4_IOT_DATA.", evidence_ids: ["node:TABL:ZS4_IOT_DATA"]}
-        - {text: "Function modules ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA are RFC entry points that use ZS4_IOT_DATA.", evidence_ids: ["path:TABL:ZS4_IOT_DATA > FUNC:ZS4_IOT_INSERT_DATA", "path:TABL:ZS4_IOT_DATA > FUNC:ZS4_IOT_READ_DATA"]}
+        - {text: "Transport ZUZK900008 scores 0.47: high, 88th percentile.", results: [1]}
+        - {text: "ZUZK900008 changes the table definition of ZS4_IOT_DATA.", results: [1]}
+        - {text: "Function modules ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA are RFC entry points that use ZS4_IOT_DATA.", results: [1]}
 
 - id: risk_zuzk900006
   question: "Why is ZUZK900006 riskier than before?"
@@ -141,8 +141,8 @@
       answer: |-
         ZUZK900006 now scores 0.345 (moderate, 66th percentile) and rose in steps. Its main current reasons: table definition TABL:ZGR_DISC_RULES is in the transport, and PROG:ZGR_PRICE_SYNC → RUNS → JOB:JOB-5192e9d4d2ab, a periodic job (runs daily, 12 runs in window).
       claims:
-        - {text: "Transport ZUZK900006 scores 0.345: moderate, 66th percentile.", evidence_ids: ["node:TRKORR:ZUZK900006"]}
-        - {text: "Program ZGR_PRICE_SYNC runs job JOB-5192e9d4d2ab daily (12 runs in window).", evidence_ids: ["path:PROG:ZGR_PRICE_SYNC > JOB:JOB-5192e9d4d2ab"]}
+        - {text: "Transport ZUZK900006 scores 0.345: moderate, 66th percentile.", results: [1]}
+        - {text: "Program ZGR_PRICE_SYNC runs job JOB-5192e9d4d2ab daily (12 runs in window).", results: [1]}
       history_for: ZUZK900006
 
 - id: not_found_zfake_table
@@ -165,7 +165,7 @@
         I don't know a table called ZFAKE_TABLE in this system, and I won't guess.
         It may have been created after I last learned the dictionary, or sit outside what I've learned.
       claims:
-        - {text: "No object called ZFAKE_TABLE in the dictionary I've learned.", evidence_ids: ["call:1"]}
+        - {text: "No object called ZFAKE_TABLE in the dictionary I've learned.", results: [1]}
 
 - id: what_graphene_does_not_know
   question: "What haven't you learned yet?"
@@ -186,8 +186,8 @@
         - Configuration, Access, Interfaces, Runtime evidence and Understanding.
         I also don't track what changed in SAP since I learned an area, and I never read business data, ABAP source code, job variants, dump texts or job logs.
       claims:
-        - {text: "6 of 11 areas are learned.", evidence_ids: ["call:1"]}
-        - {text: "Configuration, Access, Interfaces, Runtime evidence and Understanding are not started.", evidence_ids: ["call:1"]}
+        - {text: "6 of 11 areas are learned.", results: [1]}
+        - {text: "Configuration, Access, Interfaces, Runtime evidence and Understanding are not started.", results: [1]}
 
 - id: system_profile_sap_basis
   question: "What is the component version of SAP_BASIS?"
@@ -225,9 +225,9 @@
         - I haven't learned the support package name yet: it isn't in the table SAP keeps component versions in.
         - This is as of when I learned the system on 2026-11-05; I don't know anything newer.
       claims:
-        - {text: "SAP_BASIS release 751, SP level 0000000000 as SAP stores it in CVERS; System → Status shows it as SP 0000 (no support package).", evidence_ids: ["node:SWCOMP:ZUZ:SAP_BASIS"]}
-        - {text: "The support package name isn't in CVERS, so I haven't learned it.", evidence_ids: ["node:SWCOMP:ZUZ:SAP_BASIS"]}
-        - {text: "Learned on 2026-11-05.", evidence_ids: ["run:L0:v8"]}
+        - {text: "SAP_BASIS release 751, SP level 0000000000 as SAP stores it in CVERS; System → Status shows it as SP 0000 (no support package).", results: [1]}
+        - {text: "The support package name isn't in CVERS, so I haven't learned it.", results: [1]}
+        - {text: "Learned on 2026-11-05.", results: [1]}
 
 - id: lowerers_zuzk900008
   question: "What would lower the risk of ZUZK900008?"
@@ -256,9 +256,9 @@
         - Import into the test system and confirm return code ≤ 4: score after 0.3995.
         Each score is for that option alone; I don't have a score for doing both.
       claims:
-        - {text: "Transport ZUZK900008 scores 0.47.", evidence_ids: ["node:TRKORR:ZUZK900008"]}
-        - {text: "Class ZCL_ZS4_IOT_PROJ_DPC_EXT calls ZS4_IOT_INSERT_DATA dynamically; resolving that: score after 0.395.", evidence_ids: ["edge:CLAS:ZCL_ZS4_IOT_PROJ_DPC_EXT -UNRESOLVED_DYNAMIC-> FUNC:ZS4_IOT_INSERT_DATA"]}
-        - {text: "Test import with return code ≤ 4: score after 0.3995.", evidence_ids: ["call:1"]}
+        - {text: "Transport ZUZK900008 scores 0.47.", results: [1]}
+        - {text: "Class ZCL_ZS4_IOT_PROJ_DPC_EXT calls ZS4_IOT_INSERT_DATA dynamically; resolving that: score after 0.395.", results: [1]}
+        - {text: "Test import with return code ≤ 4: score after 0.3995.", results: [1]}
 
 # Negative control (make test only): a mocked answer with an invented number and object
 # must be flagged by the grounding check, not hidden.
@@ -293,10 +293,10 @@
         - I haven't learned the system log (SM21) yet, CCMS is not configured, and SAP keeps no workload aggregates on this system.
         These are counts only; nothing newer than when I last learned operations.
       claims:
-        - {text: "41 background job runs, 0 cancelled.", evidence_ids: ["run:L5:v3"]}
-        - {text: "4305 short dumps, counted per day.", evidence_ids: ["run:L5:v3"]}
-        - {text: "0 alerts.", evidence_ids: ["run:L5:v3"]}
-        - {text: "The system log (SM21) isn't learned yet.", evidence_ids: ["call:1"]}
+        - {text: "41 background job runs, 0 cancelled.", results: [1]}
+        - {text: "4305 short dumps, counted per day.", results: [1]}
+        - {text: "0 alerts.", results: [1]}
+        - {text: "The system log (SM21) isn't learned yet.", results: [1]}
 
 - id: sm21_details
   question: "Show me SM21 details"
@@ -318,8 +318,8 @@
         I haven't learned the system log (SM21) yet, so I can't show its entries.
         What I do have from monitoring is counts only: 41 job runs, 4305 short dumps and 0 alerts.
       claims:
-        - {text: "The system log (SM21) isn't learned yet.", evidence_ids: ["call:1"]}
-        - {text: "41 background job runs, 4305 short dumps, 0 alerts.", evidence_ids: ["run:L5:v3"]}
+        - {text: "The system log (SM21) isn't learned yet.", results: [1]}
+        - {text: "41 background job runs, 4305 short dumps, 0 alerts.", results: [1]}
 
 # Regression (make test only), browser testing 2026-11-17: a reply that only promises to look it up,
 # with no Graphene call, is never shown. claude-sonnet-5-5 rejects tool_choice "any" (400), so the app
@@ -334,7 +334,7 @@
     answer:
       answer: "I haven't learned the system log (SM21) yet, so I can't show its entries."
       claims:
-        - {text: "The system log (SM21) isn't learned yet.", evidence_ids: ["call:1"]}
+        - {text: "The system log (SM21) isn't learned yet.", results: [1]}
 
 - id: no_call_twice_is_an_error
   question: "system monitoring?"
@@ -350,14 +350,14 @@
 - id: grounding_flags_invented_facts
   question: "What breaks if I change ZS4_IOT_DATA?"
   test_only: true
-  expect_flags: ["12", "ZS4_IOT_DELETE_DATA", "edge:made-up"]
+  expect_flags: ["12", "ZS4_IOT_DELETE_DATA", "result 7"]  # result 7: not a result of this question
   mock:
     calls:
       - {tool: impact, args: {name: ZS4_IOT_DATA}}
     answer:
       answer: "Changing ZS4_IOT_DATA affects 12 objects, including ZS4_IOT_DELETE_DATA."
       claims:
-        - {text: "12 objects are affected.", evidence_ids: ["edge:made-up"]}
+        - {text: "12 objects are affected.", results: [7]}
 
 # Regression (make test only), make eval 2026-11-14/16: Claude repeated status {} and re-ran
 # assess_transport with show:1. One result per tool and object per question; a second call on the
@@ -376,7 +376,7 @@
     answer:
       answer: "Changing ZS4_IOT_DATA affects 9 objects. I have learned 6 of 11 areas."
       claims:
-        - {text: "9 objects are affected.", evidence_ids: ["node:TABL:ZS4_IOT_DATA"]}
+        - {text: "9 objects are affected.", results: [1]}
 
 # Operator 2026-11-16: one round of Graphene calls per question. A clear result (found, or not
 # found with no similar names) ends the calls: the scripted second round is never requested.
@@ -393,7 +393,7 @@
     answer:
       answer: "ZFAKE_TABLE is not found in the learned system."
       claims:
-        - {text: "ZFAKE_TABLE is not found in the learned system.", evidence_ids: ["call:1"]}
+        - {text: "ZFAKE_TABLE is not found in the learned system.", results: [1]}
 
 # Exception 1: not found WITH similar names (Graphene: ZS4_IOT_DAT -> similar_names
 # [TABL:ZS4_IOT_DATA]) allows one more round; a third round is never requested.
@@ -414,8 +414,8 @@
     answer:
       answer: "I don't know ZS4_IOT_DAT, but I know ZS4_IOT_DATA: changing it affects 9 objects."
       claims:
-        - {text: "ZS4_IOT_DAT is not found; similar name ZS4_IOT_DATA.", evidence_ids: ["call:1"]}
-        - {text: "Changing ZS4_IOT_DATA affects 9 objects.", evidence_ids: ["node:TABL:ZS4_IOT_DATA"]}
+        - {text: "ZS4_IOT_DAT is not found; similar name ZS4_IOT_DATA.", results: [1]}
+        - {text: "Changing ZS4_IOT_DATA affects 9 objects.", results: [2]}
 
 # Exception 2: ambiguous (several objects for one name) allows one more round. This learned system
 # has no ambiguous name, so the test returns two real find_object objects for ZS4_IOT_X.
@@ -434,4 +434,4 @@
     answer:
       answer: "ZS4_IOT_X matches 2 objects: ZS4_IOT_FG and ZS4_IOT_INSERT_DATA."
       claims:
-        - {text: "2 objects match: ZS4_IOT_FG and ZS4_IOT_INSERT_DATA.", evidence_ids: ["call:1"]}
+        - {text: "2 objects match: ZS4_IOT_FG and ZS4_IOT_INSERT_DATA.", results: [1]}

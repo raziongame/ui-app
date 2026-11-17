@@ -103,7 +103,7 @@ def client(fake_claude, tmp_path_factory):
     with TestClient(create_app(claude_client=fake_claude)) as c:
         import time
         deadline = time.time() + 90  # startup no longer blocks on Graphene: wait until it is ready
-        while not c.get("/api/health").json()["graphene"]["ready"] and time.time() < deadline:
+        while not c.get("/api/health").json()["engine"]["ready"] and time.time() < deadline:
             time.sleep(0.2)
         yield c
 

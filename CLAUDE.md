@@ -68,7 +68,8 @@ learned … yet". Never "trained", "training", "fine-tuned", "trained model" or 
 
 ## Answer contract (internal: server and log; what every answer carries)
 
-`answer` (plain language), `claims[]` each with `evidence_ids`, `tool_trace` (tool, arguments,
+`answer` (plain language), `claims[]` each with `evidence_ids` (the model cites results by number,
+`results: [N]`; the app fills in Graphene's real ids from those results, operator 2026-11-17), `tool_trace` (tool, arguments,
 short result, ms), `coverage`, `freshness`, `limits`, and a `grounding` result. The skin shows only
 the answer, "How do I know?" (the claims as sources in SAP terms, plus which areas were learned how
 long ago) and, for history questions, the steps table.
@@ -97,8 +98,10 @@ Rules for each fix:
    fix commit.
 2. Add or update a case in `tests/golden_questions.yaml` so it can't come back.
 3. `make test` (mocked Claude, real Graphene MCP) must pass before any commit.
-4. `make eval` runs the golden questions against the real API: run it before tagging, and
-   report the cost estimate first.
+4. **Eval cost rule (operator 2026-11-17).** The full eval (`make eval`: every golden question in
+   both skins, ~$0.9) runs **only before a tag**. While fixing, run only the affected questions:
+   `make eval-cases CASES="id ..."`, capped at **$1 per run** (the runner stops before it would pass
+   the cap). Report the cost estimate first (`make eval-estimate [CASES=…]`) and the actual cost after.
 5. Small commits on a branch, merge when the operator approves, tag `whitelabel-vN` (before 2026-11-17: `partner-demo-vN`).
 
 ## Golden questions (start with these)

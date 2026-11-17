@@ -116,6 +116,40 @@ def history_steps(results: list[dict[str, Any]], transport: str) -> dict[str, An
     return None
 
 
+def _id_mentions(ev_id: str, names: set[str]) -> int:
+    return sum(1 for n in names if re.search(r"(?<![A-Za-z0-9_])" + re.escape(n) + r"(?![A-Za-z0-9_])", ev_id))
+
+
+def fill_evidence(claim: dict[str, Any], results: list[dict[str, Any] | None]) -> dict[str, Any]:
+    """Operator 2026-11-17: the model cites results by number ("results": [1]); the app fills in the
+    real evidence ids from those results, never typed by the model. Per cited result: the ids that
+    name the most objects of the claim (node ids preferred when only one object matches); if none
+    names a claim object, "call:N". A number that is not a result of this question stays as
+    "result N" and is flagged by the grounding check."""
+    if "evidence_ids" in claim and "results" not in claim:  # already filled (re-built contract)
+        return claim
+    names: set[str] = set()
+    for n in grounding._names_in(claim.get("text", "")):
+        names.add(n)
+        if ":" in n:
+            names.add(n.split(":", 1)[1])
+    ids: list[str] = []
+    for num in claim.get("results") or []:
+        if not isinstance(num, int) or not (1 <= num <= len(results)) or not isinstance(results[num - 1], dict):
+            ids.append(f"result {num}")
+            continue
+        pool: set[str] = set()
+        collect_evidence(results[num - 1], pool)
+        scored = [(_id_mentions(e, names), e) for e in sorted(pool)] if names else []
+        best = max((s for s, _ in scored), default=0)
+        picked = [e for s, e in scored if s == best and best > 0]
+        if best == 1 and any(e.startswith("node:") for e in picked):
+            picked = [e for e in picked if e.startswith("node:")]
+        ids += picked or [f"call:{num}"]
+    return {"text": claim.get("text", ""), "results": claim.get("results") or [],
+            "evidence_ids": list(dict.fromkeys(ids))}
+
+
 def build(answer: dict[str, Any], trace: list[dict[str, Any]], results: list[dict[str, Any] | None]) -> dict[str, Any]:
     ok_results = [r for r in results if isinstance(r, dict)]
 
@@ -141,7 +175,7 @@ def build(answer: dict[str, Any], trace: list[dict[str, Any]], results: list[dic
             if lim not in limits:
                 limits.append(lim)
 
-    claims = answer.get("claims") or []
+    claims = [fill_evidence(c, results) for c in answer.get("claims") or []]
     texts = {"answer": answer.get("answer", "")}
     evidence_used = []
     for n, c in enumerate(claims, start=1):

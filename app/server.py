@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from . import agent, config, present
 from . import brand as brands
-from .mcp_client import GrapheneMCP, GrapheneUnavailable
+from .mcp_client import GrapheneMCP, GrapheneUnavailable, neutral
 
 log = logging.getLogger("ui_app")
 if not log.handlers:  # app messages (Graphene connect/retry) reach stderr -> the systemd journal
@@ -82,7 +82,7 @@ def backends_ready(structured: dict[str, Any] | None) -> tuple[bool, str]:
     health = ((structured or {}).get("result") or {}).get("health") or {}
     down = [name for name in ("neo4j", "postgres") if not (health.get(name) or {}).get("ok")]
     if down:
-        return False, "Graphene reports " + " and ".join(down) + " not up yet"
+        return False, "the engine reports " + " and ".join(down) + " not up yet"
     return True, ""
 
 
@@ -102,26 +102,26 @@ async def watch_readiness(g: GrapheneMCP, state: dict[str, Any], first_delay: fl
             await asyncio.sleep(0.5)
             continue
         if not g.connected:
-            ok, why = False, f"graphene-mcp not connected yet ({g.last_error or 'starting'})"
+            ok, why = False, f"engine not connected yet ({g.last_error or 'starting'})"
         else:
             gen = g.generation
             try:
                 r = await g.call("status", {})
-                ok, why = backends_ready(r.structured) if r.ok else (False, f"status failed: {r.error}")
+                ok, why = backends_ready(r.structured) if r.ok else (False, neutral(f"status failed: {r.error}"))
                 if r.ok:
                     state["status"], state["status_at"] = r.structured, time.time()
             except GrapheneUnavailable as e:
-                ok, why = False, str(e)
+                ok, why = False, neutral(str(e))
             checked_gen = gen
         was = state["ready"]
         state["ready"], state["not_ready_reason"] = ok, (None if ok else why)
         if ok:
             if not was:
-                log.info("Graphene ready (Neo4j and Postgres up per Graphene status)")
+                log.info("engine ready (Neo4j and Postgres up per its status)")
             delay = first_delay
             continue
         state["retries"] = state.get("retries", 0) + 1
-        log.warning("Graphene not ready: %s; retrying in %.0f s", why, delay)
+        log.warning("engine not ready: %s; retrying in %.0f s", why, delay)
         await asyncio.sleep(delay)
         delay = min(delay * 2, max_delay)
 
@@ -177,18 +177,17 @@ def create_app(claude_client: Any | None = None, mcp_command: str = config.GRAPH
             "app": config.APP_TITLE,
             "model": config.MODEL,
             "claude_key_configured": state.get("claude") is not None,
-            "graphene": {
+            "engine": {  # operator 2026-11-17: neutral; a partner's IT team may read this
                 "ready": state["ready"],
-                "not_ready_reason": state["not_ready_reason"],
+                "not_ready_reason": neutral(state["not_ready_reason"]) if state["not_ready_reason"] else None,
                 "readiness_retries": state["retries"],
                 "connected": g.connected,
-                "server": g.server_name,
                 "version": g.server_version,
                 "tools": [t.name for t in g.tools],
                 "spawn_count": g.spawn_count,
                 "pid": g.pid,
                 "connected_since": g.connected_at,
-                "last_error": g.last_error,
+                "last_error": neutral(g.last_error) if g.last_error else None,
             },
         })
 
@@ -213,7 +212,7 @@ def create_app(claude_client: Any | None = None, mcp_command: str = config.GRAPH
                     await queue.put({"type": "error", "message": brands.ERROR_ANSWER})
                     return
                 if not state["ready"]:
-                    rec.update(ok=False, error=f"engine not ready: {state['not_ready_reason']}")
+                    rec.update(ok=False, error=neutral(f"engine not ready: {state['not_ready_reason']}"))
                     await queue.put({"type": "error", "message": brands.NOT_READY_ANSWER})
                     return
                 out = await agent.answer_with_timeout(question, state["graphene"], state["claude"], emit, b)
@@ -225,7 +224,7 @@ def create_app(claude_client: Any | None = None, mcp_command: str = config.GRAPH
                            usage=out["usage"], timing_ms=out["timing_ms"])
                 await queue.put({"type": "final", "data": shown})
             except (agent.AnswerError, GrapheneUnavailable) as e:  # details in the log, never in a skin
-                rec.update(ok=False, error=str(e))
+                rec.update(ok=False, error=neutral(str(e)))
                 await queue.put({"type": "error", "message": brands.ERROR_ANSWER})
             except Exception as e:  # never leak internals (or anything secret) to the browser
                 log.exception("unexpected error")

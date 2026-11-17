@@ -134,7 +134,8 @@ def test_request_shape_to_claude(fake_claude):
         assert 'goes only in the sources ("claims"), never in the answer' in text  # browser review 11-16
         assert "Keep it to 1-2 short sentences" in text  # not found: short and clear (11-17)
         assert 'Never approximate: no "about", "around", "roughly"' in text  # eval 11-17: "about 288 a day"
-        assert "copied character for character from a result" in text  # eval 11-17: built FUNC:ZS4_IOT_FG
+        assert "Never write evidence ids: the app takes them from those results." in text  # 11-17
+        assert kw["output_config"]["format"]["schema"]["properties"]["claims"]["items"]["required"] == ["text", "results"]
         assert "Never add a gap the results don't state" in text  # eval 11-17: SM21 from the prompt in Q5
         assert "set \"history_for\"" in text and "don't say that nothing changed" in text
         assert "relationship → to" in text and "Never summarise" in text  # v3 paths
@@ -333,3 +334,20 @@ def test_q3_path_checks_catch_the_v2_wording():
                 "The change to ZGR_DISC_RULES affects ZGR_PRICE_SYNC and the job."):
         assert any(re.search(r, bad, re.I) for r in rx), bad
 
+
+
+def test_app_fills_evidence_ids_from_cited_results(client):
+    """Operator 2026-11-17: claims cite results by number; the app fills in Graphene's own ids
+    (eval: the model typed FUNC:/FUNGR:ZS4_IOT_FG where Graphene's key is FUGR:ZS4_IOT_FG)."""
+    from app.contract import build, fill_evidence
+    r = client.portal.call(client.app.state.graphene.call, "impact", {"name": "ZS4_IOT_DATA"}).structured
+    fg = fill_evidence({"text": "Function group ZS4_IOT_FG uses table ZS4_IOT_DATA.", "results": [1]}, [r])
+    assert fg["evidence_ids"] == ["edge:FUGR:ZS4_IOT_FG-USES_TABLE->TABL:ZS4_IOT_DATA",
+                                  "path:TABL:ZS4_IOT_DATA > FUGR:ZS4_IOT_FG"]
+    root = fill_evidence({"text": "Table ZS4_IOT_DATA has 9 dependent objects.", "results": [1]}, [r])
+    assert root["evidence_ids"] == ["node:TABL:ZS4_IOT_DATA"]
+    none = fill_evidence({"text": "No such table in what I've learned.", "results": [1]}, [r])
+    assert none["evidence_ids"] == ["call:1"]
+    trace = [{"n": 1, "tool": "impact", "arguments": {}, "ok": True, "ms": 1, "result": ""}]
+    out = build({"answer": "ok", "claims": [{"text": "ZS4_IOT_DATA.", "results": [3]}], "history_for": ""}, trace, [r])
+    assert [f["token"] for f in out["grounding"]["flags"]] == ["result 3"]  # not a result of this question

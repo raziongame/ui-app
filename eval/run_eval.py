@@ -1,7 +1,11 @@
 """Golden questions against the REAL Claude API (and real Graphene MCP).
 
-  python eval/run_eval.py --estimate   # token counts via count_tokens (free) -> cost estimate, no answers
-  python eval/run_eval.py              # runs the golden questions (costs money), checks expectations
+  python eval/run_eval.py --estimate [--only ids]   # token counts via count_tokens (free) -> cost estimate
+  python eval/run_eval.py --only id1 id2             # fixing: only the affected questions, cap $1 per run
+  python eval/run_eval.py --full                     # every question in both skins: only before a tag
+
+Cost rule (operator 2026-11-17): the full eval only before a tag; while fixing, only the affected
+questions, and a run stops before it would pass --max-cost (default $1).
 
 The key is read from .env by app.config and never printed.
 """
@@ -32,7 +36,9 @@ OUT_PER_TOOL_TURN = 500
 OUT_FINAL = 1500
 
 
+RESULTS_DIR = ROOT / "eval" / "results"
 ONLY: set[str] = set()
+MAX_COST = [1.00]  # $ per run (operator 2026-11-17); make eval (full, before a tag) passes its own cap
 SKINS: list[str] = ["partner", "direct"]  # operator 2026-11-17: every golden question in both skins
 TARGET_S = 10.0  # operator 2026-11-16: under 10 s per answer (a case may set expect.max_seconds)
 
@@ -97,7 +103,15 @@ def runs() -> list[tuple[str, dict]]:
 
 async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
     results, failures, total_cost = [], 0, 0.0
-    for skin, c in runs():
+    planned, worst = runs(), 0.0
+    for i, (skin, c) in enumerate(planned):
+        # stop before the next question could take the run past the cap (worst cost so far, else $0.10)
+        if total_cost + max(worst, 0.10) > MAX_COST[0]:
+            left = planned[i:]
+            print(f"STOPPED: cost cap ${MAX_COST[0]:.2f} (spent ${total_cost:.4f}); not run: "
+                  + ", ".join(f"{s}/{x['id']}" for s, x in left))
+            failures += len(left)
+            break
         b = brands.get(skin)
         t0 = time.time()
         first_text: list[float] = []  # seconds until the first answer text is visible in the UI
@@ -111,6 +125,7 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
         except agent.AnswerError as e:
             cost = dollars(e.usage)
             total_cost += cost
+            worst = max(worst, cost)
             results.append({"id": c["id"], "skin": skin, "question": c["question"], "error": str(e),
                             "tool_trace": e.trace, "usage": e.usage, "cost_usd": round(cost, 4)})
             failures += 1
@@ -196,6 +211,7 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
             problems.append(f"grounding flags: {[f['token'] for f in out['grounding']['flags']]}")
         cost = dollars(out["usage"])
         total_cost += cost
+        worst = max(worst, cost)
         failures += bool(problems)
         results.append({"id": c["id"], "skin": skin, "view": view, "question": c["question"], "ok": not problems, "problems": problems,
                         "cost_usd": round(cost, 4), "seconds": round(time.time() - t0, 1),
@@ -204,7 +220,7 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
               + f"  {out['usage']['requests']} requests, {len(out['tool_trace'])} calls"
               + (f", {out['usage']['repeat_calls_skipped']} repeat(s) skipped" if out["usage"].get("repeat_calls_skipped") else "")
               + ("".join(f"\n     - {p}" for p in problems)))
-    outdir = ROOT / "eval" / "results"
+    outdir = RESULTS_DIR
     outdir.mkdir(exist_ok=True)
     path = outdir / f"eval-{time.strftime('%Y%m%dT%H%M%S')}.json"
     path.write_text(json.dumps(results, indent=1, ensure_ascii=False))
@@ -215,7 +231,7 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
         lim = f"{c['expect'].get('max_seconds', TARGET_S):g} s"
         print(f"{skin:8}{r['question'][:45]:45} {ft:>10} {tot:>7} {lim:>6} {'$%.4f' % r['cost_usd']:>8}  "
               + ("PASS" if r.get("ok") else "FAIL"))
-    print(f"\n{len(results) - failures}/{len(results)} passed · actual cost ${total_cost:.4f} · {path.relative_to(ROOT)}")
+    print(f"\n{len(results) - (failures - (len(planned) - len(results)))}/{len(planned)} passed · actual cost ${total_cost:.4f} · {path.relative_to(ROOT)}")
     return 1 if failures else 0
 
 
@@ -224,7 +240,12 @@ async def main() -> int:
     ap.add_argument("--estimate", action="store_true")
     ap.add_argument("--only", nargs="*", default=[], help="golden case ids to run")
     ap.add_argument("--skins", nargs="*", default=SKINS, choices=["partner", "direct"], help="skins to run")
+    ap.add_argument("--full", action="store_true", help="every golden question (only before a tag)")
+    ap.add_argument("--max-cost", type=float, default=MAX_COST[0], help="$ cap for this run (default 1.00)")
     args = ap.parse_args()
+    if not args.estimate and not args.full and not args.only:
+        sys.exit("Name the affected questions (--only id ...), or --full before a tag (operator cost rule).")
+    MAX_COST[0] = args.max_cost
     ONLY.update(args.only)
     SKINS[:] = args.skins
     g = GrapheneMCP(config.GRAPHENE_MCP_COMMAND, call_timeout_s=config.TOOL_TIMEOUT_S)

@@ -125,10 +125,9 @@ true, false, call:1); say what they mean ("score after", "not learned yet", "old
 plain sentence each, in SAP terms only: the objects, transports, jobs and dates involved and what \
 connects them (e.g. "Function module ZS4_IOT_READ_DATA reads table ZS4_IOT_DATA."). A raw SAP value \
 may be quoted (e.g. "SAP_BASIS SP level 0000000000, as SAP reports it"). No ids (call:1, path:, \
-node:), no field names, no tool names. "evidence_ids": the evidence ids from the results that support \
-it ("evidence_ids" or "evidence" in the results), each copied character for character from a result; \
-never build one yourself (e.g. from an object's type and name). If no listed id fits, or if none (e.g. not found), "call:N" (N = 1 for the \
-first tool call of this question, 2 for the second, ...). Evidence ids are never shown.
+node:), no field names, no tool names. "results": the numbers of the tool results this source comes \
+from (each result starts with "result N:"; 1 is the first tool call of this question). Never write \
+evidence ids: the app takes them from those results.
 - "history_for": the transport whose score history the app shows as a table (see above), else "".
 
 Background from your knowledge engine about itself (never repeat its name or wording to the user):
@@ -162,9 +161,9 @@ ANSWER_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "text": {"type": "string"},
-                    "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                    "results": {"type": "array", "items": {"type": "integer"}},
                 },
-                "required": ["text", "evidence_ids"],
+                "required": ["text", "results"],
                 "additionalProperties": False,
             },
         },
@@ -419,7 +418,8 @@ async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit
             results.append(r.structured if r.ok else None)
             await emit({"type": "tool_end", **entry})
             if r.ok:
-                content = json.dumps(r.structured, separators=(",", ":"), ensure_ascii=False)
+                # "result N:" lets a claim cite the result by number; the app fills in its evidence ids.
+                content = f"result {n}: " + json.dumps(r.structured, separators=(",", ":"), ensure_ascii=False)
                 tool_results.append({"type": "tool_result", "tool_use_id": tu.id, "content": content})
             else:
                 tool_results.append({"type": "tool_result", "tool_use_id": tu.id, "is_error": True,

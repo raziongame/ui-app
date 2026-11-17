@@ -65,7 +65,7 @@ def test_app_serves_and_refuses_questions_while_graphene_is_down(tmp_path):
     config.LOG_PATH = tmp_path / "app.jsonl"
     with TestClient(create_app(claude_client=object(), mcp_command=str(tmp_path / "no-graphene-mcp"))) as c:
         t0 = time.time()
-        h = c.get("/api/health").json()["graphene"]
+        h = c.get("/api/health").json()["engine"]
         assert time.time() - t0 < 5  # startup does not block on Graphene
         assert h["ready"] is False and h["not_ready_reason"]
         assert c.get("/").status_code == 200
@@ -85,3 +85,56 @@ def test_unit_file_localhost_restart_no_secrets():
     assert cp["Install"]["WantedBy"] == "default.target"
     text = (ROOT / "deploy" / "sap-assistant.service").read_text()
     assert "EnvironmentFile" not in text and "sk-ant" not in text
+
+
+def test_operator_surfaces_never_name_the_product(tmp_path):
+    """Operator 2026-11-17: /api/health, the journal (log messages) and the unit file are neutral;
+    errors that carry the engine's path are neutralised too."""
+    import re as _re
+    from app.mcp_client import neutral
+    from app import config
+    from app.server import create_app
+    assert neutral("FileNotFoundError: /home/grpadm/graphene/.venv/bin/graphene-mcp") == "FileNotFoundError: engine"
+    assert neutral("Graphene MCP down") == "engine MCP down"
+    config.LOG_PATH = tmp_path / "app.jsonl"
+    missing = "/nonexistent/graphene/.venv/bin/graphene-mcp"
+    with TestClient(create_app(claude_client=object(), mcp_command=missing)) as c:
+        time.sleep(1.5)
+        h = c.get("/api/health").text
+        assert "graphene" not in h.lower(), h
+    for src in ("app/server.py", "app/mcp_client.py"):
+        text = (ROOT / src).read_text()
+        for m in _re.finditer(r"log\.(?:info|warning|error|exception)\((.*)", text):
+            assert "raphene" not in m.group(1), (src, m.group(0))
+    unit = (ROOT / "deploy" / "sap-assistant.service").read_text()
+    assert "graphene" not in "\n".join(l for l in unit.splitlines() if not l.startswith("ExecStart")).lower()
+
+
+def test_eval_runner_stops_at_the_cost_cap(monkeypatch, capsys):
+    """Operator 2026-11-17: while fixing, a run is capped at $1; the runner stops before passing it."""
+    import asyncio as _asyncio
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT / "eval"))
+    import run_eval
+
+    calls = []
+
+    async def fake_answer(question, g, client, emit, b):
+        calls.append(question)
+        return {"answer": "x", "claims": [], "tool_trace": [], "grounding": {"ok": True, "flags": []},
+                "coverage": [], "freshness": {}, "limits": [], "history": None,
+                "usage": {"input_tokens": 0, "output_tokens": 40_000, "requests": 1}, "timing_ms": {}}
+
+    monkeypatch.setattr(run_eval.agent, "answer_with_timeout", fake_answer)  # $0.40 per question
+    monkeypatch.setattr(run_eval, "MAX_COST", [1.00])
+    monkeypatch.setattr(run_eval, "SKINS", ["partner"])
+    monkeypatch.setattr(run_eval, "ONLY", {"impact_zs4_iot_data", "risk_zuzk900008", "risk_zuzk900006",
+                                           "not_found_zfake_table"})
+    monkeypatch.setattr(run_eval, "RESULTS_DIR", ROOT / "eval" / "results" / "_capcheck")  # kept out of results
+    try:
+        rc = _asyncio.run(run_eval.run(None, None))
+    finally:
+        import shutil
+        shutil.rmtree(ROOT / "eval" / "results" / "_capcheck", ignore_errors=True)
+    assert len(calls) == 2 and rc == 1  # $0.80 spent; a third ($0.40 worst case) would pass $1
+    assert "STOPPED: cost cap $1.00" in capsys.readouterr().out
