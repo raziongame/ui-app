@@ -16,7 +16,7 @@ QUESTION_TIMEOUT_S = 240.0
 MAX_TOKENS = 16000
 HOST, PORT = "127.0.0.1", 8080
 LOG_PATH = ROOT / "logs" / "app.jsonl"
-APP_TITLE = "SAP Assistant · sample partner app"
+APP_TITLE = "SAP Assistant (white-label demo)"  # operator endpoints only; skins use brands.yaml
 
 
 def load_api_key(env_path: Path = ROOT / ".env") -> str | None:

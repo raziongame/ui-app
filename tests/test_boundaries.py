@@ -24,7 +24,7 @@ def test_no_graphene_imports_or_backend_access():
 
 def test_page_is_self_contained():
     html = (ROOT / "app" / "static" / "index.html").read_text()
-    assert "<title>SAP Assistant · sample partner app</title>" in html
+    assert "<title>{{TITLE}}</title>" in html  # one template; each skin injects its own name
     assert not re.search(r"(src|href)\s*=\s*[\"']?(https?:)?//", html)
     assert "@import" not in html and "fetch(\"http" not in html
 

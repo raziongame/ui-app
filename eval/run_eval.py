@@ -21,7 +21,8 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app import agent, contract, config  # noqa: E402
+from app import agent, contract, config, present  # noqa: E402
+from app import brand as brands  # noqa: E402
 from app.mcp_client import GrapheneMCP  # noqa: E402
 
 # Claude Sonnet 5.5, $ per million tokens (Anthropic first-party pricing).
@@ -32,6 +33,7 @@ OUT_FINAL = 1500
 
 
 ONLY: set[str] = set()
+SKINS: list[str] = ["partner", "direct"]  # operator 2026-11-17: every golden question in both skins
 TARGET_S = 10.0  # operator 2026-11-16: under 10 s per answer (a case may set expect.max_seconds)
 
 
@@ -54,7 +56,7 @@ def new_client() -> anthropic.AsyncAnthropic:
 
 
 async def estimate(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> None:
-    system = agent.SYSTEM_PROMPT.format(max_calls=config.MAX_TOOL_CALLS, instructions=g.instructions.strip())
+    system = agent.system_prompt(brands.get(SKINS[0]), g.instructions)
     tools = agent._tools_for_claude(g)
     tot_nocache = tot_cache = 0.0
     print(f"{'question':45} {'turns':>5} {'input tok':>10} {'no cache $':>11} {'w/ cache $':>11}")
@@ -82,14 +84,21 @@ async def estimate(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> None:
         tot_nocache += nocache
         tot_cache += cached
         print(f"{c['question'][:45]:45} {turns:>5} {sum(turn_inputs):>10} {nocache:>11.4f} {cached:>11.4f}")
-    print(f"{f'TOTAL ({len(cases())} questions, 1 run)':45} {'':>5} {'':>10} {tot_nocache:>11.4f} {tot_cache:>11.4f}")
+    print(f"{f'TOTAL ({len(cases())} questions, 1 skin)':45} {'':>5} {'':>10} {tot_nocache:>11.4f} {tot_cache:>11.4f}")
+    print(f"{f'TOTAL x {len(SKINS)} skins ({chr(44).join(SKINS)})':45} {'':>5} {'':>10} "
+          f"{tot_nocache * len(SKINS):>11.4f} {tot_cache * len(SKINS):>11.4f}")
     print(f"Assumes the mock's tool calls and ~{OUT_PER_TOOL_TURN} output tokens per tool turn, "
           f"~{OUT_FINAL} for the final answer. If Claude makes twice the calls, budget about 2x.")
 
 
+def runs() -> list[tuple[str, dict]]:
+    return [(skin, c) for skin in SKINS for c in cases()]
+
+
 async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
     results, failures, total_cost = [], 0, 0.0
-    for c in cases():
+    for skin, c in runs():
+        b = brands.get(skin)
         t0 = time.time()
         first_text: list[float] = []  # seconds until the first answer text is visible in the UI
 
@@ -98,17 +107,33 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
                 _ft.append(time.time() - _t0)
 
         try:
-            out = await agent.answer_with_timeout(c["question"], g, client, emit)
+            out = await agent.answer_with_timeout(c["question"], g, client, emit, b)
         except agent.AnswerError as e:
             cost = dollars(e.usage)
             total_cost += cost
-            results.append({"id": c["id"], "question": c["question"], "error": str(e),
+            results.append({"id": c["id"], "skin": skin, "question": c["question"], "error": str(e),
                             "tool_trace": e.trace, "usage": e.usage, "cost_usd": round(cost, 4)})
             failures += 1
-            print(f"FAIL {c['id']}: {e}  ${cost:.4f}  {len(e.trace)} tool calls: "
+            print(f"FAIL {skin}/{c['id']}: {e}  ${cost:.4f}  {len(e.trace)} tool calls: "
                   + ", ".join(f"{t['tool']}{json.dumps(t['arguments'])}" for t in e.trace))
             continue
         exp, problems = c["expect"], []
+        # operator 2026-11-17: what the skin shows. Silent safety must not have replaced a golden answer;
+        # wording rules ("learned", never "trained"; no tool names, ids, JSON words); the partner skin
+        # never names the engine (answer, sources, history table).
+        view = present.view(out, b)
+        if view["fallback"]:
+            problems.append(f"skin shows the fallback: {out['presentation']['reasons']}")
+        if out["presentation"]["sources_dropped"]:
+            problems.append(f"sources left out: {out['presentation']['sources_dropped']}")
+        shown = json.dumps(view, ensure_ascii=False)
+        if not b.product_name_allowed and brands.ENGINE_PRODUCT_NAME.lower() in shown.lower():
+            problems.append("partner skin shows the product name")
+        if brands.FORBIDDEN_WORDING_RE.search(shown):
+            problems.append(f"forbidden wording: {brands.FORBIDDEN_WORDING_RE.findall(shown)}")
+        for t in ("find_object", "assess_transport", "system_profile", "call:", "path:", "node:"):
+            if t in shown:
+                problems.append(f"internal word shown: {t}")
         called = {t["tool"] for t in out["tool_trace"]}
         for need in exp.get("tools", []):
             opts = need if isinstance(need, list) else [need]
@@ -139,8 +164,9 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
                 problems.append(f"claims lack {item!r}")
         sentences = [x for x in re.split(r"(?<=[.!?])\s+", out["answer"].strip()) if x]
         for item in exp.get("first_sentence_contains", []):
-            if not sentences or str(item).lower() not in sentences[0].lower():
-                problems.append(f"first sentence lacks {item!r}")
+            opts = item if isinstance(item, list) else [item]
+            if not sentences or not any(str(o).lower() in sentences[0].lower() for o in opts):
+                problems.append(f"first sentence lacks {opts!r}")
         if exp.get("max_sentences") and len(sentences) > exp["max_sentences"]:
             problems.append(f"answer has {len(sentences)} sentences > {exp['max_sentences']}")
         if exp.get("no_change_only_at_end"):  # operator 2026-11-16: never before the end
@@ -171,10 +197,10 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
         cost = dollars(out["usage"])
         total_cost += cost
         failures += bool(problems)
-        results.append({"id": c["id"], "question": c["question"], "ok": not problems, "problems": problems,
+        results.append({"id": c["id"], "skin": skin, "view": view, "question": c["question"], "ok": not problems, "problems": problems,
                         "cost_usd": round(cost, 4), "seconds": round(time.time() - t0, 1),
                         "first_text_s": round(first_text[0], 1) if first_text else None, **out})
-        print(f"{'PASS' if not problems else 'FAIL'} {c['id']}  ${cost:.4f}  {time.time() - t0:.1f}s"
+        print(f"{'PASS' if not problems else 'FAIL'} {skin}/{c['id']}  ${cost:.4f}  {time.time() - t0:.1f}s"
               + f"  {out['usage']['requests']} requests, {len(out['tool_trace'])} calls"
               + (f", {out['usage']['repeat_calls_skipped']} repeat(s) skipped" if out["usage"].get("repeat_calls_skipped") else "")
               + ("".join(f"\n     - {p}" for p in problems)))
@@ -182,12 +208,12 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
     outdir.mkdir(exist_ok=True)
     path = outdir / f"eval-{time.strftime('%Y%m%dT%H%M%S')}.json"
     path.write_text(json.dumps(results, indent=1, ensure_ascii=False))
-    print(f"\n{'question':45} {'first text':>10} {'total':>7} {'limit':>6} {'cost':>8}  result")
-    for r, c in zip(results, cases()):
+    print(f"\n{'skin':8}{'question':45} {'first text':>10} {'total':>7} {'limit':>6} {'cost':>8}  result")
+    for r, (skin, c) in zip(results, runs()):
         ft = f"{r['first_text_s']:.1f} s" if r.get("first_text_s") is not None else "-"
         tot = f"{r['seconds']:.1f} s" if "seconds" in r else "-"
         lim = f"{c['expect'].get('max_seconds', TARGET_S):g} s"
-        print(f"{r['question'][:45]:45} {ft:>10} {tot:>7} {lim:>6} {'$%.4f' % r['cost_usd']:>8}  "
+        print(f"{skin:8}{r['question'][:45]:45} {ft:>10} {tot:>7} {lim:>6} {'$%.4f' % r['cost_usd']:>8}  "
               + ("PASS" if r.get("ok") else "FAIL"))
     print(f"\n{len(results) - failures}/{len(results)} passed · actual cost ${total_cost:.4f} · {path.relative_to(ROOT)}")
     return 1 if failures else 0
@@ -197,8 +223,10 @@ async def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--estimate", action="store_true")
     ap.add_argument("--only", nargs="*", default=[], help="golden case ids to run")
+    ap.add_argument("--skins", nargs="*", default=SKINS, choices=["partner", "direct"], help="skins to run")
     args = ap.parse_args()
     ONLY.update(args.only)
+    SKINS[:] = args.skins
     g = GrapheneMCP(config.GRAPHENE_MCP_COMMAND, call_timeout_s=config.TOOL_TIMEOUT_S)
     await g.start()
     client = new_client()

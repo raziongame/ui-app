@@ -21,7 +21,7 @@ def test_health_reports_one_live_session(client):
 def test_session_reused_across_questions(client):
     g = client.app.state.graphene
     pid_before, spawns_before = g.pid, g.spawn_count
-    for q in ("What uses table ZFAKE_TABLE?", "What does Graphene not know yet?"):
+    for q in ("What uses table ZFAKE_TABLE?", "What haven't you learned yet?"):
         out, _ = ask(client, q)
         assert out is not None
     assert g.pid == pid_before and g.spawn_count == spawns_before == 1

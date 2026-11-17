@@ -71,7 +71,8 @@ def test_app_serves_and_refuses_questions_while_graphene_is_down(tmp_path):
         assert c.get("/").status_code == 200
         out, events = ask(c, "What does system monitoring show?")
         assert out is None
-        assert "isn't ready yet" in [e for e in events if e["type"] == "error"][0]["message"]
+        from app.brand import NOT_READY_ANSWER
+        assert [e for e in events if e["type"] == "error"][0]["message"] == NOT_READY_ANSWER
 
 
 def test_unit_file_localhost_restart_no_secrets():

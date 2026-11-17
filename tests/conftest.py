@@ -108,9 +108,21 @@ def client(fake_claude, tmp_path_factory):
         yield c
 
 
-def ask(client: TestClient, question: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
-    r = client.post("/api/ask", json={"question": question})
+def ask(client: TestClient, question: str, brand: str = "partner") -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    """Ask through the real endpoint. Returns the INTERNAL answer contract (claims, tool_trace,
+    grounding, ...; never sent to the browser) and the browser's events (progress, final view)."""
+    out, events, _ = ask_raw(client, question, brand)
+    return out, events
+
+
+def ask_raw(client: TestClient, question: str, brand: str = "partner"):
+    """(internal contract or None, browser events, raw NDJSON body the browser received)."""
+    client.app.state.last_answer = None
+    r = client.post("/api/ask", json={"question": question, "brand": brand})
     assert r.status_code == 200
     events = [json.loads(line) for line in r.text.splitlines() if line.strip()]
     final = next((e["data"] for e in events if e["type"] == "final"), None)
-    return final, events
+    out = client.app.state.last_answer if final is not None else None
+    if out is not None:
+        out["view"] = final
+    return out, events, r.text

@@ -1,6 +1,6 @@
 """Grounding check: every object/transport name and number in an answer must
 appear in this question's Graphene tool results. Anything else is flagged
-(shown yellow in the UI), never hidden or corrected.
+(the skins then show the fallback answer; the flags go to the log), never corrected.
 """
 
 from __future__ import annotations
