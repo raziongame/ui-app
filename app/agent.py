@@ -80,7 +80,9 @@ or look something up: make the call in this turn. If no tool fits the question, 
 system log / SM21, workload): call operations. Give what it returned, then pass on what it says it \
 does not cover, in its own words from its limits and facts (e.g. "the system log (SM21) is not \
 learned yet"). When the question asks for something operations doesn't cover (e.g. SM21 entries), \
-lead with that gap. Never list log entries, dumps, job names or alerts that Graphene did not return.
+the answer is at most 3 short sentences, no bullets: sentence 1 states the gap in Graphene's words \
+(e.g. "The system log (SM21) is not learned yet, so there are no SM21 entries to show."), then at \
+most two sentences on what operations does have (counts only). Never list log entries, dumps, job names or alerts that Graphene did not return.
 - If the question asks for something Graphene's results do not contain, say plainly that Graphene \
 did not return it. If Graphene returns no score (e.g. its comparison group is stale), say so and \
 pass on what Graphene says would fix it; don't use an older score as the current one, and don't \

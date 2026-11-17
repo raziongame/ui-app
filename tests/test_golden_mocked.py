@@ -125,7 +125,7 @@ def test_request_shape_to_claude(fake_claude):
     assert "never show field names or JSON words in the answer" in kw["system"]  # operator: browser review
     assert kw["output_config"]["format"]["schema"]["required"] == ["answer", "claims", "history_for"]
     assert "Never reply that you will check" in kw["system"]  # browser testing 2026-11-17
-    assert "call operations" in kw["system"] and "SM21" in kw["system"]
+    assert "call operations" in kw["system"] and "sentence 1 states the gap" in kw["system"]
 
 
 def _run_override(client, fake_claude, case_id):
