@@ -3,140 +3,175 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SAP Assistant · sample partner app</title>
+<title>{{TITLE}}</title>
 <style>
-:root {
-  --bg: #f6f7f9; --panel: #ffffff; --panel-2: #f0f2f5; --text: #15181d; --muted: #59616d;
-  --border: #d8dce2; --accent: #1f5fbf; --accent-text: #ffffff; --ok: #1d7a3e; --ok-bg: #e3f4e9;
-  --err: #b42318; --err-bg: #fdecea; --flag-bg: #ffe866; --flag-text: #3d3200; --chip: #e8eefa;
-  --chip-text: #1b3f7a; --code: #eef0f3; --shadow: 0 1px 2px rgba(0,0,0,.06);
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0f1216; --panel: #171b21; --panel-2: #1e232b; --text: #e8ebef; --muted: #a2abb7;
-    --border: #2d343e; --accent: #6ea4ff; --accent-text: #0b1220; --ok: #6fd394; --ok-bg: #143322;
-    --err: #ff8a80; --err-bg: #3a1714; --flag-bg: #8a7400; --flag-text: #fff8cc; --chip: #1f2c44;
-    --chip-text: #b8d0ff; --code: #222831; --shadow: none;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #0f1216; --panel: #171b21; --panel-2: #1e232b; --text: #e8ebef; --muted: #a2abb7;
-  --border: #2d343e; --accent: #6ea4ff; --accent-text: #0b1220; --ok: #6fd394; --ok-bg: #143322;
-  --err: #ff8a80; --err-bg: #3a1714; --flag-bg: #8a7400; --flag-text: #fff8cc; --chip: #1f2c44;
-  --chip-text: #b8d0ff; --code: #222831; --shadow: none;
-}
+:root { {{LIGHT_VARS}} color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { {{DARK_VARS}} color-scheme: dark; } }
+:root[data-theme="dark"] { {{DARK_VARS}} color-scheme: dark; }
+
 * { box-sizing: border-box; }
-html, body { height: 100%; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
 body {
-  margin: 0; background: var(--bg); color: var(--text);
-  font: 18px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif;
-  display: flex; flex-direction: column;
+  background: var(--bg); color: var(--text);
+  font: 400 21px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  display: grid; grid-template-rows: auto 1fr; overflow: hidden;
 }
+button { font: inherit; color: inherit; }
+
+/* header */
 header {
-  display: flex; align-items: center; gap: 16px; padding: 14px 24px;
-  background: var(--panel); border-bottom: 1px solid var(--border);
+  background: var(--header-bg); color: var(--header-text);
+  display: flex; align-items: center; gap: 16px; padding: 14px 24px; border-bottom: 1px solid var(--border);
 }
-header h1 { font-size: 24px; margin: 0; font-weight: 650; letter-spacing: -.01em; }
-.badge { font-size: 14px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 2px 12px; }
+.mark { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.mark img { height: 52px; width: auto; display: block; }
+.mark .letter {
+  width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center;
+  background: var(--button-bg); color: var(--button-text); font-weight: 700; font-size: 22px;
+}
+.mark .name { font-size: 24px; font-weight: 700; white-space: nowrap; }
+.mark .name .light { font-weight: 400; color: color-mix(in srgb, var(--header-text) 78%, var(--header-bg)); }
+.mark .byline { font-size: 15px; opacity: .85; margin-left: 2px; white-space: nowrap; }
 .spacer { flex: 1; }
-.pill { font-size: 15px; display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px;
-  border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); }
-.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
-.dot.on { background: var(--ok); } .dot.off { background: var(--err); }
-button { font: inherit; cursor: pointer; }
-.iconbtn { background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
-  border-radius: 8px; padding: 4px 12px; font-size: 15px; }
-main { flex: 1; display: grid; grid-template-columns: 58fr 42fr; min-height: 0; }
-#left { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--border); }
-#convo { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 18px; }
-#right { overflow-y: auto; padding: 20px 24px; background: var(--panel-2); }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.chip { background: var(--chip); color: var(--chip-text); border: 1px solid transparent; border-radius: 999px;
-  padding: 6px 14px; font-size: 16px; }
-.chip:hover { border-color: var(--accent); }
-.intro { color: var(--muted); font-size: 16px; margin: 0 0 10px; }
-.card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px;
-  box-shadow: var(--shadow); }
-.card.selected { outline: 3px solid var(--accent); outline-offset: -1px; }
-.q { font-weight: 650; margin: 0 0 8px; }
-.q::before { content: "Q  "; color: var(--muted); font-weight: 500; }
-.a p { margin: 0 0 10px; } .a ul { margin: 0 0 10px; padding-left: 24px; }
-mark.flag { background: var(--flag-bg); color: var(--flag-text); padding: 0 3px; border-radius: 3px; }
-.meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; font-size: 15px; color: var(--muted); }
-.gbadge { font-size: 15px; padding: 2px 10px; border-radius: 6px; font-weight: 600; }
-.gbadge.ok { background: var(--ok-bg); color: var(--ok); }
-.gbadge.warn { background: var(--flag-bg); color: var(--flag-text); }
-.err { background: var(--err-bg); color: var(--err); border-radius: 8px; padding: 10px 12px; }
-.progress { list-style: none; margin: 6px 0 0; padding: 0; font-size: 16px; color: var(--muted); }
-.progress li { padding: 2px 0; }
-.live { margin-top: 10px; }
-.live .pending { font-size: 15px; color: var(--muted); margin-top: 6px; }
-.progress code { color: var(--text); }
-.spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border);
-  border-top-color: var(--accent); border-radius: 50%; animation: s 0.9s linear infinite; vertical-align: -1px; }
-@keyframes s { to { transform: rotate(360deg); } }
-form { display: flex; gap: 10px; padding: 14px 24px; border-top: 1px solid var(--border); background: var(--panel); }
-#q { flex: 1; font: inherit; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border);
-  background: var(--bg); color: var(--text); }
-#q:focus { outline: 2px solid var(--accent); }
-#send { background: var(--accent); color: var(--accent-text); border: 0; border-radius: 10px; padding: 0 22px; font-weight: 600; }
-#send:disabled { opacity: .5; cursor: default; }
-h2 { font-size: 20px; margin: 0 0 12px; }
-details { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 12px; }
-summary { cursor: pointer; padding: 10px 14px; font-weight: 600; }
-summary .count { color: var(--muted); font-weight: 400; }
-.dbody { padding: 0 14px 12px; font-size: 16px; }
-table { width: 100%; border-collapse: collapse; font-size: 15px; }
-th, td { text-align: left; vertical-align: top; padding: 6px 6px; border-top: 1px solid var(--border); }
-th { color: var(--muted); font-weight: 600; }
-td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-code, .mono { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size: .92em;
-  background: var(--code); padding: 1px 5px; border-radius: 4px; word-break: break-word; }
-.ev { display: inline-block; margin: 2px 4px 2px 0; font-size: 13px; }
-ol.claims { padding-left: 24px; margin: 0; } ol.claims li { margin-bottom: 8px; }
-ul.plain { margin: 0; padding-left: 20px; } ul.plain li { margin-bottom: 6px; }
-.empty { color: var(--muted); }
-.muted { color: var(--muted); }
-.steps { margin: 12px 0 4px; } .steps-title { font-weight: 600; margin-bottom: 4px; }
-.steps table { font-size: 16px; } .ts { white-space: nowrap; border-bottom: 1px dotted var(--muted); cursor: help; } .steps-foot { margin: 8px 0 0; }
-.flagrow td:first-child mark { white-space: nowrap; }
-@media (max-width: 900px) { main { grid-template-columns: 1fr; } #left { border-right: 0; } }
+.conn { display: flex; align-items: center; gap: 8px; font-size: 17px; white-space: nowrap; }
+.dot { width: 11px; height: 11px; border-radius: 50%; background: var(--muted); }
+.dot.on { background: var(--tick); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tick) 25%, transparent); }
+.iconbtn {
+  background: transparent; border: 1px solid color-mix(in srgb, var(--header-text) 35%, transparent);
+  color: var(--header-text); border-radius: 10px; padding: 6px 12px; font-size: 17px; cursor: pointer;
+}
+.iconbtn:hover { background: color-mix(in srgb, var(--header-text) 12%, transparent); }
+
+/* layout */
+.shell { display: grid; grid-template-columns: 1fr auto; min-height: 0; }
+main { display: grid; grid-template-rows: 1fr auto; min-height: 0; }
+#scroll { overflow-y: auto; }
+.col { max-width: 1000px; margin: 0 auto; padding: 0 28px; }
+
+/* empty state */
+.empty { padding: 9vh 0 24px; text-align: center; }
+.empty h1 { color: var(--heading); font-size: 40px; margin: 0 0 6px; }
+.empty p { color: var(--muted); margin: 0 0 32px; font-size: 22px; }
+.chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 12px; text-align: left; }
+.chip {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 18px;
+  font-size: 19px; cursor: pointer; text-align: left;
+}
+.chip:hover, .chip:focus-visible { background: var(--highlight); border-color: var(--highlight-strong, var(--tick)); outline: none; }
+
+/* messages */
+.msgs { padding: 28px 0 12px; display: flex; flex-direction: column; gap: 26px; }
+.q { align-self: flex-end; max-width: 80%; background: var(--surface); border: 1px solid var(--border);
+     border-radius: 18px 18px 4px 18px; padding: 12px 20px; white-space: pre-wrap; }
+.a { align-self: stretch; }
+.a .text p { margin: 0 0 10px; }
+.a .text ul { margin: 4px 0 10px; padding-left: 1.2em; }
+.a .text li { margin: 4px 0; }
+.thinking { color: var(--muted); display: flex; align-items: center; gap: 12px; }
+.pulse { width: 12px; height: 12px; border-radius: 50%; background: var(--tick); animation: pulse 1.1s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: .3; transform: scale(.85) } 50% { opacity: 1; transform: scale(1) } }
+@media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
+
+table.steps { border-collapse: collapse; margin: 10px 0 8px; font-size: 18px; width: 100%; }
+table.steps th { text-align: left; color: var(--heading); font-weight: 600; border-bottom: 2px solid var(--border); padding: 6px 10px 6px 0; }
+table.steps td { border-bottom: 1px solid var(--border); padding: 8px 10px 8px 0; vertical-align: top; }
+.tag { font-size: 14px; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; margin-left: 6px; white-space: nowrap; }
+.note { color: var(--muted); font-size: 18px; }
+
+details.how { margin-top: 8px; font-size: 17px; }
+details.how summary { color: var(--link); cursor: pointer; list-style: none; display: inline-block; text-decoration: underline;
+  text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, var(--link) 45%, transparent); }
+details.how summary::-webkit-details-marker { display: none; }
+details.how summary:hover { text-decoration-color: var(--highlight-strong, var(--tick)); }
+details.how[open] summary { margin-bottom: 6px; }
+details.how .box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 18px; }
+details.how ul { margin: 0; padding-left: 1.1em; }
+details.how .learned { color: var(--muted); margin-top: 8px; }
+
+/* composer */
+.composer { padding: 14px 0 22px; background: linear-gradient(to top, var(--bg) 70%, transparent); }
+form { display: flex; gap: 12px; align-items: flex-end; background: var(--surface); border: 2px solid var(--border);
+       border-radius: 18px; padding: 10px 10px 10px 20px; }
+form:focus-within { border-color: var(--highlight-strong, var(--tick)); }
+textarea { flex: 1; border: 0; outline: none; background: transparent; color: var(--text); resize: none;
+           font: inherit; font-size: 22px; line-height: 1.45; max-height: 30vh; padding: 8px 0; }
+textarea::placeholder { color: var(--muted); }
+.send { background: var(--button-bg); color: var(--button-text); border: 0; border-radius: 12px;
+        padding: 12px 22px; font-weight: 700; font-size: 20px; cursor: pointer; }
+.send:hover { filter: brightness(1.08); }
+.send:disabled { opacity: .5; cursor: default; }
+
+/* sidebar */
+aside { width: 340px; border-left: 1px solid var(--border); background: var(--surface); overflow-y: auto; padding: 22px 22px; }
+aside[hidden] { display: none; }
+aside h2 { color: var(--heading); font-size: 22px; margin: 0 0 4px; }
+aside .sub { color: var(--muted); font-size: 16px; margin: 0 0 16px; }
+aside ul { list-style: none; margin: 0; padding: 0; }
+aside li { display: grid; grid-template-columns: 28px 1fr; gap: 4px 6px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 18px; }
+aside .ok { color: var(--tick); font-weight: 700; }
+aside .next { color: var(--muted); }
+aside .age { grid-column: 2; color: var(--muted); font-size: 15px; }
+
+:focus-visible { outline: 3px solid var(--highlight-strong, var(--tick)); outline-offset: 2px; }
+@media (max-width: 900px) {
+  body { font-size: 18px; }
+  aside { position: fixed; right: 0; top: 70px; bottom: 0; width: min(340px, 90vw); z-index: 5; }
+  .col { padding: 0 16px; }
+  .chips { grid-template-columns: 1fr; }
+  .mark .byline, .conn .label { display: none; }
+}
 </style>
 </head>
 <body>
 <header>
-  <h1>SAP Assistant · sample partner app</h1>
-  <span class="badge" title="A sample partner app built by the Graphene team to show how a partner's own AI app plugs into Graphene. Not Graphene, not a real partner.">demo by the Graphene team</span>
-  <span class="spacer"></span>
-  <span class="pill" id="gstatus"><span class="dot" id="gdot"></span><span id="gtext">Graphene: checking…</span></span>
-  <button class="iconbtn" id="theme" type="button" title="Switch light / dark">◐ Theme</button>
+  <div class="mark">
+    <img id="logo" alt="" hidden>
+    <span class="letter" id="letter" aria-hidden="true"></span>
+    <span class="name" id="bname"></span>
+    <span class="byline" id="byline"></span>
+  </div>
+  <div class="spacer"></div>
+  <div class="conn" id="conn"><span class="dot" id="dot"></span><span class="label" id="connText">Connecting…</span></div>
+  <button class="iconbtn" id="learnedBtn" aria-controls="side" aria-expanded="true">What I've learned</button>
+  <button class="iconbtn" id="themeBtn" title="Switch light / dark">◐</button>
 </header>
-<main>
-  <section id="left">
-    <div id="convo">
-      <div>
-        <p class="intro">Ask about the SAP system Graphene has learned. Every fact comes from Graphene's tools; the evidence is on the right.</p>
-        <div class="chips" id="chips"></div>
+<div class="shell">
+  <main>
+    <div id="scroll">
+      <div class="col">
+        <section class="empty" id="empty">
+          <h1 id="hello"></h1>
+          <p id="tagline"></p>
+          <div class="chips" id="chips"></div>
+        </section>
+        <div class="msgs" id="msgs" aria-live="polite"></div>
       </div>
     </div>
-    <form id="f" autocomplete="off">
-      <input id="q" maxlength="2000" placeholder="Ask a question about the learned system…" aria-label="Question">
-      <button id="send" type="submit">Ask</button>
-    </form>
-  </section>
-  <aside id="right">
-    <h2>Evidence</h2>
-    <div id="evidence"><p class="empty">Ask a question, or pick one on the left. The tool calls, claims, coverage, freshness, limits and grounding check for the selected answer appear here.</p></div>
+    <div class="composer">
+      <div class="col">
+        <form id="form">
+          <textarea id="q" rows="1" maxlength="2000" placeholder="Ask about your SAP system…" aria-label="Your question"></textarea>
+          <button class="send" id="send" type="submit">Ask</button>
+        </form>
+      </div>
+    </div>
+  </main>
+  <aside id="side" aria-label="What I've learned">
+    <h2>What I've learned</h2>
+    <p class="sub" id="lastLearned"></p>
+    <ul id="areas"></ul>
   </aside>
-</main>
+</div>
 <script>
 "use strict";
-const GOLDEN = [
+const BRAND = {{BRAND_JSON}};
+const SUGGESTIONS = [
   "What breaks if I change ZS4_IOT_DATA?",
   "Why is ZUZK900008 high risk?",
   "Why is ZUZK900006 riskier than before?",
   "What uses table ZFAKE_TABLE?",
-  "What does Graphene not know yet?",
+  "What haven't you learned yet?",
   "What is the component version of SAP_BASIS?",
   "What would lower the risk of ZUZK900008?",
   "What does system monitoring show?",
@@ -144,237 +179,160 @@ const GOLDEN = [
 ];
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const answers = [];
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+};
 let busy = false;
+
+// ---- brand ----
+if (BRAND.wordmark) {
+  // text logo: first part strong, the rest in a lighter weight
+  $("bname").innerHTML = `${esc(BRAND.wordmark[0])}<span class="light"> ${esc(BRAND.wordmark.slice(1).join(" "))}</span>`;
+} else {
+  $("bname").textContent = BRAND.name;
+}
+$("byline").textContent = BRAND.byline || "";
+$("letter").textContent = BRAND.logo_text || "";
+if (!BRAND.logo_text) $("letter").hidden = true;
+$("hello").textContent = BRAND.name;
+$("tagline").textContent = BRAND.tagline || "";
+if (BRAND.logo_image) {
+  const img = $("logo");
+  img.onload = () => { img.hidden = false; $("letter").hidden = true; };
+  img.onerror = () => { img.hidden = true; };
+  img.alt = BRAND.byline ? BRAND.byline.replace(/^by\s+/i, "") + " logo" : "";
+  img.src = BRAND.logo_image;
+}
 
 // ---- theme ----
 (function () {
-  let saved = null;
-  try { saved = localStorage.getItem("theme"); } catch (e) {}
+  const saved = store.get("theme");
   if (saved) document.documentElement.dataset.theme = saved;
-  $("theme").onclick = () => {
-    const cur = document.documentElement.dataset.theme ||
-      (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-    const next = cur === "dark" ? "light" : "dark";
+  $("themeBtn").onclick = () => {
+    const dark = document.documentElement.dataset.theme
+      ? document.documentElement.dataset.theme === "dark"
+      : matchMedia("(prefers-color-scheme: dark)").matches;
+    const next = dark ? "light" : "dark";
     document.documentElement.dataset.theme = next;
-    try { localStorage.setItem("theme", next); } catch (e) {}
+    store.set("theme", next);
   };
 })();
 
-// ---- health ----
-async function health() {
+// ---- "What I've learned" sidebar + status dot ----
+(function () {
+  const side = $("side"), btn = $("learnedBtn");
+  const set = (open) => { side.hidden = !open; btn.setAttribute("aria-expanded", String(open)); store.set("side", open ? "open" : "closed"); };
+  set(store.get("side") ? store.get("side") === "open" : innerWidth > 900);
+  btn.onclick = () => set(side.hidden);
+})();
+
+async function learned() {
   try {
-    const h = await (await fetch("/api/health")).json();
-    const g = h.graphene;
-    $("gdot").className = "dot " + (g.connected ? "on" : "off");
-    $("gtext").textContent = g.connected
-      ? `Graphene MCP connected · ${g.tools.length} tools`
-      : "Graphene MCP not connected (retrying)";
-    $("gstatus").title = g.connected
-      ? `${g.server} ${g.version} · one session, spawned ${g.spawn_count}× since app start`
-      : (g.last_error || "");
-    if (!h.claude_key_configured) $("gtext").textContent += " · no Claude API key";
+    const r = await (await fetch("/api/learned", {cache: "no-store"})).json();
+    $("dot").className = "dot" + (r.connected ? " on" : "");
+    $("connText").textContent = r.connected && r.sid ? `Connected to ${r.sid}` : "Connecting…";
+    $("lastLearned").textContent = r.last_learned ? `Last learned ${r.last_learned} ago` : "";
+    $("areas").innerHTML = (r.areas || []).map((a) => a.learned
+      ? `<li><span class="ok" aria-label="learned">✓</span><span>${esc(a.area)}</span>${a.age ? `<span class="age">learned ${esc(a.age)} ago</span>` : ""}</li>`
+      : `<li><span class="next" aria-hidden="true">○</span><span>${esc(a.area)}</span><span class="age">learning next</span></li>`).join("");
   } catch (e) {
-    $("gdot").className = "dot off"; $("gtext").textContent = "App not reachable";
+    $("dot").className = "dot"; $("connText").textContent = "Not connected";
   }
 }
-health(); setInterval(health, 15000);
+learned(); setInterval(learned, 30000);
 
-// ---- chips ----
-for (const q of GOLDEN) {
+// ---- suggestions (empty chat only) ----
+for (const q of SUGGESTIONS) {
   const b = document.createElement("button");
-  b.type = "button"; b.className = "chip"; b.textContent = q;
-  b.onclick = () => { if (!busy) { $("q").value = q; ask(q); } };
+  b.className = "chip"; b.type = "button"; b.textContent = q;
+  b.onclick = () => ask(q);
   $("chips").appendChild(b);
 }
 
-// ---- answer rendering with grounding flags ----
-function highlight(text, flags) {
-  let html = esc(text);
-  const toks = [...new Set(flags.map((f) => f.token))].sort((a, b) => b.length - a.length);
-  for (const t of toks) {
-    const e = esc(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const re = new RegExp(`(?<![A-Za-z0-9_.:/-])${e}(?![A-Za-z0-9_])`, "g");
-    html = html.replace(re, `<mark class="flag" title="Not found in this question's Graphene results">${esc(t)}</mark>`);
-  }
-  return html;
-}
-function paragraphs(html) {
+// ---- composer ----
+const ta = $("q");
+const grow = () => { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, innerHeight * 0.3) + "px"; };
+ta.addEventListener("input", grow);
+ta.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("form").requestSubmit(); }
+});
+$("form").onsubmit = (e) => { e.preventDefault(); const v = ta.value.trim(); if (v) ask(v); };
+ta.focus();
+
+// ---- answers ----
+function formatText(text) {
+  // Plain text with "- " bullet lines -> paragraphs and lists. Everything escaped.
   const out = []; let list = [];
-  const flush = () => { if (list.length) { out.push("<ul>" + list.map((l) => `<li>${l}</li>`).join("") + "</ul>"); list = []; } };
-  for (const block of html.split(/\n{2,}/)) {
-    for (const line of block.split("\n")) {
-      const m = line.match(/^\s*[-•*]\s+(.*)$/);
-      if (m) list.push(m[1]);
-      else if (line.trim()) { flush(); out.push(`<p>${line}</p>`); }
-    }
-    flush();
+  const flush = () => { if (list.length) { out.push("<ul>" + list.map((l) => `<li>${esc(l)}</li>`).join("") + "</ul>"); list = []; } };
+  for (const raw of String(text).split("\n")) {
+    const line = raw.trim();
+    if (!line) { flush(); continue; }
+    if (/^[-•]\s+/.test(line)) list.push(line.replace(/^[-•]\s+/, ""));
+    else { flush(); out.push(`<p>${esc(line)}</p>`); }
   }
+  flush();
   return out.join("");
 }
 
-function newCard(question) {
-  const card = document.createElement("div");
-  card.className = "card";
-  card.innerHTML = `<p class="q">${esc(question)}</p><div class="a"><span class="spin"></span> <span class="status">Asking Claude…</span><ul class="progress"></ul><div class="live" hidden><div class="text"></div><div class="pending">Still writing · names and numbers are checked against Graphene's results when the answer is complete</div></div></div>`;
-  $("convo").appendChild(card);
-  card.scrollIntoView({ behavior: "smooth", block: "end" });
-  return card;
-}
-
-function select(i) {
-  document.querySelectorAll(".card.selected").forEach((c) => c.classList.remove("selected"));
-  const a = answers[i]; if (!a) return;
-  a.card.classList.add("selected");
-  renderEvidence(a.data);
-}
-
-function renderAnswer(card, data, idx) {
-  const flags = data.grounding.flags.filter((f) => f.where === "answer");
-  const g = data.grounding;
-  const t = data.timing_ms || {};
-  card.querySelector(".a").innerHTML = paragraphs(highlight(data.answer, flags)) + historyTable(data.history) +
-    `<div class="meta">
-      <span class="gbadge ${g.ok ? "ok" : "warn"}">${g.ok ? "✓ All names and numbers found in Graphene's results" : `⚠ ${g.flags.length} item(s) not found in Graphene's results`}</span>
-      <span>${data.tool_trace.length} Graphene call(s) · ${(t.total / 1000).toFixed(1)} s total (Graphene ${(t.graphene / 1000).toFixed(1)} s)</span>
-    </div>`;
-  card.onclick = () => select(idx);
-  card.style.cursor = "pointer";
-}
-
-// Operator 2026-11-16: score steps are rendered by the app straight from Graphene's history data
-// (date, score from → to, cause), never written by the model. Values verbatim.
 function historyTable(h) {
   if (!h || !h.steps || !h.steps.length) return "";
-  const rows = h.steps.map((st) => `<tr>
-      <td><span class="ts" title="Graphene: ${esc(st.at)}">${esc(st.at_display || st.at)}</span></td>
-      <td class="num">${esc(String(st.from))} → ${esc(String(st.to))}${st.band_from != null ? `<br><span class="muted">${esc(st.band_from)} → ${esc(st.band_to)}</span>` : ""}</td>
-      <td>${st.causes.length ? st.causes.map((c) => `<div>${esc(c)}</div>`).join("") : '<span class="muted">Graphene gives no cause</span>'}</td>
-      <td>${st.older_engine ? "older engine" : "current engines"}</td></tr>`).join("");
-  return `<div class="steps"><div class="steps-title">Score steps for ${esc(h.transport)} · from Graphene's history</div>
-    <table><tr><th>Date</th><th class="num">Score</th><th>Cause (Graphene)</th><th>Engine</th></tr>${rows}</table>
-    ${h.nothing_changed_since_last === true ? '<p class="steps-foot">Nothing changed since the last assessment.</p>' : ""}</div>`;
+  const rows = h.steps.map((s) => `<tr><td title="${esc(s.date_full)}">${esc(s.date)}</td>`
+    + `<td>${esc(s.from)} → ${esc(s.to)}${s.older_method ? '<span class="tag">older method</span>' : ""}</td>`
+    + `<td>${s.causes.map(esc).join("<br>")}</td></tr>`).join("");
+  return `<table class="steps"><thead><tr><th>Date</th><th>Score</th><th>What changed</th></tr></thead><tbody>${rows}</tbody></table>`
+    + (h.nothing_changed_since_last ? `<p class="note">Nothing changed since the last assessment.</p>` : "");
 }
 
-function detailsBlock(title, count, body, open) {
-  return `<details ${open ? "open" : ""}><summary>${title} <span class="count">${count}</span></summary><div class="dbody">${body}</div></details>`;
+function howDoIKnow(d) {
+  if (!d.sources.length && !d.learned.length) return "";
+  const src = d.sources.length ? `<ul>${d.sources.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>` : "";
+  const l = d.learned.length
+    ? `<div class="learned">Learned: ${d.learned.map((x) => esc(x.area) + (x.age ? `, ${esc(x.age)} ago` : "")).join(" · ")}</div>` : "";
+  return `<details class="how"><summary>How do I know?</summary><div class="box">${src}${l}</div></details>`;
 }
 
-function renderEvidence(d) {
-  const g = d.grounding;
-  const flagRows = g.flags.map((f) => `<tr class="flagrow"><td><mark class="flag">${esc(f.token)}</mark></td><td>${esc(f.kind)}</td><td>${esc(f.where)}</td><td>${esc(f.why)}</td></tr>`).join("");
-  const grounding = g.ok
-    ? `<p>✓ Checked ${g.checked_names} name(s) and ${g.checked_numbers} number(s): every one appears in this question's Graphene results. All cited evidence ids were returned by Graphene.</p>`
-    : `<p>Checked ${g.checked_names} name(s) and ${g.checked_numbers} number(s). These were <b>not</b> found in this question's Graphene results (shown, not hidden):</p>
-       <table><tr><th>Item</th><th>Kind</th><th>Where</th><th>Why</th></tr>${flagRows}</table>`;
+function scrollDown() { const s = $("scroll"); s.scrollTop = s.scrollHeight; }
 
-  const claims = d.claims.length
-    ? `<ol class="claims">${d.claims.map((c, i) => {
-        const cf = g.flags.filter((f) => f.where === `claim ${i + 1}` && f.kind !== "evidence");
-        const ev = c.evidence_ids.map((e) => {
-          const bad = g.flags.some((f) => f.kind === "evidence" && f.token === e && f.where === `claim ${i + 1}`);
-          return bad ? `<mark class="flag ev mono">${esc(e)}</mark>` : `<span class="ev mono">${esc(e)}</span>`;
-        }).join("") || '<span class="empty">no evidence id</span>';
-        return `<li>${highlight(c.text, cf)}<div>${ev}</div></li>`;
-      }).join("")}</ol>`
-    : '<p class="empty">No claims.</p>';
-
-  const trace = d.tool_trace.length
-    ? `<table><tr><th>#</th><th>Tool</th><th>Arguments</th><th>Result</th><th class="num">ms</th></tr>${d.tool_trace.map((t) =>
-        `<tr><td>${t.n}</td><td><code>${esc(t.tool)}</code></td><td><span class="mono">${esc(JSON.stringify(t.arguments))}</span></td>
-         <td>${t.ok ? "" : "⚠ "}${esc(t.result)}${t.note ? `<br><i>${esc(t.note)}</i>` : ""}</td><td class="num">${t.ms}</td></tr>`).join("")}</table>`
-    : '<p class="empty">No tool calls.</p>';
-
-  const coverage = d.coverage.length
-    ? d.coverage.map((c) => {
-        const uses = c.this_answer_uses ? Object.entries(c.this_answer_uses).map(([k, v]) =>
-          `<li><b>${esc(k)}</b> ${esc(v.name)}: ${esc(v.status)}${v.metric ? ` · ${esc(v.metric)}` : ""}</li>`).join("") : "";
-        return `<p>From call ${c.from_call} (<code>${esc(c.tool)}</code>): stages complete <b>${esc(c.stages_complete ?? "")}</b>${c.stages_done ? ` (${c.stages_done.map(esc).join(", ")})` : ""}</p>${uses ? `<ul class="plain">${uses}</ul>` : ""}`;
-      }).join("")
-    : '<p class="empty">Graphene returned no coverage.</p>';
-
-  const fresh = Object.keys(d.freshness).length
-    ? `<table><tr><th>Stage</th><th>Last success</th><th>Age</th></tr>${Object.entries(d.freshness).map(([k, v]) =>
-        `<tr><td>${esc(k)}</td><td><span class="mono">${esc(v.last_success ?? JSON.stringify(v))}</span></td><td>${esc(v.age ?? "")}</td></tr>`).join("")}</table>`
-    : '<p class="empty">Graphene returned no freshness.</p>';
-
-  const limits = d.limits.length
-    ? `<ul class="plain">${d.limits.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>`
-    : '<p class="empty">Graphene returned no limits.</p>';
-
-  // Operator 2026-11-16: the full Graphene timestamps of the history steps stay in the evidence panel.
-  const hs = d.history && d.history.steps ? d.history.steps : [];
-  const histEv = hs.length
-    ? `<table><tr><th>Graphene timestamp</th><th class="num">Score</th><th>Engine</th></tr>${hs.map((st) =>
-        `<tr><td><span class="mono">${esc(st.at)}</span></td><td class="num">${esc(String(st.from))} → ${esc(String(st.to))}</td><td>${st.older_engine ? "older engine" : "current engines"}</td></tr>`).join("")}</table>`
-    : "";
-
-  const u = d.usage || {};
-  $("evidence").innerHTML =
-    detailsBlock("Grounding check", g.ok ? "✓" : `⚠ ${g.flags.length}`, grounding, true) +
-    detailsBlock("Claims → evidence", d.claims.length, claims, true) +
-    detailsBlock("Tool trace", d.tool_trace.length, trace, true) +
-    detailsBlock("Limits (Graphene's own words)", d.limits.length, limits, true) +
-    (hs.length ? detailsBlock(`History steps · ${esc(d.history.transport)}`, hs.length, histEv, false) : "") +
-    detailsBlock("Coverage", d.coverage.length, coverage, false) +
-    detailsBlock("Freshness", Object.keys(d.freshness).length, fresh, false) +
-    `<p class="intro">Model ${esc(d.model)} · ${u.requests} request(s) · ${u.input_tokens} in / ${u.output_tokens} out tokens (${u.cache_read_input_tokens} cached)</p>`;
-}
-
-// ---- ask (streamed NDJSON progress) ----
 async function ask(question) {
-  question = question.trim(); if (!question || busy) return;
+  if (busy) return;
   busy = true; $("send").disabled = true;
-  const card = newCard(question);
-  const status = card.querySelector(".status"), prog = card.querySelector(".progress");
-  const started = Date.now();
-  const timer = setInterval(() => { status.dataset.t = ((Date.now() - started) / 1000).toFixed(0); status.textContent = (status.dataset.label || "Asking Claude…") + ` ${status.dataset.t} s`; }, 500);
-  const items = {};
-  const live = card.querySelector(".live"), liveText = live.querySelector(".text");
-  let streamed = "";
+  $("empty").hidden = true;
+  ta.value = ""; grow();
+  const q = document.createElement("div"); q.className = "q"; q.textContent = question;
+  const a = document.createElement("div"); a.className = "a";
+  a.innerHTML = `<div class="thinking"><span class="pulse"></span><span class="st">Thinking…</span></div>`;
+  $("msgs").append(q, a); scrollDown();
+  const st = a.querySelector(".st");
   try {
-    const res = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question }) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "";
-    for (;;) {
-      const { value, done } = await reader.read(); if (done) break;
-      buf += dec.decode(value, { stream: true });
-      let nl;
-      while ((nl = buf.indexOf("\n")) >= 0) {
-        const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
+    const res = await fetch("/api/ask", {method: "POST", headers: {"Content-Type": "application/json"},
+                                         body: JSON.stringify({question, brand: BRAND.key})});
+    const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "", done = false;
+    while (!done) {
+      const r = await reader.read(); if (r.done) break;
+      buf += dec.decode(r.value, {stream: true});
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, i); buf = buf.slice(i + 1);
         if (!line.trim()) continue;
         const ev = JSON.parse(line);
-        if (ev.type === "thinking") status.dataset.label = "Claude is working…";
-        else if (ev.type === "tool_start") {
-          status.dataset.label = `Calling Graphene: ${ev.tool}…`;
-          const li = document.createElement("li");
-          li.innerHTML = `<span class="spin"></span> <code>${esc(ev.tool)}</code> ${esc(JSON.stringify(ev.arguments))}`;
-          prog.appendChild(li); items[ev.n] = li;
-        } else if (ev.type === "tool_end") {
-          if (items[ev.n]) items[ev.n].innerHTML = `${ev.ok ? "✓" : "⚠"} <code>${esc(ev.tool)}</code> ${esc(JSON.stringify(ev.arguments))} · ${ev.ms} ms`;
-        } else if (ev.type === "answer_delta") {
-          // Unchecked text, shown as it is written; replaced by the grounding-checked answer on "final".
-          streamed += ev.text; live.hidden = false;
-          status.dataset.label = "Writing the answer…";
-          liveText.innerHTML = paragraphs(esc(streamed));
-        } else if (ev.type === "answer_reset") {
-          streamed = ""; liveText.innerHTML = ""; live.hidden = true;
-        } else if (ev.type === "final") {
-          const idx = answers.length; answers.push({ card, data: ev.data });
-          renderAnswer(card, ev.data, idx); select(idx);
+        if (ev.type === "progress") { st.textContent = ev.text + "…"; }
+        else if (ev.type === "final") {
+          const d = ev.data;
+          a.innerHTML = `<div class="text">${formatText(d.answer)}</div>${historyTable(d.history)}${howDoIKnow(d)}`;
+          done = true;
         } else if (ev.type === "error") {
-          card.querySelector(".a").innerHTML = `<div class="err">${esc(ev.message)}</div>`;
+          a.innerHTML = `<div class="text">${formatText(ev.message)}</div>`; done = true;
         }
       }
     }
+    if (!done) a.innerHTML = `<div class="text"><p>I couldn't answer that just now. Please try again.</p></div>`;
   } catch (e) {
-    card.querySelector(".a").innerHTML = `<div class="err">Request failed: ${esc(e.message)}</div>`;
+    a.innerHTML = `<div class="text"><p>I couldn't answer that just now. Please try again.</p></div>`;
   } finally {
-    clearInterval(timer); busy = false; $("send").disabled = false;
-    card.scrollIntoView({ behavior: "smooth", block: "end" }); $("q").focus();
+    busy = false; $("send").disabled = false; scrollDown(); ta.focus();
   }
 }
-$("f").addEventListener("submit", (e) => { e.preventDefault(); const q = $("q").value; $("q").value = ""; ask(q); });
 </script>
 </body>
 </html>

@@ -1,13 +1,27 @@
-# Northwind SAP Assistant: sample partner app for Graphene
+# SAP Assistant: white-label demo app on the Graphene engine
 
-This repo is a **sample partner application**, built by the Graphene team to show how a
-partner's own AI application plugs into Graphene. It is **not** Graphene and **not** a real
-partner. Say "sample partner app" in the UI, docs and demo.
+Internally (repo, docs, commits) this is still a **demo application built by the Graphene team** on
+top of the Graphene engine, reached **only through its MCP server**, with every boundary below. It is
+not Graphene itself.
+
+**The UI is white-label** (operator 2026-11-17, investor demo): two skins from `brands.yaml`, the
+same engine behind both:
+
+| Skin | Path | Name | Product name "Graphene" |
+|---|---|---|---|
+| partner | `/` | Cloudbox · SAP Assistant (text logo, warm graphite/amber theme) | **never**, anywhere: page, title, answers, sources, progress, errors |
+| direct | `/direct` | Graphene, "by NiraamAI" (logo `static/brand/logo.png`, navy/ocean/teal/cyan) | it is the product name |
+
+Neither skin says "sample partner app" or "demo by the Graphene team", or shows MCP, tool names,
+field names, ids or JSON words (e.g. sp_level, null, true/false, call:1). The browser gets only
+neutral progress lines and the checked answer (`app/present.py`); the full internal contract stays
+in the server and the log. Colours: text meets WCAG AA in both modes (`tests/test_brand.py`).
 
 ## What this app is (and is not)
 
 - **Is:** a small web app with a chat UI. It takes a user's question, lets Claude call
-  Graphene's tools, and explains the answer in plain language, with the evidence shown.
+  Graphene's tools, and explains the answer in plain language, in the skin's first-person voice,
+  with a collapsed "How do I know?" link for the sources.
 - **Is not:** a source of facts. Every SAP fact (objects, relationships, risk scores, counts,
   transports, jobs, dumps) comes from Graphene. This app never computes, changes or
   guesses a fact.
@@ -19,10 +33,13 @@ partner. Say "sample partner app" in the UI, docs and demo.
    files, never connect to Neo4j, Postgres or SAP, never edit `~/graphene`.
 2. **No SAP access of any kind.** This app has no SAP credentials and calls nothing in SAP.
 3. **Facts only from tool results.** Every object name, transport, number and date in an answer
-   must appear in a Graphene tool result from this question. Unknown objects: say
-   "not found in the learned system". Never recompute or round a number differently.
-4. **Say what Graphene doesn't know.** Pass on its `limits`, `coverage` and `freshness`
-   (e.g. stages not learned yet, dynamic calls that are candidates, not facts).
+   must appear in a Graphene tool result from this question. Unknown objects, in the voice:
+   "I don't know a table called ZFAKE_TABLE in this system, and I won't guess." Never recompute
+   or round a number differently.
+4. **Say what isn't known.** Pass on Graphene's `limits`, `coverage` and `freshness` in the voice
+   (e.g. "I haven't learned the system log (SM21) yet"; dynamic calls are candidates, not facts).
+   "Next on my learning plan" / "learning next" only for stages Graphene's status lists as not
+   started; a stated gap inside a learned stage is just "I haven't learned … yet".
 5. **Secrets:** `ANTHROPIC_API_KEY` lives only in this repo's `.env` (gitignored, chmod 600).
    Commit `.env.example` with a placeholder only. Never print, log or send the key to the
    browser. Never paste secrets into chat.
@@ -34,21 +51,36 @@ partner. Say "sample partner app" in the UI, docs and demo.
 - Python 3.12 venv (uv), FastAPI on **127.0.0.1:8080** (localhost only), `anthropic` SDK,
   `mcp` Python SDK (stdio client).
 - Model: `claude-sonnet-5-5`. Max 8 tool calls per question, with timeouts.
-- UI: one self-contained HTML page served by the app (inline CSS/JS, no CDNs, no external
-  calls). Dark and light mode. Readable on a projector at 1920×1080.
+- UI: one self-contained HTML template (`app/static/index.html`, inline CSS/JS, no CDNs, no external
+  calls) rendered per skin from `brands.yaml`; the template itself names no product. Single-column
+  chat, big input at the bottom, suggestion chips only on an empty chat, "What I've learned" sidebar
+  (from Graphene's `status`: ✓ per learned area, the rest "learning next", "last learned … ago"; no
+  metrics the engine didn't give), status dot "Connected to <SID>". Dark and light mode. Readable on
+  a projector at 1920×1080.
+- Runs as the systemd user service `sap-assistant` (README "Service").
 - Reached from the operator's laptop with
   `ssh -p 2222 -L 8080:127.0.0.1:8080 grpadm@127.0.0.1`, then http://localhost:8080.
 
-## Answer contract (what every answer carries)
+## Voice (both skins)
+
+First person, natural, confident, short and clear: "I've learned", "I know this system", "I haven't
+learned … yet". Never "trained", "training", "fine-tuned", "trained model" or "our own AI model".
+
+## Answer contract (internal: server and log; what every answer carries)
 
 `answer` (plain language), `claims[]` each with `evidence_ids`, `tool_trace` (tool, arguments,
-short result, ms), `coverage`, `freshness`, `limits`, and a `grounding` result.
+short result, ms), `coverage`, `freshness`, `limits`, and a `grounding` result. The skin shows only
+the answer, "How do I know?" (the claims as sources in SAP terms, plus which areas were learned how
+long ago) and, for history questions, the steps table.
 For "how did the risk change" questions also `history`: the distinct score steps (date, score from → to,
 cause, older engine) built by the app straight from Graphene's history, never written by the model
 (operator, 2026-11-16).
 
-**Grounding check** runs after every answer: any object/transport name or number in the answer
-that is not in this question's tool results is flagged in the UI (yellow), never hidden.
+**Grounding check** runs after every answer (silently, operator 2026-11-17): if any object/transport
+name, number or date in the answer or its sources is not in this question's tool results, or the
+wording rules are broken (product name in the partner skin, "trained", tool names, JSON words), the
+skin shows "I'm not certain about that one. Can you rephrase or name a specific object?" instead.
+The reasons go to the log (`presentation`), never to the UI. A source with a field name is left out.
 
 ## How this app improves: the operator's testing loop
 
@@ -67,17 +99,21 @@ Rules for each fix:
 3. `make test` (mocked Claude, real Graphene MCP) must pass before any commit.
 4. `make eval` runs the golden questions against the real API: run it before tagging, and
    report the cost estimate first.
-5. Small commits on a branch, merge when the operator approves, tag `partner-demo-vN`.
+5. Small commits on a branch, merge when the operator approves, tag `whitelabel-vN` (before 2026-11-17: `partner-demo-vN`).
 
 ## Golden questions (start with these)
+
+Each runs in both skins (`make eval`); `tests/golden_questions.yaml` has the full list (Q1–Q9).
 
 1. "What breaks if I change ZS4_IOT_DATA?" → 9 affected objects, 2 RFC entry points,
    1 dynamic call (candidate).
 2. "Why is ZUZK900008 high risk?" → 0.470, high, 88th percentile, its top reasons.
 3. "Why is ZUZK900006 riskier than before?" → 0.345, the daily job reached through
    ZGR_PRICE_SYNC (runs daily, 12 runs in window).
-4. "What uses table ZFAKE_TABLE?" → not found in the learned system, no guessing.
-5. "What does Graphene not know yet?" → stages not learned (from status), stated limits.
+4. "What uses table ZFAKE_TABLE?" → "I don't know a table called ZFAKE_TABLE in this system, and
+   I won't guess."
+5. "What haven't you learned yet?" → stages not learned (from status), stated limits.
+6–9. SAP_BASIS version, what would lower ZUZK900008's risk, system monitoring, SM21 (the stated gap).
 
 Expected numbers come from Graphene; if Graphene's numbers change after a learn run, update
 the expectations from Graphene's own output, never by hand-guessing.

@@ -88,9 +88,17 @@ class GrapheneMCP:
         self._restart = asyncio.Event()
 
     # ---- lifecycle -------------------------------------------------------
-    async def start(self) -> None:
+    async def start(self, wait: bool = True) -> None:
+        """Spawn the supervisor. wait=False returns at once (the service opens its port while
+        Graphene is still coming up); the supervisor keeps retrying with backoff either way."""
         self._supervisor = asyncio.create_task(self._supervise(), name="graphene-mcp-supervisor")
-        await self._wait_ready()
+        if wait:
+            await self._wait_ready()
+
+    @property
+    def generation(self) -> int:
+        """Bumped on every new session (first connect and each respawn)."""
+        return self._st.generation
 
     async def close(self) -> None:
         self._closing = True

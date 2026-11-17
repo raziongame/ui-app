@@ -29,8 +29,11 @@ def test_golden_contract_and_grounding(client, fake_claude, case):
     for t in out["tool_trace"]:
         assert set(t) >= {"n", "tool", "arguments", "result", "ms", "ok"} and t["ok"]
 
-    # progress was streamed
-    assert [e["type"] for e in events].count("tool_start") == len(case["mock"]["calls"])
+    # neutral progress was streamed (one line per tool call; no tool names)
+    assert [e["type"] for e in events].count("progress") == len(case["mock"]["calls"])
+    # operator 2026-11-17: the golden answers pass the silent safety check (shown, not the fallback)
+    assert out["view"]["fallback"] is False, out["presentation"]
+    assert out["view"]["answer"] == out["answer"]
 
     # the mocked answer only says what Graphene returned -> no flags
     assert out["grounding"]["ok"], out["grounding"]["flags"]
@@ -80,7 +83,11 @@ def test_invented_facts_are_flagged_not_hidden(client, fake_claude):
     assert not out["grounding"]["ok"]
     for tok in case["expect_flags"]:
         assert tok in flagged, (tok, flagged)
-    assert "12 objects" in out["answer"]  # flagged, never removed
+    assert "12 objects" in out["answer"]  # flagged in the internal contract and the log
+    # operator 2026-11-17 (silent safety): the skin never shows it; it shows the fallback instead
+    from app.brand import FALLBACK_ANSWER
+    assert out["view"] == {"answer": FALLBACK_ANSWER, "fallback": True, "sources": [], "learned": [], "history": None}
+    assert not out["presentation"]["shown"]
 
 
 def test_tool_call_cap(client, fake_claude):
@@ -88,7 +95,7 @@ def test_tool_call_cap(client, fake_claude):
     # one turn asking for more distinct calls than the budget
     many = {"calls": [[{"tool": "find_object", "args": {"name": f"ZCAP_TEST_{i}"}}
                        for i in range(config.MAX_TOOL_CALLS + 2)]],
-            "answer": {"answer": "Graphene has completed 6 of 11 stages.", "claims": []}}
+            "answer": {"answer": "I have learned 6 of 11 areas.", "claims": []}}
     fake_claude.messages.override = many
     try:
         out, _ = ask(client, "cap test")
@@ -111,21 +118,34 @@ def test_request_shape_to_claude(fake_claude):
     assert kw["output_config"]["format"]["type"] == "json_schema"
     names = {t["name"] for t in kw["tools"]}
     assert names == {"find_object", "impact", "assess_transport", "status", "operations", "system_profile"}
-    assert "sample partner app" in kw["system"]
-    # operator 2026-11-16: system facts only from system_profile, never from the prompt
-    assert "come only from a system_profile result" in kw["system"]
-    assert '(e.g. "SP 0")' in kw["system"] and '"not learned yet"' in kw["system"]  # operator, v14
-    assert "lead with Graphene's note" in kw["system"]  # operator, v15 + browser review
-    # operator 2026-11-16: steps are an app table from Graphene's data; the model only summarises
-    assert "set \"history_for\"" in kw["system"] and "don't say that nothing changed" in kw["system"]
-    assert "relationship → to" in kw["system"] and "Never summarise" in kw["system"]  # v3 paths
-    assert "lead with 2-3 sentences" in kw["system"]  # operator: short impact answers (Q1 < 12 s)
-    assert "No what-if scores (lowerers) here" in kw["system"]  # operator: short Q2
-    assert "answer from assessment.lowerers" in kw["system"]  # operator: golden Q7
-    assert "never show field names or JSON words in the answer" in kw["system"]  # operator: browser review
-    assert kw["output_config"]["format"]["schema"]["required"] == ["answer", "claims", "history_for"]
-    assert "Never reply that you will check" in kw["system"]  # browser testing 2026-11-17
-    assert "call operations" in kw["system"] and "sentence 1 states the gap" in kw["system"]
+    # operator 2026-11-17: white-label persona and voice, per skin
+    from app.agent import system_prompt
+    from app.brand import get
+    partner, direct = system_prompt(get("partner"), "x"), system_prompt(get("direct"), "x")
+    assert "You are Cloudbox · SAP Assistant" in partner and 'never write the word "Graphene"' in partner
+    assert "You are Graphene by NiraamAI" in direct and 'never write the word "Graphene"' not in direct
+    assert any("You are Cloudbox" in r["system"] for r in fake_claude.messages.requests)
+    for text in (partner, direct):
+        assert "sample partner app" not in text
+        assert 'Never say trained' in text and '"I\'ve learned"' in text
+        assert "I don't know a table called ZFAKE_TABLE in this system, and I won't guess." in text
+        assert "come only from a system_profile result" in text
+        assert '(e.g. "SP 0")' in text and "lead with the result's note" in text  # operator, v14/v15
+        assert 'goes only in the sources ("claims"), never in the answer' in text  # browser review 11-16
+        assert "Keep it to 1-2 short sentences" in text  # not found: short and clear (11-17)
+        assert 'Never approximate: no "about", "around", "roughly"' in text  # eval 11-17: "about 288 a day"
+        assert "copied character for character from a result" in text  # eval 11-17: built FUNC:ZS4_IOT_FG
+        assert "Never add a gap the results don't state" in text  # eval 11-17: SM21 from the prompt in Q5
+        assert "set \"history_for\"" in text and "don't say that nothing changed" in text
+        assert "relationship → to" in text and "Never summarise" in text  # v3 paths
+        assert "lead with 2-3 sentences" in text  # operator: short impact answers (Q1 < 12 s)
+        assert "No what-if scores here" in text  # operator: short Q2
+        assert "answer from the assessment's lowerers" in text  # operator: golden Q7
+        assert "never show field names, ids or JSON words" in text  # operator: browser review
+        assert "Never reply that you will check" in text  # browser testing 2026-11-17
+        assert "call operations" in text and "sentence 1 states the gap" in text
+        # "next on my learning plan" only for stages the status lists as not started (facts rule)
+        assert "Only call something \"next on my learning plan\" when the status result lists" in text
 
 
 def _run_override(client, fake_claude, case_id):
@@ -150,15 +170,16 @@ def test_reply_without_a_graphene_call_is_not_shown(client, fake_claude):
     assert out["usage"]["no_call_retries"] == 1
     assert reqs[1]["last_message"] == {"role": "system", "content": NO_CALL_NOTE}
     assert reqs[1]["roles"] == ["user", "system"]  # the promise reply is dropped, not sent back
-    assert any(e["type"] == "answer_reset" for e in events)
+    assert {e["type"] for e in events} <= {"progress", "final"}  # the promise never reached the browser
     assert out["grounding"]["ok"], out["grounding"]["flags"]
 
 
 def test_second_reply_without_a_call_is_an_error(client, fake_claude):
     out, events, reqs = _run_override(client, fake_claude, "no_call_twice_is_an_error")
     assert out is None
+    from app.brand import ERROR_ANSWER
     errs = [e for e in events if e["type"] == "error"]
-    assert errs and "without calling Graphene" in str(errs[-1])
+    assert errs and errs[-1]["message"] == ERROR_ANSWER  # details in the log only
     assert len(reqs) == 2
 
 
@@ -220,14 +241,32 @@ def test_call_rounds_and_repeats(client, fake_claude, case):
     assert len(skipped) == case["expect_skipped"]
 
 
+@pytest.mark.parametrize("skin", ["partner", "direct"])
 @pytest.mark.parametrize("case", CASES, ids=[c["id"] for c in CASES])
-def test_answer_text_is_streamed(client, fake_claude, case):
+def test_skin_receives_only_the_checked_view(client, fake_claude, case, skin):
+    """Operator 2026-11-17: the browser gets progress lines and the checked answer only. No answer
+    text before the safety check, no tool names, ids, field names or JSON internals; the partner skin
+    never receives the word Graphene (anywhere in the stream)."""
+    import json as _json
+    from conftest import ask_raw
     fake_claude.messages.override = None
-    out, events = ask(client, case["question"])
-    deltas = [e for e in events if e["type"] == "answer_delta"]
-    assert len(deltas) > 1  # arrives in pieces, before the final event
-    assert events.index(deltas[-1]) < next(i for i, e in enumerate(events) if e["type"] == "final")
-    assert "".join(d["text"] for d in deltas) == out["answer"]
+    out, events, body = ask_raw(client, case["question"], skin)
+    assert out is not None and out["view"]["fallback"] is False, out and out["presentation"]
+    assert {e["type"] for e in events} <= {"progress", "final"}
+    view = out["view"]
+    assert set(view) == {"answer", "fallback", "sources", "learned", "history"}
+    for tool in ("find_object", "assess_transport", "system_profile", "tool_trace", "evidence_ids", "call:1",
+                 "grounding", "coverage"):
+        assert tool not in body, tool
+    for e in events:
+        if e["type"] == "progress":
+            assert not any(t in e["text"] for t in ("impact", "status", "operations"))
+    if skin == "partner":
+        assert "graphene" not in body.lower()
+    for text in [view["answer"], *view["sources"]]:
+        assert "trained" not in text.lower()
+    assert view["sources"], "How do I know? has sources"
+    assert all(_json.dumps(l) and l["area"] for l in view["learned"])
 
 
 def test_second_round_predicate_uses_graphene_fields():
@@ -244,8 +283,14 @@ def test_second_round_predicate_uses_graphene_fields():
 def test_mock_answers_are_plain_language(case):
     """Operator 2026-11-16 (browser review): no field names or JSON words in the answer text; they
     stay in the evidence panel (claims, tool trace)."""
+    from app.brand import get, wording_problems
     from app.contract import developer_words
     assert developer_words(case["mock"]["answer"]["answer"]) == []
+    for cl in case["mock"]["answer"]["claims"]:  # claims are the "How do I know?" sources now
+        assert developer_words(cl["text"]) == [], cl["text"]
+    for skin in ("partner", "direct"):
+        texts = [case["mock"]["answer"]["answer"], *(cl["text"] for cl in case["mock"]["answer"]["claims"])]
+        assert [p for t in texts for p in wording_problems(t, get(skin))] == []
 
 
 def test_developer_words_detector():
@@ -280,6 +325,10 @@ def test_q3_path_checks_catch_the_v2_wording():
           "PROG:ZGR_PRICE_SYNC → RUNS → JOB:JOB-5192e9d4d2ab (runs daily, 12 runs in window). A further reason "
           "is the path TABL:ZGR_DISC_RULES → READS_TABLE → PROG:ZGR_DISC_REPORT.")
     assert not any(re.search(r, ok, re.I) for r in rx)
+    # eval 2026-11-17 (4bb6543): correct, the job is reached from the program (was a false positive)
+    ok2 = ("The main reasons are the table definition TABL:ZGR_DISC_RULES in the transport and the periodic "
+           "job reached from PROG:ZGR_PRICE_SYNC.")
+    assert not any(re.search(r, ok2, re.I) for r in rx)
     for bad in ("ZGR_DISC_RULES reaches ZGR_PRICE_SYNC.", "TABL:ZGR_DISC_RULES → READS_TABLE → PROG:ZGR_PRICE_SYNC.",
                 "The change to ZGR_DISC_RULES affects ZGR_PRICE_SYNC and the job."):
         assert any(re.search(r, bad, re.I) for r in rx), bad
