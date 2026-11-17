@@ -30,7 +30,11 @@ class FakeMessages:
         return FakeStream(self._reply(kw))
 
     def _reply(self, kw: dict[str, Any]) -> Message:
-        self.requests.append({**kw, "n_messages": len(kw["messages"])})  # messages grows in place
+        self.requests.append({**kw, "n_messages": len(kw["messages"]),  # messages grows in place:
+                              "has_results": any(m["role"] == "user" and isinstance(m["content"], list)
+                                                 for m in kw["messages"]),  # snapshot at request time
+                              "last_message": kw["messages"][-1],
+                              "roles": [m["role"] for m in kw["messages"]]})
         msgs = kw["messages"]
         script = self.override or self.scripts[msgs[0]["content"]]
         done = sum(1 for m in msgs if m["role"] == "user" and isinstance(m["content"], list))
@@ -38,6 +42,13 @@ class FakeMessages:
                 "model": kw["model"], "stop_sequence": None,
                 "usage": {"input_tokens": 100, "output_tokens": 20}}
         calls = script["calls"]
+        # "promise_turns": N = the first N turns only promise to look it up, with no tool call (browser
+        # testing 2026-11-17: "I'll check"); the app answers each with a system note (see NO_CALL_NOTE).
+        notes = sum(1 for m in msgs if m["role"] == "system")
+        if done == 0 and notes < script.get("promise_turns", 0):
+            return Message.model_validate({**base, "stop_reason": "end_turn", "content": [
+                {"type": "text", "text": json.dumps({"answer": "I'll check the system log for you.",
+                                                     "claims": [], "history_for": ""})}]})
         if done < len(calls) and kw.get("tool_choice", {}).get("type") != "none":
             turn = calls[done] if isinstance(calls[done], list) else [calls[done]]  # list = one turn
             return Message.model_validate({**base, "stop_reason": "tool_use", "content": [
