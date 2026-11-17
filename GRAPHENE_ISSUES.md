@@ -138,3 +138,29 @@ Each entry: question, what Graphene returned, what's expected. Graphene `1.30.0`
 - **Expected (operator):** the app shows the SP level exactly as returned and passes on Graphene's
   note about it. There is no note to pass on yet. The app quotes the value as-is and never turns it
   into "SP 0" itself. Please add the note (a `limits` line or a field on the component).
+
+## G-9 · Risk baseline stale again the next day: daily refresh timer not installed — RESOLVED
+
+- **Resolved 2026-11-17 (operator):** baseline refreshed (`last_stored` 2026-11-17T12:42:48+00:00, comparison
+  group `current`: ZUZK900008 0.47 / high / 0.8833; ZUZK900006 0.345 / moderate / 0.6583) and the daily
+  timer installed as a user unit with linger on. `make test` 61 passed.
+- **Open detail:** after the install, `status` → `health.risk_baseline.timer.installed` still says `false`.
+  The operator confirmed the timer is installed (user unit, linger), so Graphene's check probably looks
+  for a system unit only. The app shows the value as Graphene returns it.
+
+- **Found:** 2026-11-17 12:37 UTC, `make test` (7 failures: golden risk_zuzk900008, risk_zuzk900006,
+  lowerers_zuzk900008 in both mocked-contract and real-facts tests, plus the G-1 latency test, all from this).
+  Graphene handshake 1.35.0.
+- **What Graphene returned:** `assess_transport` (ZUZK900008, ZUZK900006) → `result.assessment: null`,
+  `comparison_group: {"status": "stale", "reason": "risk history is stale: built on 2026-11-16, quality
+  signals count days", "fix": "Run `graphene risk baseline` on the Graphene host …"}`. `previous` is still
+  there (0.47 / high, 2026-11-12T14:44:40+00:00; 0.345 / moderate, 2026-11-12T14:44:38+00:00).
+  `status` → `health.risk_baseline: {"fresh": false, "last_stored": "2026-11-16T11:19:42+00:00",
+  "timer": {"installed": false, "install": "deploy/install-risk-baseline-timer.sh"}}`.
+- **Expected:** a current score every day without a manual step. G-6 was closed as "refreshes daily at
+  00:10", but Graphene's own status says the timer is not installed, so the baseline goes stale at every
+  date change and golden questions 2, 3 and 7 lose their score.
+  Graphene's fix: `graphene risk baseline` now, and install the timer
+  (`deploy/install-risk-baseline-timer.sh`). The app can't and won't run either.
+- **App behaviour meanwhile:** it passes on what Graphene says (no current score, the stale reason and
+  Graphene's fix). It never puts the `previous` score forward as the current one.

@@ -252,6 +252,90 @@
 
 # Negative control (make test only): a mocked answer with an invented number and object
 # must be flagged by the grounding check, not hidden.
+# Browser testing 2026-11-17 (operator): "system monitoring?" and "please list sm21 details" got
+# "I'll check / I'll look it up", 0 Graphene calls, then nothing. Monitoring questions call operations
+# and pass on its stated gaps. Facts from Graphene operations (L5 v3, handshake 1.35.0, 2026-11-17).
+- id: monitoring_overview
+  question: "What does system monitoring show?"
+  facts:
+    - {tool: operations, path: result.learned, equals: true}
+    - {tool: operations, path: result.jobs.runs, equals: 41}
+    - {tool: operations, path: result.jobs.cancelled, equals: 0}
+    - {tool: operations, path: result.dumps.total, equals: 4305}
+    - {tool: operations, path: result.alerts.total, equals: 0}
+    - {tool: operations, path: result.facts, contains: "CCMS: not configured"}
+    - {tool: operations, path: limits, contains: "The system log (SM21) is not learned: a stated L5 gap."}
+    - {tool: operations, path: evidence_ids, equals: ["run:L5:v3"]}
+  expect:
+    tools: [operations]
+    answer_contains: ["41", "4305", "SM21", "not learned"]
+    answer_not_matches: ["\\bI(['’]ll| will) (check|look)", "\\blet me (check|look)"]
+    max_words: 110
+    grounding_flags_max: 0
+  mock:
+    calls:
+      - {tool: operations, args: {}}
+    answer:
+      answer: |-
+        Over the learned window, Graphene counted 41 background job runs (0 cancelled), 4305 short dumps and 0 alerts.
+        - Which program each dump hit is not learned yet.
+        - The system log (SM21) is not learned yet, CCMS is not configured, and SAP keeps no workload aggregates on this system.
+        These are counts only, nothing newer than the last operations learn run.
+      claims:
+        - {text: "41 job runs, 0 cancelled.", evidence_ids: ["run:L5:v3"]}
+        - {text: "4305 short dumps; which program each hit is not learned yet.", evidence_ids: ["run:L5:v3"]}
+        - {text: "0 alerts.", evidence_ids: ["run:L5:v3"]}
+        - {text: "The system log (SM21) is not learned: a stated L5 gap.", evidence_ids: ["call:1"]}
+
+- id: sm21_details
+  question: "Show me SM21 details"
+  facts:
+    - {tool: operations, path: limits, contains: "The system log (SM21) is not learned: a stated L5 gap."}
+  expect:
+    tools: [operations]
+    answer_contains: ["SM21", "not learned"]
+    # the stated gap, no invented entries: no promise, no log lines (times, message ids)
+    answer_not_matches: ["\\bI(['’]ll| will) (check|look)", "\\blet me (check|look)", "\\b\\d{1,2}:\\d{2}\\b"]
+    first_sentence_contains: ["SM21", "not learned"]
+    max_words: 80
+    grounding_flags_max: 0
+  mock:
+    calls:
+      - {tool: operations, args: {}}
+    answer:
+      answer: |-
+        The system log (SM21) is not learned yet: Graphene states this as a gap, so there are no SM21 entries to show.
+        What Graphene has from monitoring is counts only: 41 job runs, 4305 short dumps and 0 alerts in the learned window.
+      claims:
+        - {text: "The system log (SM21) is not learned: a stated L5 gap.", evidence_ids: ["call:1"]}
+        - {text: "41 job runs, 4305 short dumps, 0 alerts.", evidence_ids: ["run:L5:v3"]}
+
+# Regression (make test only), browser testing 2026-11-17: a reply that only promises to look it up,
+# with no Graphene call, is never shown. claude-sonnet-5-5 rejects tool_choice "any" (400), so the app
+# drops that reply and asks once more with a system note; a second reply without a call is an error.
+- id: no_call_reply_is_retried
+  question: "please list sm21 details"
+  test_only: true
+  mock:
+    promise_turns: 1
+    calls:
+      - {tool: operations, args: {}}
+    answer:
+      answer: "The system log (SM21) is not learned yet, so there are no SM21 entries to show."
+      claims:
+        - {text: "The system log (SM21) is not learned: a stated L5 gap.", evidence_ids: ["call:1"]}
+
+- id: no_call_twice_is_an_error
+  question: "system monitoring?"
+  test_only: true
+  mock:
+    promise_turns: 2
+    calls:
+      - {tool: operations, args: {}}
+    answer:
+      answer: "unused"
+      claims: []
+
 - id: grounding_flags_invented_facts
   question: "What breaks if I change ZS4_IOT_DATA?"
   test_only: true

@@ -104,8 +104,9 @@ def test_request_shape_to_claude(fake_claude):
     kw = fake_claude.messages.requests[-1]
     assert kw["model"] == "claude-sonnet-5-5"
     assert kw["thinking"] == {"type": "adaptive"}  # the answer turn thinks (briefly)
-    for r in fake_claude.messages.requests:  # the routing turn (first of each question) doesn't
-        assert r["thinking"] == ({"type": "between_tools"} if r["n_messages"] == 1 else {"type": "adaptive"})
+    for r in fake_claude.messages.requests:  # routing turns (before any Graphene result) don't
+        assert r["thinking"] == ({"type": "adaptive"} if r["has_results"] else {"type": "between_tools"})
+        assert r["tool_choice"]["type"] in ("auto", "none")  # "any" is a 400 on claude-sonnet-5-5
     assert kw["output_config"]["effort"] == "low"  # operator 2026-11-16: short thinking, < 10 s
     assert kw["output_config"]["format"]["type"] == "json_schema"
     names = {t["name"] for t in kw["tools"]}
@@ -123,6 +124,54 @@ def test_request_shape_to_claude(fake_claude):
     assert "answer from assessment.lowerers" in kw["system"]  # operator: golden Q7
     assert "never show field names or JSON words in the answer" in kw["system"]  # operator: browser review
     assert kw["output_config"]["format"]["schema"]["required"] == ["answer", "claims", "history_for"]
+    assert "Never reply that you will check" in kw["system"]  # browser testing 2026-11-17
+    assert "call operations" in kw["system"] and "sentence 1 states the gap" in kw["system"]
+
+
+def _run_override(client, fake_claude, case_id):
+    case = next(c for c in GOLDEN if c["id"] == case_id)
+    fake_claude.messages.override = case["mock"]
+    before = len(fake_claude.messages.requests)
+    try:
+        out, events = ask(client, case["question"])
+    finally:
+        fake_claude.messages.override = None
+    return out, events, fake_claude.messages.requests[before:]
+
+
+def test_reply_without_a_graphene_call_is_not_shown(client, fake_claude):
+    """Browser testing 2026-11-17: "I'll check" with 0 Graphene calls. The app drops that reply, asks
+    once more with a system note, and answers from the operations call."""
+    from app.agent import NO_CALL_NOTE
+    out, events, reqs = _run_override(client, fake_claude, "no_call_reply_is_retried")
+    assert out is not None, [e for e in events if e["type"] == "error"]
+    assert [t["tool"] for t in out["tool_trace"]] == ["operations"]
+    assert "I'll check" not in out["answer"] and "SM21" in out["answer"]
+    assert out["usage"]["no_call_retries"] == 1
+    assert reqs[1]["last_message"] == {"role": "system", "content": NO_CALL_NOTE}
+    assert reqs[1]["roles"] == ["user", "system"]  # the promise reply is dropped, not sent back
+    assert any(e["type"] == "answer_reset" for e in events)
+    assert out["grounding"]["ok"], out["grounding"]["flags"]
+
+
+def test_second_reply_without_a_call_is_an_error(client, fake_claude):
+    out, events, reqs = _run_override(client, fake_claude, "no_call_twice_is_an_error")
+    assert out is None
+    errs = [e for e in events if e["type"] == "error"]
+    assert errs and "without calling Graphene" in str(errs[-1])
+    assert len(reqs) == 2
+
+
+def test_monitoring_eval_checks_reject_promises_and_log_lines():
+    import re
+    for cid in ("monitoring_overview", "sm21_details"):
+        case = next(c for c in GOLDEN if c["id"] == cid)
+        rx = case["expect"]["answer_not_matches"]
+        assert not any(re.search(r, case["mock"]["answer"]["answer"], re.I) for r in rx)
+        for bad in ("I'll check the system log for you.", "I will look it up.", "Let me check SM21."):
+            assert any(re.search(r, bad, re.I) for r in rx), bad
+    rx = next(c for c in GOLDEN if c["id"] == "sm21_details")["expect"]["answer_not_matches"]
+    assert any(re.search(r, "SM21 at 14:02: dialog process restarted", re.I) for r in rx)
 
 
 SKIP_CASES = [c for c in GOLDEN if "expect_trace" in c]

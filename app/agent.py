@@ -74,6 +74,15 @@ JOB:JOB-5192e9d4d2ab (runs daily, 12 runs in window)"). One path per statement. 
 several paths with one verb (e.g. "sit on its paths", "are reached"), and never say an object is \
 reached from anything other than its path's from object. An object changed in the transport is \
 "in the transport", not reached.
+- Every question gets at least one Graphene call before you answer. Never reply that you will check \
+or look something up: make the call in this turn. If no tool fits the question, call status.
+- Monitoring questions (system monitoring, short dumps / ST22, background jobs / SM37, alerts, the \
+system log / SM21, workload): call operations. Give what it returned, then pass on what it says it \
+does not cover, in its own words from its limits and facts (e.g. "the system log (SM21) is not \
+learned yet"). When the question asks for something operations doesn't cover (e.g. SM21 entries), \
+the answer is at most 3 short sentences, no bullets: sentence 1 states the gap in Graphene's words \
+(e.g. "The system log (SM21) is not learned yet, so there are no SM21 entries to show."), then at \
+most two sentences on what operations does have (counts only). Never list log entries, dumps, job names or alerts that Graphene did not return.
 - If the question asks for something Graphene's results do not contain, say plainly that Graphene \
 did not return it. If Graphene returns no score (e.g. its comparison group is stale), say so and \
 pass on what Graphene says would fix it; don't use an older score as the current one, and don't \
@@ -81,7 +90,8 @@ speculate about what drives a score Graphene didn't return.
 - Tool calls: you get one round. Request everything you need in your first turn; most questions \
 need exactly one call: impact (what a change to an object breaks), assess_transport (a transport's \
 risk and impact), find_object (what an object is or what uses it), status (what Graphene has \
-learned), system_profile (the system itself: release, components, versions, database, kernel). After that round you answer. Only if a result is ambiguous (several objects for the name) \
+learned), system_profile (the system itself: release, components, versions, database, kernel), \
+operations (monitoring: jobs, dumps, alerts, system log, workload). After that round you answer. Only if a result is ambiguous (several objects for the name) \
 or not found with similar names do you get one more round, e.g. for the similar name. Every result already \
 carries coverage, freshness and limits, so call status only when the question is about what Graphene \
 has learned; don't look an object up with find_object when impact or assess_transport already \
@@ -136,6 +146,14 @@ ANSWER_SCHEMA = {
     "required": ["answer", "claims", "history_for"],
     "additionalProperties": False,
 }
+
+
+# claude-sonnet-5-5 rejects tool_choice "any"/"tool" (400, checked 2026-11-17), so "the first turn must
+# call a tool" is enforced here: a reply with no Graphene call yet is dropped (never shown) and Claude is
+# asked once more with this operator note; a second reply without a call fails the question.
+NO_CALL_NOTE = ("You answered without calling a Graphene tool. That reply is not shown. Call the Graphene "
+                "tool(s) this question needs now (if none fits, call status); never reply only that you "
+                "will check or look something up.")
 
 
 class AnswerError(RuntimeError):
@@ -282,6 +300,7 @@ async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit
     defaults = {t.name: {k: v.get("default") for k, v in (t.input_schema.get("properties") or {}).items()
                          if isinstance(v, dict) and "default" in v} for t in g.tools}
     force_answer = False
+    nudged = False  # the no-call note was sent (see NO_CALL_NOTE)
     rounds = 0  # rounds of Graphene calls that ran
     claude_ms = 0
     max_requests = config.MAX_TOOL_CALLS + 3
@@ -300,9 +319,9 @@ async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit
             tools=tools,
             messages=messages,
             tool_choice=tool_choice,
-            # Choosing the first call is routing, not reasoning: no thinking on that turn (speed).
+            # Choosing the first call is routing, not reasoning: no thinking before any Graphene result (speed).
             # On claude-sonnet-5-5 thinking is turned off with "between_tools" ("disabled" is a 400).
-            thinking={"type": "between_tools"} if usage["requests"] == 0 else {"type": "adaptive"},
+            thinking={"type": "between_tools"} if not trace else {"type": "adaptive"},
             output_config={"effort": config.EFFORT,
                            "format": {"type": "json_schema", "schema": ANSWER_SCHEMA}},
             cache_control={"type": "ephemeral"},
@@ -318,6 +337,16 @@ async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit
             raise AnswerError("The answer was cut off (output limit reached).", trace, usage)
 
         tool_uses = [b for b in resp.content if b.type == "tool_use"]
+        if (resp.stop_reason != "tool_use" or not tool_uses) and not trace:
+            # An answer with no Graphene call (e.g. "I'll check the system log") is never shown.
+            await emit({"type": "answer_reset"})
+            if nudged:
+                raise AnswerError("Claude answered without calling Graphene, so there is no answer to show. "
+                                  "Please ask again.", trace, usage)
+            nudged = True
+            usage["no_call_retries"] = usage.get("no_call_retries", 0) + 1
+            messages.append({"role": "system", "content": NO_CALL_NOTE})
+            continue
         if resp.stop_reason != "tool_use" or not tool_uses:
             text = next((b.text for b in resp.content if b.type == "text"), "")
             try:

@@ -82,7 +82,7 @@ async def estimate(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> None:
         tot_nocache += nocache
         tot_cache += cached
         print(f"{c['question'][:45]:45} {turns:>5} {sum(turn_inputs):>10} {nocache:>11.4f} {cached:>11.4f}")
-    print(f"{'TOTAL (5 questions, 1 run)':45} {'':>5} {'':>10} {tot_nocache:>11.4f} {tot_cache:>11.4f}")
+    print(f"{f'TOTAL ({len(cases())} questions, 1 run)':45} {'':>5} {'':>10} {tot_nocache:>11.4f} {tot_cache:>11.4f}")
     print(f"Assumes the mock's tool calls and ~{OUT_PER_TOOL_TURN} output tokens per tool turn, "
           f"~{OUT_FINAL} for the final answer. If Claude makes twice the calls, budget about 2x.")
 
