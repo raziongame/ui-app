@@ -63,7 +63,8 @@ def test_app_serves_and_refuses_questions_while_graphene_is_down(tmp_path):
     from app import config
     from app.server import create_app
     config.LOG_PATH = tmp_path / "app.jsonl"
-    with TestClient(create_app(claude_client=object(), mcp_command=str(tmp_path / "no-graphene-mcp"))) as c:
+    with TestClient(create_app(claude_client=object(), mcp_command=str(tmp_path / "no-graphene-mcp"),
+                               db_path=tmp_path / "chats.sqlite3")) as c:
         t0 = time.time()
         h = c.get("/api/health").json()["engine"]
         assert time.time() - t0 < 5  # startup does not block on Graphene
@@ -71,7 +72,7 @@ def test_app_serves_and_refuses_questions_while_graphene_is_down(tmp_path):
         assert c.get("/").status_code == 200
         out, events = ask(c, "What does system monitoring show?")
         assert out is None
-        from app.brand import NOT_READY_ANSWER
+        from app.wording import NOT_READY_ANSWER
         assert [e for e in events if e["type"] == "error"][0]["message"] == NOT_READY_ANSWER
 
 
@@ -98,10 +99,10 @@ def test_operator_surfaces_never_name_the_product(tmp_path):
     assert neutral("Graphene MCP down") == "engine MCP down"
     config.LOG_PATH = tmp_path / "app.jsonl"
     missing = "/nonexistent/graphene/.venv/bin/graphene-mcp"
-    with TestClient(create_app(claude_client=object(), mcp_command=missing)) as c:
+    with TestClient(create_app(claude_client=object(), mcp_command=missing, db_path=tmp_path / "chats.sqlite3")) as c:
         time.sleep(1.5)
         h = c.get("/api/health").text
-        assert "graphene" not in h.lower(), h
+        assert "/graphene/" not in h and "graphene-mcp" not in h, h  # engine paths masked
     for src in ("app/server.py", "app/mcp_client.py"):
         text = (ROOT / src).read_text()
         for m in _re.finditer(r"log\.(?:info|warning|error|exception)\((.*)", text):
@@ -119,15 +120,14 @@ def test_eval_runner_stops_at_the_cost_cap(monkeypatch, capsys):
 
     calls = []
 
-    async def fake_answer(question, g, client, emit, b):
+    async def fake_answer(question, g, client):
         calls.append(question)
-        return {"answer": "x", "claims": [], "tool_trace": [], "grounding": {"ok": True, "flags": []},
-                "coverage": [], "freshness": {}, "limits": [], "history": None,
+        return {"answer": "x", "system_facts": [], "tool_trace": [], "grounding": {"ok": True, "flags": []},
+                "coverage": [], "freshness": {}, "limits": [], "history": None, "new_results": [],
                 "usage": {"input_tokens": 0, "output_tokens": 40_000, "requests": 1}, "timing_ms": {}}
 
     monkeypatch.setattr(run_eval.agent, "answer_with_timeout", fake_answer)  # $0.40 per question
     monkeypatch.setattr(run_eval, "MAX_COST", [1.00])
-    monkeypatch.setattr(run_eval, "SKINS", ["partner"])
     monkeypatch.setattr(run_eval, "ONLY", {"impact_zs4_iot_data", "risk_zuzk900008", "risk_zuzk900006",
                                            "not_found_zfake_table"})
     monkeypatch.setattr(run_eval, "RESULTS_DIR", ROOT / "eval" / "results" / "_capcheck")  # kept out of results

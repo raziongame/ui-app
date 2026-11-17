@@ -1,0 +1,44 @@
+3778530 - [CVE-2026-76964] Memory Corruption Vulnerability in SAP NetWeaver AS ABAP (Internet Communication Manager)
+SAP Security Note, Version: 7, Released On: 2026.11.10
+Component: BC-CST-IC   Priority: HotNews   CVSS v3.0 Base Score: 10.0
+
+Symptom
+SAP NetWeaver Application Server ABAP does not sufficiently validate certain network input processed by an internal component. An unauthenticated attacker could send specially crafted network traffic to trigger a memory corruption condition in the affected functionality.
+
+Reason and Prerequisites
+Improper validation of size/length parameters in WebSocket control frames during reassembly resulted in a heap-based out-of-bounds write.
+SAP NetWeaver Application Server Java is not affected.
+
+Solution
+The correction is delivered with the kernel patch level listed in "Support Packages & Patches". All higher patch levels also contain the correction.
+
+Workaround
+- If the affected ICM is accessed exclusively through an SAP Web Dispatcher, a Web Dispatcher updated to the patch levels in FAQ Note 3778788 can be used as a temporary workaround.
+- Otherwise, WebSocket support can be disabled as a workaround (not recommended: significant impact on interactive and integration scenarios).
+
+Software Components (From - To)
+KRNL64UC 7.53 - 7.53
+KERNEL 7.53 - 7.53
+KERNEL 7.54 - 7.54
+KERNEL 7.77 - 7.77
+KERNEL 7.93 - 7.93
+KERNEL 9.16 - 9.16
+KERNEL 9.18 - 9.18
+KERNEL 9.20 - 9.20
+
+Support Package Patches
+SAP KERNEL 7.53 64-BIT UNICODE   SP1616   001616
+SAP KERNEL 7.53 64-BIT UNICODE   SP1617   001617
+SAP KERNEL 7.53 64-BIT           SP1616   001616
+SAP KERNEL 7.53 64-BIT           SP1617   001617
+SAP KERNEL 7.77 64-BIT UNICODE   SP914    000914
+SAP KERNEL 7.54 64-BIT           SP710    000710
+SAP KERNEL 7.54 64-BIT UNICODE   SP710    000710
+SAP KERNEL 9.18 64-BIT UNICODE   SP037    000037
+SAP KERNEL 9.20 64-BIT UNICODE   SP011    000011
+SAP KERNEL 9.20 64-BIT UNICODE   SP013    000013
+SAP KERNEL 7.93 64-BIT UNICODE   SP401    000401
+SAP KERNEL 7.93 64-BIT UNICODE   SP420    000420
+SAP KERNEL 9.16 64-BIT UNICODE   SP111    000111
+
+References: FAQ Note 3778788 (BC-CST-IC); companion Web Dispatcher note 3778556.

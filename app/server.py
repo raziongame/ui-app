@@ -1,35 +1,42 @@
-"""FastAPI app on 127.0.0.1:8080. Starts ONE Graphene MCP session at startup and
-keeps it for every question. The API key never leaves this process."""
+"""FastAPI app on 127.0.0.1:8080 (operator 2026-11-17: Graphene by NiraamAI, chat UI). Starts ONE
+engine MCP session at startup and keeps it for every message. Chats are stored per browser (cookie).
+The API key never leaves this process; sources and grounding stay in the log and ?debug=1."""
 
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
+import re
+import secrets
 import time
 from contextlib import asynccontextmanager
 from typing import Any
 
 import anthropic
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import agent, config, present
-from . import brand as brands
+from . import agent, config, present, wording
 from .mcp_client import GrapheneMCP, GrapheneUnavailable, neutral
+from .store import Store, title_for
 
 log = logging.getLogger("ui_app")
-if not log.handlers:  # app messages (Graphene connect/retry) reach stderr -> the systemd journal
+if not log.handlers:  # app messages (engine connect/retry) reach stderr -> the systemd journal
     _h = logging.StreamHandler()
     _h.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
     log.addHandler(_h)
     log.setLevel(logging.INFO)
 STATIC = config.ROOT / "app" / "static" / "index.html"
-BRAND_ASSETS = config.ROOT / "static" / "brand"  # operator drops logo files here
+BRAND_ASSETS = config.ROOT / "static" / "brand"  # the NiraamAI logo (operator)
+LOGO_FILES = {"logo.png"}
 STATUS_REFRESH_S = 300.0
+COOKIE = "gid"
+COOKIE_RE = re.compile(r"^[0-9a-f]{32}$")
+MAX_MESSAGE_CHARS = 200_000  # long pastes (SAP Notes, logs) are fine
 
-# Progress lines the skins show while a question runs: SAP terms, no tool or product names.
+# Progress line while a message runs: SAP terms, no tool names.
 PROGRESS = {
     "find_object": "Looking up {name}",
     "impact": "Tracing what depends on {name}",
@@ -48,32 +55,38 @@ def progress_text(tool: str, args: dict[str, Any]) -> str:
         return "Checking what I know"
 
 
-def render_page(b: brands.Brand) -> str:
-    """One template for every skin; brand values are injected (the template names no product)."""
-    html = STATIC.read_text()
-    vars_css = []
-    for mode in ("light", "dark"):
-        decl = "".join(f"--{k.replace('_', '-')}:{v};" for k, v in b.colors[mode].items())
-        vars_css.append(decl)
-    return (html.replace("{{TITLE}}", _esc(b.name))
-                .replace("{{BRAND_JSON}}", json.dumps(b.public(), ensure_ascii=False).replace("<", "\\u003c"))
-                .replace("{{LIGHT_VARS}}", vars_css[0]).replace("{{DARK_VARS}}", vars_css[1]))
-
-
-def _esc(s: str) -> str:
-    return (s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;"))
-
-
 class Ask(BaseModel):
-    question: str = Field(min_length=1, max_length=2000)
-    brand: str = Field(default="partner", max_length=40)
+    message: str = Field(min_length=1, max_length=MAX_MESSAGE_CHARS)
+    chat_id: str | None = Field(default=None, max_length=64)
 
 
 def write_log(record: dict[str, Any]) -> None:
-    """Questions, tool calls, timings and token usage only. Never the key."""
+    """Messages (truncated), tool calls, sources, grounding, timings and token usage. Never the key."""
     config.LOG_PATH.parent.mkdir(exist_ok=True)
     with config.LOG_PATH.open("a") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+def browser_id(request: Request) -> tuple[str, bool]:
+    """The browser's id from its cookie, or a new one (True = set the cookie)."""
+    v = request.cookies.get(COOKIE, "")
+    return (v, False) if COOKIE_RE.match(v) else (secrets.token_hex(16), True)
+
+
+def set_cookie(resp: Response, gid: str) -> None:
+    resp.set_cookie(COOKIE, gid, max_age=10 * 365 * 24 * 3600, httponly=True, samesite="lax", path="/")
+
+
+def model_context(store: Store, chat_id: str) -> agent.ChatContext:
+    """Earlier turns as text (failed turns left out), the chat's engine results, the user's texts."""
+    history, user_texts = [], []
+    for m in store.messages(chat_id):
+        if m["error"]:
+            continue
+        history.append({"role": m["role"], "content": m["content"]})
+        if m["role"] == "user":
+            user_texts.append(m["content"])
+    return agent.ChatContext(history=history, results=store.results(chat_id), user_texts=user_texts)
 
 
 def backends_ready(structured: dict[str, Any] | None) -> tuple[bool, str]:
@@ -94,7 +107,7 @@ async def watch_readiness(g: GrapheneMCP, state: dict[str, Any], first_delay: fl
     while True:
         if g.connected and g.generation == checked_gen and state["ready"]:
             if time.time() - state.get("status_at", 0) < STATUS_REFRESH_S:
-                await asyncio.sleep(2.0)  # ready; re-check after a respawn or to refresh the sidebar
+                await asyncio.sleep(2.0)  # ready; re-check after a respawn or every few minutes
                 continue
         if not g.connected and state["ready"]:
             # A respawn in progress after being ready: calls wait for the new session themselves;
@@ -126,18 +139,21 @@ async def watch_readiness(g: GrapheneMCP, state: dict[str, Any], first_delay: fl
         delay = min(delay * 2, max_delay)
 
 
-def create_app(claude_client: Any | None = None, mcp_command: str = config.GRAPHENE_MCP_COMMAND) -> FastAPI:
+def create_app(claude_client: Any | None = None, mcp_command: str = config.GRAPHENE_MCP_COMMAND,
+               db_path=None) -> FastAPI:
     state: dict[str, Any] = {}
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         g = GrapheneMCP(mcp_command, call_timeout_s=config.TOOL_TIMEOUT_S)
         # Spawned once, here, without blocking startup (the port opens at once); respawned with
-        # backoff if it dies. Questions wait until Graphene's status says Neo4j and Postgres are up.
+        # backoff if it dies. Messages wait until the engine's status says Neo4j and Postgres are up.
         await g.start(wait=False)
         state.update(graphene=g, ready=False, not_ready_reason="starting", retries=0)
-        watcher = asyncio.create_task(watch_readiness(g, state), name="graphene-readiness")
+        watcher = asyncio.create_task(watch_readiness(g, state), name="engine-readiness")
         app.state.graphene = g  # the one live session (tests and health read it)
+        store = Store(db_path or config.DB_PATH)
+        state["store"] = app.state.store = store
         if claude_client is not None:
             state["claude"] = claude_client
         else:
@@ -148,27 +164,24 @@ def create_app(claude_client: Any | None = None, mcp_command: str = config.GRAPH
         yield
         watcher.cancel()
         await g.close()
+        store.close()
 
     app = FastAPI(title=config.APP_TITLE, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 
-    for b in brands.load().values():
-        def page(b: brands.Brand = b) -> HTMLResponse:
-            return HTMLResponse(render_page(b), headers={"Cache-Control": "no-store"})
-        app.add_api_route(b.path, page, methods=["GET"], response_class=HTMLResponse, name=f"skin_{b.key}")
+    @app.get("/", response_class=HTMLResponse)
+    async def index(request: Request) -> HTMLResponse:
+        gid, new = browser_id(request)
+        resp = HTMLResponse(STATIC.read_text(), headers={"Cache-Control": "no-store"})
+        if new:
+            set_cookie(resp, gid)
+        return resp
 
     @app.get("/brand/{filename}")
     async def brand_asset(filename: str) -> FileResponse:
-        allowed = {b.logo_image for b in brands.load().values() if b.logo_image}
         path = BRAND_ASSETS / filename
-        if filename not in allowed or not path.is_file():
+        if filename not in LOGO_FILES or not path.is_file():
             raise HTTPException(status_code=404)
         return FileResponse(path, headers={"Cache-Control": "no-cache"})
-
-    @app.get("/api/learned")
-    async def learned() -> JSONResponse:
-        """The skins' "What I've learned" sidebar and status dot, from the engine's status result."""
-        ov = present.learned_overview(state.get("status"))
-        return JSONResponse({"connected": bool(state["ready"]), **ov}, headers={"Cache-Control": "no-store"})
 
     @app.get("/api/health")
     async def health() -> JSONResponse:
@@ -177,7 +190,7 @@ def create_app(claude_client: Any | None = None, mcp_command: str = config.GRAPH
             "app": config.APP_TITLE,
             "model": config.MODEL,
             "claude_key_configured": state.get("claude") is not None,
-            "engine": {  # operator 2026-11-17: neutral; a partner's IT team may read this
+            "engine": {
                 "ready": state["ready"],
                 "not_ready_reason": neutral(state["not_ready_reason"]) if state["not_ready_reason"] else None,
                 "readiness_retries": state["retries"],
@@ -191,51 +204,92 @@ def create_app(claude_client: Any | None = None, mcp_command: str = config.GRAPH
             },
         })
 
+    @app.get("/api/chats")
+    async def list_chats(request: Request) -> JSONResponse:
+        gid, new = browser_id(request)
+        resp = JSONResponse({"chats": [] if new else state["store"].list_chats(gid)})
+        if new:
+            set_cookie(resp, gid)
+        return resp
+
+    @app.get("/api/chats/{chat_id}")
+    async def get_chat(chat_id: str, request: Request, debug: int = 0) -> JSONResponse:
+        gid, _ = browser_id(request)
+        chat = state["store"].get_chat(gid, chat_id)
+        if not chat:
+            raise HTTPException(status_code=404)
+        msgs = state["store"].messages(chat_id, with_meta=bool(debug))
+        return JSONResponse({"chat": chat, "messages": msgs})
+
+    @app.delete("/api/chats/{chat_id}")
+    async def delete_chat(chat_id: str, request: Request) -> JSONResponse:
+        gid, _ = browser_id(request)
+        if not state["store"].delete_chat(gid, chat_id):
+            raise HTTPException(status_code=404)
+        return JSONResponse({"deleted": chat_id})
+
     @app.post("/api/ask")
-    async def ask(body: Ask) -> StreamingResponse:
-        question = body.question.strip()
-        b = brands.get(body.brand)
+    async def ask(body: Ask, request: Request, debug: int = 0) -> StreamingResponse:
+        message = body.message.strip()
+        if not message:
+            raise HTTPException(status_code=422)
+        store: Store = state["store"]
+        gid, new_gid = browser_id(request)
+        chat = store.get_chat(gid, body.chat_id) if body.chat_id else None
+        if body.chat_id and not chat:
+            raise HTTPException(status_code=404)
+        ctx = model_context(store, chat["id"]) if chat else agent.ChatContext()
+        if not chat:
+            chat = store.create_chat(gid, title_for(message))
+        store.add_message(chat["id"], "user", message)
         queue: asyncio.Queue = asyncio.Queue()
 
         async def emit(ev: dict[str, Any]) -> None:
-            # The browser gets neutral progress only; tool names, arguments and results stay inside.
-            # Answer text is not streamed: it is shown only after the silent safety check.
+            # The browser gets a neutral progress line only; tool names, arguments and results stay here.
             if ev.get("type") == "tool_start":
                 await queue.put({"type": "progress", "text": progress_text(ev["tool"], ev.get("arguments") or {})})
 
+        async def fail(rec: dict[str, Any], text: str, why: str) -> None:
+            rec.update(ok=False, error=neutral(why))
+            store.add_message(chat["id"], "assistant", text, error=True)
+            await queue.put({"type": "error", "message": text})
+
         async def run() -> None:
             t0 = time.time()
-            rec: dict[str, Any] = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "brand": b.key, "question": question}
+            rec: dict[str, Any] = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "chat": chat["id"],
+                                   "message": message[:2000], "message_chars": len(message)}
             try:
                 if state.get("claude") is None:
-                    rec.update(ok=False, error="no Claude API key in .env")
-                    await queue.put({"type": "error", "message": brands.ERROR_ANSWER})
-                    return
+                    return await fail(rec, wording.ERROR_ANSWER, "no Claude API key in .env")
                 if not state["ready"]:
-                    rec.update(ok=False, error=neutral(f"engine not ready: {state['not_ready_reason']}"))
-                    await queue.put({"type": "error", "message": brands.NOT_READY_ANSWER})
-                    return
-                out = await agent.answer_with_timeout(question, state["graphene"], state["claude"], emit, b)
-                shown = present.view(out, b)
-                app.state.last_answer = out  # internal contract (tests, operator debugging); never sent
-                rec.update(ok=True, tool_calls=[{k: t[k] for k in ("tool", "arguments", "ok", "ms")}
-                                                for t in out["tool_trace"]],
-                           grounding_flags=len(out["grounding"]["flags"]), presentation=out["presentation"],
+                    return await fail(rec, wording.NOT_READY_ANSWER, f"engine not ready: {state['not_ready_reason']}")
+                out = await agent.answer_with_timeout(message, state["graphene"], state["claude"], emit, ctx)
+                shown = present.finalize(out)
+                meta = present.debug(out)
+                app.state.last_answer = out  # internal contract (tests); never sent without ?debug=1
+                if out["new_results"]:
+                    store.add_results(chat["id"], len(ctx.results) + 1, out["new_results"])
+                mid = store.add_message(chat["id"], "assistant", shown, meta=meta)
+                rec.update(ok=True, outcome=out["presentation"]["outcome"], system_facts=out["system_facts"],
+                           grounding=out["grounding"], presentation=out["presentation"],
+                           tool_calls=[{k: t[k] for k in ("n", "tool", "arguments", "ok", "ms")} for t in out["tool_trace"]],
                            usage=out["usage"], timing_ms=out["timing_ms"])
-                await queue.put({"type": "final", "data": shown})
-            except (agent.AnswerError, GrapheneUnavailable) as e:  # details in the log, never in a skin
-                rec.update(ok=False, error=neutral(str(e)))
-                await queue.put({"type": "error", "message": brands.ERROR_ANSWER})
+                final = {"type": "final", "answer": shown, "message_id": mid}
+                if debug:
+                    final["debug"] = meta
+                await queue.put(final)
+            except (agent.AnswerError, GrapheneUnavailable) as e:  # details in the log only
+                await fail(rec, wording.ERROR_ANSWER, str(e))
             except Exception as e:  # never leak internals (or anything secret) to the browser
                 log.exception("unexpected error")
-                rec.update(ok=False, error=type(e).__name__)
-                await queue.put({"type": "error", "message": brands.ERROR_ANSWER})
+                await fail(rec, wording.ERROR_ANSWER, type(e).__name__)
             finally:
                 rec["total_ms"] = int((time.time() - t0) * 1000)
                 write_log(rec)
                 await queue.put(None)
 
         async def stream():
+            yield json.dumps({"type": "chat", "chat": {"id": chat["id"], "title": chat["title"]}}) + "\n"
             task = asyncio.create_task(run())
             try:
                 while (ev := await queue.get()) is not None:
@@ -244,8 +298,11 @@ def create_app(claude_client: Any | None = None, mcp_command: str = config.GRAPH
                 if not task.done():
                     task.cancel()
 
-        return StreamingResponse(stream(), media_type="application/x-ndjson",
+        resp = StreamingResponse(stream(), media_type="application/x-ndjson",
                                  headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+        if new_gid:
+            set_cookie(resp, gid)
+        return resp
 
     return app
 

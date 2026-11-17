@@ -13,7 +13,7 @@ def test_health_reports_one_live_session(client):
     h = client.get("/api/health").json()
     g = h["engine"]
     assert g["connected"] and g["ready"]
-    assert "graphene" not in str(h).lower()  # operator 2026-11-17: a partner's IT team may read it
+    assert "/graphene/" not in str(h) and "graphene-mcp" not in str(h)  # engine install paths stay masked
     assert g["tools"] == ["find_object", "impact", "assess_transport", "status", "operations",
                           "system_profile"]  # Graphene v14 (1.33.0)
     assert g["spawn_count"] == 1

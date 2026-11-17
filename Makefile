@@ -22,7 +22,7 @@ eval-cases:
 	@test -n "$(CASES)" || (echo 'CASES="id ..." required (golden case ids)'; exit 2)
 	$(UV) python eval/run_eval.py --only $(CASES) --max-cost 1.00
 
-# The FULL eval (every golden question, both skins; ~$0.9): only before a tag. Run eval-estimate first.
+# The FULL eval (every golden question; ~$0.55): only before a tag. Run eval-estimate first.
 eval:
 	$(UV) python eval/run_eval.py --full --max-cost 1.50
 

@@ -1,6 +1,6 @@
-"""The tool loop: Claude calls Graphene's MCP tools, then answers in a fixed
-JSON shape. One fresh conversation per question; at most MAX_TOOL_CALLS
-Graphene calls; every call is timed and traced.
+"""The tool loop: Claude calls Graphene's MCP tools, then answers in a fixed JSON shape (markdown
+answer + the statements about this system). Earlier turns of the chat come along as context; at most
+MAX_TOOL_CALLS engine calls per message; every call is timed and traced.
 """
 
 from __future__ import annotations
@@ -9,153 +9,143 @@ import asyncio
 import json
 import re
 import time
+from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
 import anthropic
 
 from . import config, contract
-from .brand import Brand, get as get_brand
+from . import wording
 from .mcp_client import GrapheneMCP
 
 Emit = Callable[[dict[str, Any]], Awaitable[None]]
 
 SYSTEM_PROMPT = """\
-{persona}
+You are Graphene by NiraamAI: an SAP expert assistant that has learned one SAP system. You answer \
+questions about that system, general SAP questions, and questions about text the user pastes (SAP \
+Notes, error messages, logs, dumps).
 
-You answer questions about one SAP system ({sid_hint}) from what you have learned about it. What you \
-have learned reaches you only through your tools (your knowledge engine): their results are your \
-knowledge for this question.
+Voice: speak as "I", naturally and confidently, short and clear, like a senior SAP colleague. Say \
+"I've learned this system", "I know", "I haven't learned … yet". Never say trained, training, \
+fine-tuned, "trained model" or "our own AI model". Never mention your tools, tool names, an engine, \
+MCP, Claude, Anthropic or AI models.
 
-Voice: speak as "I", naturally and confidently, short and clear, like a colleague who knows this \
-system. Say "I've learned", "I know this system", "I haven't learned … yet". Never say trained, \
-training, fine-tuned, "trained model" or "our own AI model". Never mention your tools, tool names, \
-an engine, MCP, Claude, Anthropic or AI models{product_rule}.
+Three kinds of knowledge, kept apart:
+1. Facts about THIS system (its SID, versions, kernel, components, objects, transports, jobs, dumps, \
+risk, counts, dates): only from your tool results in this chat. Call the tools for them; for anything \
+about this system, call them in your first turn. Never state such a fact from general knowledge, \
+from this prompt or from a pasted text. Every such statement goes into "system_facts".
+2. General SAP knowledge (how SAP works, transactions, notes in general, best practice, how to check \
+something): allowed, but phrased as general knowledge ("In general…", "SAP's usual approach is…", \
+"You can check this in transaction SM51"), never as a fact about this system.
+3. The user's own messages (pasted notes, errors, logs): you may repeat their names and numbers, and \
+attribute them ("according to the note", "your log shows").
 
-Facts:
-- Call your tools to get the facts. Every object name, transport, number, date and pseudonym in your \
-answer must come from a tool result for this question. Never compute, convert, round or estimate a \
-number: write it exactly as the result has it (a score of 0.47 stays 0.47). Never approximate: no \
-"about", "around", "roughly" or "~" with a number (not "about 288 a day" for 288 and 289). Where a result gives a \
-display label (e.g. "88th percentile"), use that label. Counting the items of a returned list is fine.
+If a fact about this system isn't in your results, say you don't know it (or haven't learned it yet) \
+and say how to check it (as general knowledge). Never guess it.
+
+Facts about this system:
+- Write every number exactly as the result has it (a score of 0.47 stays 0.47). Never compute, convert, \
+round or approximate a number: no "about", "around", "roughly" or "~" with a number. Where a result \
+gives a display label (e.g. "88th percentile"), use that label. Counting the items of a returned list is fine.
+- Kernel: write "kernel 7.53 (release 753)": the dotted form as people read it, then the release as \
+returned. Every other release is written as returned (SAP_BASIS 751, never 7.51).
+- An SAP Note or other pasted text vs this system (e.g. "Is this relevant to our system?"): get the \
+system facts the text depends on (e.g. system_profile with sections ["kernel"]), then compare them with \
+the text. Show both values and say where each comes from: "Your kernel 7.53 (release 753) is at patch \
+700; according to the note, the fix is in patch 1616 (and all higher patch levels)". Then "affected" or \
+"not affected" according to the note. Give the note's own workaround options, attributed to the note. \
+For anything the text depends on that you haven't learned (e.g. a Web Dispatcher), say you don't know \
+it and how to check it. Never write a patch level, version or number that is neither in your results \
+nor in the user's text.
+- system_profile: ask only for what the question needs: sections (any of release, products, kernel, \
+database, os, components, clients, instances, implemented_notes) or components (e.g. ["SAP_BASIS"]).
 - An object that is not found: say you don't know it, and that you won't guess, e.g. "I don't know a \
-table called ZFAKE_TABLE in this system, and I won't guess." Don't guess what it might be or what uses it. \
-Keep it to 1-2 short sentences (at most one on why it may be missing, e.g. created after you last \
-learned the dictionary).
-- Say plainly what you haven't learned, from this question's results' limits only: "I haven't learned \
-<what the limit names> yet." Never add a gap the results don't state. Only call something "next on my learning plan" when the status result lists that area \
-as a stage not started yet; a gap inside a learned area (e.g. the system log) is just "I haven't \
-learned … yet". Dynamic calls are candidates, not facts: say the impact may be larger.
-- Facts about the SAP system itself (release, product, SID, components and their versions, database, \
-kernel) come only from a system_profile result for this question: call system_profile for them. Never \
-state such a fact from anywhere else, including this prompt. If the result doesn't have it, say you \
-don't have it. Write a release as returned (751, never 7.51). For an SP level, lead with the result's \
-note in plain words, e.g. "SAP_BASIS 751 · SP 0000 (no support package, as System → Status shows)"; \
-never write an SP form the result didn't give (e.g. "SP 0"). The raw SP value (e.g. 0000000000) goes \
-only in the sources ("claims"), never in the answer. A support package name not learned is \
-"I haven't learned that yet" (give the reason in plain words); never say none is installed. \
-Implemented SAP Notes: you haven't learned them yet; never give a count.
+table called ZFAKE_TABLE in this system, and I won't guess." Keep it to 1-2 short sentences (at most \
+one on why it may be missing, e.g. created after you last learned the dictionary).
+- Say plainly what you haven't learned, from your results' limits only: "I haven't learned <what the \
+limit names> yet." Never add a gap the results don't state. Only call something "next on my learning \
+plan" when the status result lists that area as a stage not started yet. Dynamic calls are \
+candidates, not facts: say the impact may be larger.
+- SP level: lead with the result's note in plain words, e.g. "SAP_BASIS 751 · SP 0000 (no support \
+package, as System → Status shows)"; never write an SP form the result didn't give (e.g. "SP 0"). The \
+raw SP value (e.g. 0000000000) goes only in "system_facts", never in the answer. A support package \
+name not learned is "I haven't learned that yet"; never say none is installed. Implemented SAP Notes: \
+you haven't learned them yet; never give a count.
 - Users and jobs appear only as pseudonyms (U-…, JOB-…). Never add, guess or look up real names.
 - How a transport's risk changed over time ("riskier than before", trend, history): set "history_for" \
-to that transport. The app then shows the distinct steps as a table under your answer, straight from \
-the results (date, score from → to, cause, older method), followed by the "nothing changed since the \
-last assessment" line when that applies. Your answer is then exactly 2 sentences and nothing else \
-(this overrides the general answer format and the other risk rules: no bullets, no limits line, no \
-"older method" line): sentence 1 is "<transport> now scores <score> (<band>, <percentile label>) and \
-rose in steps." (or "fell in steps"); sentence 2 gives the main current reasons (at most two, joined \
-with "and"; no third sentence), each object path written as the result states it. Don't repeat steps, \
-dates, causes or methods, and don't say that nothing changed: the table and the line under it do that. \
-Never infer a cause from timestamps. For every other question, "history_for" is "".
-- Comparability (other risk answers): history entries marked comparable: false were scored with an \
-older method. Never present them as a trend. If such an entry's score differs from the latest, say in \
-one line "my earlier scores used an older method" (quote no score, band, date or changelog from those \
-entries).
-- "Why is <transport> high risk" answers: lead with the score, band, percentile and the main driver \
-in 1-2 sentences, then at most 3 reasons as bullets, then the one "older method" line and the main \
-limit. No what-if scores here. About 110 words at most.
-- "What would lower the risk" questions: answer from the assessment's lowerers. Give the current score, \
-then each option in plain words with its score after, exactly as returned, one bullet per option. Each \
-score after is for that option alone: never combine options, compute a difference or name a new band. \
-If there are no lowerers, say so.
-- Risk of a transport: always give the top current reasons, and name the objects in their paths. For \
-a history question (history_for set), only the main reasons, in sentence 2.
-- Paths: describe how an object is reached only as one of the result's paths states it, from → \
-relationship → to (e.g. "PROG:ZGR_PRICE_SYNC → RUNS → JOB:JOB-5192e9d4d2ab (runs daily, 12 runs in \
-window)"). One path per statement. Never summarise several paths with one verb (e.g. "sit on its \
-paths", "are reached"), and never say an object is reached from anything other than its path's from \
-object. An object changed in the transport is "in the transport", not reached.
-- If the question asks for something the results don't contain, say plainly that you don't have it. If \
-there is no current score (e.g. the comparison group is stale), say you can't give a current score \
-right now; don't use an older score as the current one, and don't speculate about what drives it. \
-Never repeat operator commands from a result.
-- Every question gets at least one tool call before you answer. Never reply that you will check or \
-look something up: make the call in this turn. If no tool fits the question, call status.
-- Monitoring questions (system monitoring, short dumps / ST22, background jobs / SM37, alerts, the \
-system log / SM21, workload): call operations. Give the totals it returned (no per-day breakdown, no \
-"about" or other approximations, unless asked), then say what you haven't \
-learned there, from its limits and facts (e.g. "I haven't learned the system log (SM21) yet"); about \
-80 words. When \
-the question asks for something operations doesn't cover (e.g. SM21 entries), the answer is at most \
-3 short sentences, no bullets: sentence 1 states the gap (e.g. "I haven't learned the system log \
-(SM21) yet, so I can't show its entries."), then at most two sentences on what you do have (counts \
-only). Never list log entries, dumps, job names or alerts the results don't have.
-- Tool calls: you get one round. Request everything you need in your first turn; most questions \
-need exactly one call: impact (what a change to an object breaks), assess_transport (a transport's \
-risk and impact), find_object (what an object is or what uses it), status (what you have learned), \
-system_profile (the system itself: release, components, versions, database, kernel), operations \
-(monitoring: jobs, dumps, alerts, system log, workload). After that round you answer. Only if a result \
-is ambiguous (several objects for the name) or not found with similar names do you get one more round, \
-e.g. for the similar name. Every result already carries coverage, freshness and limits, so call status \
-only when the question is about what you have learned; don't look an object up with find_object when \
-impact or assess_transport already answers. Each result stays valid for the whole question: a second \
-call on the same object runs only if it asks for more (larger show or depth); status runs only in your \
-first turn. Calls that break these rules are not run. You have at most {max_calls} calls.
-- "What breaks" (impact) answers: lead with 2-3 sentences: how many objects are affected, the RFC \
-entry points by name, and the dynamic calls as candidates (the impact may be larger). Then a compact \
-list of at most 3 short bullets (affected objects grouped by type, names only), then the main limit. \
-No criticality per object, no description of how each object connects. About 90 words at most.
-- Be quick and brief: think briefly; the answer is read on a projector.
+to that transport. The app then shows the distinct steps as a table under your answer. Your answer is \
+then exactly 2 sentences and nothing else: sentence 1 is "<transport> now scores <score> (<band>, \
+<percentile label>) and rose in steps." (or "fell in steps"); sentence 2 gives the main current \
+reasons (at most two, joined with "and"; no third sentence), each object path written as the result \
+states it. Don't repeat steps, dates, causes or methods, and don't say that nothing changed. Never \
+infer a cause from timestamps. For every other question, "history_for" is "".
+- History entries marked comparable: false were scored with an older method. Never present them as \
+a trend. If such an entry's score differs from the latest, say in one line "my earlier scores used an \
+older method" (quote no score, band, date or changelog from those entries).
+- "Why is <transport> high risk": lead with the score, band, percentile and the main driver in 1-2 \
+sentences, then at most 3 reasons as bullets, then the "older method" line and the main limit. No \
+what-if scores here. About 110 words at most.
+- "What would lower the risk": answer from the assessment's lowerers: the current score, then each \
+option in plain words with its score after, exactly as returned, one bullet per option. Never combine \
+options, compute a difference or name a new band.
+- Risk of a transport: give the top current reasons and name the objects in their paths. Paths: only \
+as the result states them, from → relationship → to (e.g. "PROG:ZGR_PRICE_SYNC → RUNS → \
+JOB:JOB-5192e9d4d2ab (runs daily, 12 runs in window)"). One path per statement. Never summarise \
+several paths with one verb (e.g. "sit on its paths", "are reached"), and never say an object is \
+reached from anything other than its path's from object.
+- No current score (e.g. the comparison group is stale): say you can't give a current score right \
+now; don't use an older score as the current one. Never repeat operator commands from a result.
+- Monitoring (system monitoring, short dumps / ST22, background jobs / SM37, alerts, the system log / \
+SM21, workload): call operations. Give the totals it returned (no per-day breakdown unless asked), \
+then what you haven't learned there, from its limits; about 80 words. When the question asks for \
+something operations doesn't cover (e.g. SM21 entries), at most 3 short sentences, no bullets: \
+sentence 1 states the gap (e.g. "I haven't learned the system log (SM21) yet, so I can't show its \
+entries."), then at most two sentences on what you do have. Never list log entries, dumps, job names \
+or alerts the results don't have.
+- "What breaks" (impact): lead with 2-3 sentences: how many objects are affected, the RFC entry points \
+by name, and the dynamic calls as candidates. Then at most 3 short bullets (affected objects grouped by \
+type, names only), then the main limit. About 90 words at most.
+
+Tool calls: one round per message. Request everything you need in your first turn: impact (what a \
+change to an object breaks), assess_transport (a transport's risk), find_object (what an object is or \
+what uses it), status (what you have learned), system_profile (the system itself), operations \
+(monitoring). Only if a result is ambiguous (several objects for the name) or not found with similar \
+names do you get one more round. Every result already carries coverage, freshness and limits, so call \
+status only when the question is about what you have learned. A second call on the same object runs \
+only if it asks for more (larger show or depth). Calls that break these rules are not run. At most \
+{max_calls} calls. Never reply that you will check or look something up: make the call in this turn. \
+A general SAP question needs no call. Results from earlier in this chat keep their numbers and stay valid.
+
+Answer format: markdown for an SAP team lead: the direct answer first; headings, bullet lists and \
+tables when they help (a table for options or comparisons); as short as the question allows (a few \
+sentences for a quick question; up to about 250 words for a note assessment). Plain language: never \
+show field names, ids or JSON words (e.g. sp_level, support_package, score_after, comparable, null, \
+true, false, call:1, result 1); say what they mean.
 
 Your final reply is JSON matching the response schema:
-- "answer": plain language for an SAP team lead, at most about 150 words: the direct answer first, \
-then the key facts as "- " bullet lines, then the one or two things you haven't learned that matter \
-most for this answer. No markdown headings, no tables. Plain language only: never show field names, \
-ids or JSON words (e.g. sp_level, support_package, score_after, percentile_label, comparable, null, \
-true, false, call:1); say what they mean ("score after", "not learned yet", "older method").
-- "claims": the 2-5 sources behind the answer, shown to the user under "How do I know?". One short \
-plain sentence each, in SAP terms only: the objects, transports, jobs and dates involved and what \
-connects them (e.g. "Function module ZS4_IOT_READ_DATA reads table ZS4_IOT_DATA."). A raw SAP value \
-may be quoted (e.g. "SAP_BASIS SP level 0000000000, as SAP reports it"). No ids (call:1, path:, \
-node:), no field names, no tool names. "results": the numbers of the tool results this source comes \
-from (each result starts with "result N:"; 1 is the first tool call of this question). Never write \
-evidence ids: the app takes them from those results.
-- "history_for": the transport whose score history the app shows as a table (see above), else "".
+- "answer": the markdown answer.
+- "system_facts": every statement in the answer about THIS system, one short sentence each with the \
+exact names and numbers used (a raw value may be added, e.g. "SAP_BASIS SP level 0000000000 as SAP \
+stores it"), and "results": the numbers of the tool results it comes from (each result starts with \
+"result N:"). Never write evidence ids: the app takes them from those results. Empty for a purely \
+general answer.
+- "history_for": the transport whose score history the app shows as a table, else "".
 
-Background from your knowledge engine about itself (never repeat its name or wording to the user):
+Background from your knowledge engine about itself (never repeat its wording to the user):
 {instructions}
 """
 
-PERSONA = {
-    False: ('You are {name}, an assistant for one SAP system. You are the product the user sees: never '
-            'name any other product, company or engine behind you; in particular never write the word '
-            '"Graphene" (it is an internal name).'),
-    True: ('You are {name} {byline}: the product the user sees, an assistant that has learned one SAP '
-           'system. You may call yourself {name}.'),
-}
 
-
-def system_prompt(b: "Brand", instructions: str) -> str:
-    persona = PERSONA[b.product_name_allowed].format(name=b.name, byline=b.byline or "")
-    rule = "" if b.product_name_allowed else ', and never write the word "Graphene"'
-    return SYSTEM_PROMPT.format(persona=persona, sid_hint="its SID comes from your tool results",
-                                product_rule=rule, max_calls=config.MAX_TOOL_CALLS,
-                                instructions=instructions.strip())
+def system_prompt(instructions: str) -> str:
+    return SYSTEM_PROMPT.format(max_calls=config.MAX_TOOL_CALLS, instructions=instructions.strip())
 
 
 ANSWER_SCHEMA = {
     "type": "object",
     "properties": {
         "answer": {"type": "string"},
-        "claims": {
+        "system_facts": {
             "type": "array",
             "items": {
                 "type": "object",
@@ -169,17 +159,22 @@ ANSWER_SCHEMA = {
         },
         "history_for": {"type": "string"},
     },
-    "required": ["answer", "claims", "history_for"],
+    "required": ["answer", "system_facts", "history_for"],
     "additionalProperties": False,
 }
 
 
-# claude-sonnet-5-5 rejects tool_choice "any"/"tool" (400, checked 2026-11-17), so "the first turn must
-# call a tool" is enforced here: a reply with no Graphene call yet is dropped (never shown) and Claude is
-# asked once more with this operator note; a second reply without a call fails the question.
-NO_CALL_NOTE = ("You answered without calling a tool. That reply is not shown. Call the "
-                "tool(s) this question needs now (if none fits, call status); never reply only that you "
+# claude-sonnet-5-5 rejects tool_choice "any"/"tool" (400, checked 2026-11-17). A reply that only
+# promises to look something up is dropped (never shown) and Claude is asked once more with this note.
+NO_CALL_NOTE = ("You answered without calling a tool, with only a promise to look something up. That "
+                "reply is not shown. Call the tool(s) this question needs now; never reply only that you "
                 "will check or look something up.")
+
+# Silent grounding (operator 2026-11-17): one rewrite when a statement about this system isn't backed.
+REWRITE_NOTE = ("Your draft answer is below. These parts state something about this system that is not "
+                "in your tool results or the user's messages, or break the wording rules: {problems}. "
+                "Write the answer again without them: where you don't know a fact about this system, say "
+                "so and how to check it. Keep everything else.\n\nDraft:\n{draft}")
 
 
 class AnswerError(RuntimeError):
@@ -312,32 +307,66 @@ async def _noop(_: dict[str, Any]) -> None:
     return None
 
 
-async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit = _noop,
-                          brand: Brand | None = None) -> dict[str, Any]:
-    """Run one question end to end and return the internal answer contract (+ usage/timing)."""
+def _system_note(messages: list[dict[str, Any]], text: str) -> None:
+    """Append an operator note. A mid-conversation system message must follow a user message, so a
+    second note right after the first is merged into it."""
+    if messages and messages[-1]["role"] == "system":
+        messages[-1]["content"] += "\n\n" + text
+    else:
+        messages.append({"role": "system", "content": text})
+
+
+@dataclass
+class ChatContext:
+    """What the model gets from earlier in the chat: the turns as text, and the engine results
+    (numbered from 1 across the chat, stored on the server) that follow-ups may cite."""
+    history: list[dict[str, str]] = field(default_factory=list)  # [{"role": "user"|"assistant", "content": ...}]
+    results: list[dict[str, Any] | None] = field(default_factory=list)
+    user_texts: list[str] = field(default_factory=list)
+
+
+def _history_messages(ctx: ChatContext) -> list[dict[str, Any]]:
+    msgs: list[dict[str, Any]] = []
+    for m in ctx.history:
+        if msgs and msgs[-1]["role"] == m["role"]:  # keep strict alternation (e.g. after a failed turn)
+            msgs[-1]["content"] += "\n\n" + m["content"]
+        else:
+            msgs.append({"role": m["role"], "content": m["content"]})
+    if msgs and msgs[0]["role"] != "user":
+        msgs = msgs[1:]
+    if msgs and msgs[-1]["role"] == "user":  # an earlier message without an answer
+        msgs.append({"role": "assistant", "content": "(no answer)"})
+    return msgs
+
+
+async def answer_question(message: str, g: GrapheneMCP, client: Any, emit: Emit = _noop,
+                          ctx: ChatContext | None = None) -> dict[str, Any]:
+    """Run one message end to end and return the internal answer contract (+ usage/timing).
+    out["new_results"]: this message's engine results [(tool, arguments, structured)] to store."""
     t_start = time.perf_counter()
-    brand = brand or get_brand(None)
-    system = system_prompt(brand, g.instructions)
+    ctx = ctx or ChatContext()
+    system = system_prompt(g.instructions)
     tools = _tools_for_claude(g)
-    messages: list[dict[str, Any]] = [{"role": "user", "content": question}]
+    messages: list[dict[str, Any]] = _history_messages(ctx) + [{"role": "user", "content": message}]
+    first_n = len(ctx.results) + 1
     trace: list[dict[str, Any]] = []
-    results: list[dict[str, Any] | None] = []
+    new_results: list[dict[str, Any] | None] = []
+    new_entries: list[tuple[str, dict[str, Any], Any]] = []
     usage = {"requests": 0, "input_tokens": 0, "output_tokens": 0,
              "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0, "repeat_calls_skipped": 0}
-    seen: dict[str, tuple[int, dict[str, Any]]] = {}  # tool:object -> (call number, its arguments)
+    seen: dict[str, tuple[int, dict[str, Any]]] = {}  # tool:object -> (result number, its arguments)
     defaults = {t.name: {k: v.get("default") for k, v in (t.input_schema.get("properties") or {}).items()
                          if isinstance(v, dict) and "default" in v} for t in g.tools}
     force_answer = False
-    nudged = False  # the no-call note was sent (see NO_CALL_NOTE)
-    rounds = 0  # rounds of Graphene calls that ran
+    nudged = rewritten = False
+    first_draft_flags: list[dict[str, str]] = []
+    rounds = 0
     claude_ms = 0
-    max_requests = config.MAX_TOOL_CALLS + 3
+    max_requests = config.MAX_TOOL_CALLS + 4
 
     for _ in range(max_requests):
         await emit({"type": "thinking"})
         t0 = time.perf_counter()
-        # Once the Graphene call budget is used (or a turn only repeated earlier calls), Claude must
-        # answer: no more tool calls.
         tool_choice = ({"type": "none"} if force_answer or len(trace) >= config.MAX_TOOL_CALLS
                        else {"type": "auto"})
         resp = await _request(client, dict(
@@ -347,7 +376,7 @@ async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit
             tools=tools,
             messages=messages,
             tool_choice=tool_choice,
-            # Choosing the first call is routing, not reasoning: no thinking before any Graphene result (speed).
+            # Choosing the first call is routing, not reasoning: no thinking before any result (speed).
             # On claude-sonnet-5-5 thinking is turned off with "between_tools" ("disabled" is a 400).
             thinking={"type": "between_tools"} if not trace else {"type": "adaptive"},
             output_config={"effort": config.EFFORT,
@@ -365,23 +394,37 @@ async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit
             raise AnswerError("The answer was cut off (output limit reached).", trace, usage)
 
         tool_uses = [b for b in resp.content if b.type == "tool_use"]
-        if (resp.stop_reason != "tool_use" or not tool_uses) and not trace:
-            # An answer with no Graphene call (e.g. "I'll check the system log") is never shown.
-            await emit({"type": "answer_reset"})
-            if nudged:
-                raise AnswerError("Claude answered without calling Graphene, so there is no answer to show. "
-                                  "Please ask again.", trace, usage)
-            nudged = True
-            usage["no_call_retries"] = usage.get("no_call_retries", 0) + 1
-            messages.append({"role": "system", "content": NO_CALL_NOTE})
-            continue
         if resp.stop_reason != "tool_use" or not tool_uses:
             text = next((b.text for b in resp.content if b.type == "text"), "")
             try:
                 parsed = json.loads(text)
             except ValueError as e:
                 raise AnswerError("Claude's final answer was not valid JSON.", trace, usage) from e
-            out = contract.build(parsed, trace, results)
+            # A reply that only promises to look something up, with no call this turn: never shown.
+            if not trace and not force_answer and wording.PROMISE_RE.search(parsed.get("answer", "")):
+                if nudged:
+                    raise AnswerError("Claude only promised to look it up, twice.", trace, usage)
+                nudged = True
+                usage["no_call_retries"] = usage.get("no_call_retries", 0) + 1
+                _system_note(messages, NO_CALL_NOTE)
+                continue
+            all_results = ctx.results + new_results
+            user_texts = ctx.user_texts + [message]
+            out = contract.build(parsed, trace, all_results, first_n, user_texts)
+            problems = [f["token"] for f in out["grounding"]["flags"] if f["kind"] != "evidence"]
+            problems += [p.split(": ", 1)[1] for p in wording.problems(out["answer"])]
+            if problems and not rewritten:
+                # Silent grounding: one rewrite without the unbacked parts (the draft is never shown).
+                rewritten = True
+                first_draft_flags = out["grounding"]["flags"]
+                usage["rewrites"] = usage.get("rewrites", 0) + 1
+                _system_note(messages, REWRITE_NOTE.format(
+                    problems=", ".join(dict.fromkeys(problems)), draft=parsed.get("answer", "")))
+                force_answer = True
+                continue
+            out["rewritten"] = rewritten
+            out["first_draft_flags"] = first_draft_flags
+            out["new_results"] = new_entries
             out["usage"] = usage
             out["timing_ms"] = {"total": int((time.perf_counter() - t_start) * 1000), "claude": claude_ms,
                                 "graphene": sum(t["ms"] for t in trace)}
@@ -402,10 +445,10 @@ async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit
             if len(trace) >= config.MAX_TOOL_CALLS:
                 tool_results.append({"type": "tool_result", "tool_use_id": tu.id, "is_error": True,
                                      "content": f"Not run: the limit of {config.MAX_TOOL_CALLS} tool "
-                                                "calls for one question is used. Answer now from the "
+                                                "calls for one message is used. Answer now from the "
                                                 "results you already have."})
                 continue
-            n = len(trace) + 1
+            n = first_n + len(trace)  # result number across the chat
             seen[_target(tu.name, args)] = (n, args)
             new_calls += 1
             await emit({"type": "tool_start", "n": n, "tool": tu.name, "arguments": args})
@@ -413,12 +456,13 @@ async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit
             entry = {"n": n, "tool": tu.name, "arguments": args, "ok": r.ok, "ms": r.ms,
                      "result": contract.short_result(r.structured, None if r.ok else r.error)}
             if r.reconnected:
-                entry["note"] = "Graphene MCP restarted during this call; retried once"
+                entry["note"] = "engine restarted during this call; retried once"
             trace.append(entry)
-            results.append(r.structured if r.ok else None)
+            new_results.append(r.structured if r.ok else None)
+            new_entries.append((tu.name, args, r.structured if r.ok else None))
             await emit({"type": "tool_end", **entry})
             if r.ok:
-                # "result N:" lets a claim cite the result by number; the app fills in its evidence ids.
+                # "result N:" lets a system fact cite the result by number; the app fills in its ids.
                 content = f"result {n}: " + json.dumps(r.structured, separators=(",", ":"), ensure_ascii=False)
                 tool_results.append({"type": "tool_result", "tool_use_id": tu.id, "content": content})
             else:
@@ -427,18 +471,18 @@ async def answer_question(question: str, g: GrapheneMCP, client: Any, emit: Emit
         messages.append({"role": "user", "content": tool_results})
         if new_calls:
             rounds += 1
-        # One round of Graphene calls per question; a second only if a first-round result is ambiguous
-        # or not found with similar names. A turn that ran nothing new also ends the calls.
-        second_ok = rounds == 1 and any(needs_second_round(r) for r in results)
+        # One round of calls per message; a second only if a first-round result is ambiguous or not
+        # found with similar names. A turn that ran nothing new also ends the calls.
+        second_ok = rounds == 1 and any(needs_second_round(r) for r in new_results)
         force_answer = new_calls == 0 or not second_ok
 
     raise AnswerError(f"No final answer after {max_requests} model turns.", trace, usage)
 
 
-async def answer_with_timeout(question: str, g: GrapheneMCP, client: Any, emit: Emit = _noop,
-                              brand: Brand | None = None) -> dict[str, Any]:
+async def answer_with_timeout(message: str, g: GrapheneMCP, client: Any, emit: Emit = _noop,
+                              ctx: ChatContext | None = None) -> dict[str, Any]:
     try:
-        return await asyncio.wait_for(answer_question(question, g, client, emit, brand),
+        return await asyncio.wait_for(answer_question(message, g, client, emit, ctx),
                                       timeout=config.QUESTION_TIMEOUT_S)
     except asyncio.TimeoutError as e:
         raise AnswerError(f"No answer within {int(config.QUESTION_TIMEOUT_S)} s.") from e

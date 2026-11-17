@@ -2,7 +2,7 @@
 
   python eval/run_eval.py --estimate [--only ids]   # token counts via count_tokens (free) -> cost estimate
   python eval/run_eval.py --only id1 id2             # fixing: only the affected questions, cap $1 per run
-  python eval/run_eval.py --full                     # every question in both skins: only before a tag
+  python eval/run_eval.py --full                     # every golden question: only before a tag
 
 Cost rule (operator 2026-11-17): the full eval only before a tag; while fixing, only the affected
 questions, and a run stops before it would pass --max-cost (default $1).
@@ -25,8 +25,7 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app import agent, contract, config, present  # noqa: E402
-from app import brand as brands  # noqa: E402
+from app import agent, contract, config, present, wording  # noqa: E402
 from app.mcp_client import GrapheneMCP  # noqa: E402
 
 # Claude Sonnet 5.5, $ per million tokens (Anthropic first-party pricing).
@@ -39,13 +38,22 @@ OUT_FINAL = 1500
 RESULTS_DIR = ROOT / "eval" / "results"
 ONLY: set[str] = set()
 MAX_COST = [1.00]  # $ per run (operator 2026-11-17); make eval (full, before a tag) passes its own cap
-SKINS: list[str] = ["partner", "direct"]  # operator 2026-11-17: every golden question in both skins
 TARGET_S = 10.0  # operator 2026-11-16: under 10 s per answer (a case may set expect.max_seconds)
+
+
+def question_of(case: dict) -> str:
+    """The message as the user sends it (Q10: the pasted note excerpt, used exactly, plus the question)."""
+    if "question_file" in case:
+        return ((ROOT / case["question_file"]).read_text() + case.get("question_suffix", "")).strip()
+    return case["question"]
 
 
 def cases() -> list[dict]:
     all_cases = yaml.safe_load((ROOT / "tests" / "golden_questions.yaml").read_text())
-    return [c for c in all_cases if not c.get("test_only") and (not ONLY or c["id"] in ONLY)]
+    out = [c for c in all_cases if not c.get("test_only") and (not ONLY or c["id"] in ONLY)]
+    for c in out:
+        c["question"] = question_of(c)
+    return out
 
 
 def dollars(u: dict) -> float:
@@ -62,7 +70,7 @@ def new_client() -> anthropic.AsyncAnthropic:
 
 
 async def estimate(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> None:
-    system = agent.system_prompt(brands.get(SKINS[0]), g.instructions)
+    system = agent.system_prompt(g.instructions)
     tools = agent._tools_for_claude(g)
     tot_nocache = tot_cache = 0.0
     print(f"{'question':45} {'turns':>5} {'input tok':>10} {'no cache $':>11} {'w/ cache $':>11}")
@@ -89,103 +97,75 @@ async def estimate(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> None:
         cached = (cached + out_tok * PRICE["output"]) / 1e6
         tot_nocache += nocache
         tot_cache += cached
-        print(f"{c['question'][:45]:45} {turns:>5} {sum(turn_inputs):>10} {nocache:>11.4f} {cached:>11.4f}")
-    print(f"{f'TOTAL ({len(cases())} questions, 1 skin)':45} {'':>5} {'':>10} {tot_nocache:>11.4f} {tot_cache:>11.4f}")
-    print(f"{f'TOTAL x {len(SKINS)} skins ({chr(44).join(SKINS)})':45} {'':>5} {'':>10} "
-          f"{tot_nocache * len(SKINS):>11.4f} {tot_cache * len(SKINS):>11.4f}")
+        print(f"{c['question'].splitlines()[-1][:45]:45} {turns:>5} {sum(turn_inputs):>10} {nocache:>11.4f} {cached:>11.4f}")
+    print(f"{f'TOTAL ({len(cases())} questions)':45} {'':>5} {'':>10} {tot_nocache:>11.4f} {tot_cache:>11.4f}")
     print(f"Assumes the mock's tool calls and ~{OUT_PER_TOOL_TURN} output tokens per tool turn, "
           f"~{OUT_FINAL} for the final answer. If Claude makes twice the calls, budget about 2x.")
 
 
-def runs() -> list[tuple[str, dict]]:
-    return [(skin, c) for skin in SKINS for c in cases()]
-
-
 async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
     results, failures, total_cost = [], 0, 0.0
-    planned, worst = runs(), 0.0
-    for i, (skin, c) in enumerate(planned):
+    planned, worst = cases(), 0.0
+    for i, c in enumerate(planned):
         # stop before the next question could take the run past the cap (worst cost so far, else $0.10)
         if total_cost + max(worst, 0.10) > MAX_COST[0]:
             left = planned[i:]
             print(f"STOPPED: cost cap ${MAX_COST[0]:.2f} (spent ${total_cost:.4f}); not run: "
-                  + ", ".join(f"{s}/{x['id']}" for s, x in left))
+                  + ", ".join(x["id"] for x in left))
             failures += len(left)
             break
-        b = brands.get(skin)
         t0 = time.time()
-        first_text: list[float] = []  # seconds until the first answer text is visible in the UI
-
-        async def emit(ev: dict, _t0: float = t0, _ft: list = first_text) -> None:
-            if ev.get("type") == "answer_delta" and not _ft:
-                _ft.append(time.time() - _t0)
-
         try:
-            out = await agent.answer_with_timeout(c["question"], g, client, emit, b)
+            out = await agent.answer_with_timeout(c["question"], g, client)
         except agent.AnswerError as e:
             cost = dollars(e.usage)
             total_cost += cost
             worst = max(worst, cost)
-            results.append({"id": c["id"], "skin": skin, "question": c["question"], "error": str(e),
+            results.append({"id": c["id"], "question": c["question"], "error": str(e),
                             "tool_trace": e.trace, "usage": e.usage, "cost_usd": round(cost, 4)})
             failures += 1
-            print(f"FAIL {skin}/{c['id']}: {e}  ${cost:.4f}  {len(e.trace)} tool calls: "
+            print(f"FAIL {c['id']}: {e}  ${cost:.4f}  {len(e.trace)} tool calls: "
                   + ", ".join(f"{t['tool']}{json.dumps(t['arguments'])}" for t in e.trace))
             continue
-        exp, problems = c["expect"], []
-        # operator 2026-11-17: what the skin shows. Silent safety must not have replaced a golden answer;
-        # wording rules ("learned", never "trained"; no tool names, ids, JSON words); the partner skin
-        # never names the engine (answer, sources, history table).
-        view = present.view(out, b)
-        if view["fallback"]:
-            problems.append(f"skin shows the fallback: {out['presentation']['reasons']}")
-        if out["presentation"]["sources_dropped"]:
-            problems.append(f"sources left out: {out['presentation']['sources_dropped']}")
-        shown = json.dumps(view, ensure_ascii=False)
-        if not b.product_name_allowed and brands.ENGINE_PRODUCT_NAME.lower() in shown.lower():
-            problems.append("partner skin shows the product name")
-        if brands.FORBIDDEN_WORDING_RE.search(shown):
-            problems.append(f"forbidden wording: {brands.FORBIDDEN_WORDING_RE.findall(shown)}")
-        for t in ("find_object", "assess_transport", "system_profile", "call:", "path:", "node:"):
-            if t in shown:
-                problems.append(f"internal word shown: {t}")
+        exp, problems, notes = c["expect"], [], []
+        shown = present.finalize(out)  # what the user sees (silent grounding applied)
+        outcome = out["presentation"]["outcome"]
+        if outcome in ("held back", "fallback"):
+            problems.append(f"{outcome}: {out['presentation']['unbacked']}")
+        elif outcome == "rewritten":
+            notes.append(f"rewritten (first draft: {[f['token'] for f in out['first_draft_flags']]})")
+        for p in wording.problems(shown):
+            problems.append(p)
         called = {t["tool"] for t in out["tool_trace"]}
         for need in exp.get("tools", []):
             opts = need if isinstance(need, list) else [need]
             if not called & set(opts):
                 problems.append(f"tool not called: {opts}")
-        text = (out["answer"] + "\n" + "\n".join(cl["text"] for cl in out["claims"])).lower()
+        text = shown.lower()
         for item in exp.get("answer_contains", []):
             opts = item if isinstance(item, list) else [item]
             if not any(str(o).lower() in text for o in opts):
                 problems.append(f"answer lacks {opts}")
-        if exp.get("lead_with"):
-            lead, rest = exp["lead_with"].lower(), out["answer"].lower()
-            for later in ("no changes", "nothing changed", "same score"):
-                if later in rest and lead in rest and rest.index(later) < rest.index(lead):
-                    problems.append(f"{later!r} comes before {exp['lead_with']!r}")
         for bad in exp.get("answer_not_contains", []):
             if str(bad).lower() in text:
                 problems.append(f"answer contains {bad!r}")
-        prose, claims_text = out["answer"].lower(), "\n".join(cl["text"] for cl in out["claims"]).lower()
-        dev = contract.developer_words(out["answer"])
-        if dev:  # operator 2026-11-16: plain language; field names stay in the evidence panel
-            problems.append(f"field names / JSON words in the answer: {dev}")
+        facts_text = json.dumps(out["system_facts"], ensure_ascii=False)
+        for item in exp.get("facts_contain", []):
+            if str(item) not in facts_text:
+                problems.append(f"system facts lack {item!r}")
         for bad in exp.get("prose_not_contains", []):
-            if str(bad).lower() in prose:
-                problems.append(f"answer text contains {bad!r} (belongs in the sources, How do I know?)")
-        for item in exp.get("claims_contain", []):
-            if str(item).lower() not in claims_text:
-                problems.append(f"claims lack {item!r}")
-        sentences = [x for x in re.split(r"(?<=[.!?])\s+", out["answer"].strip()) if x]
+            if str(bad).lower() in out["answer"].lower():
+                problems.append(f"answer text contains {bad!r} (belongs in the system facts only)")
+        prose = out["answer"]
+        sentences = [x for x in re.split(r"(?<=[.!?])\s+", prose.strip()) if x]
         for item in exp.get("first_sentence_contains", []):
             opts = item if isinstance(item, list) else [item]
             if not sentences or not any(str(o).lower() in sentences[0].lower() for o in opts):
                 problems.append(f"first sentence lacks {opts!r}")
         if exp.get("max_sentences") and len(sentences) > exp["max_sentences"]:
             problems.append(f"answer has {len(sentences)} sentences > {exp['max_sentences']}")
-        if exp.get("no_change_only_at_end"):  # operator 2026-11-16: never before the end
-            for i, sent in enumerate(sentences[:-1]):
+        if exp.get("no_change_only_at_end"):
+            for sent in sentences[:-1]:
                 if re.search(r"nothing (has )?changed|no changes?\b|unchanged|same score", sent, re.I):
                     problems.append(f"'no change' wording before the end: {sent[:60]!r}")
         hist = out.get("history") or {}
@@ -197,41 +177,39 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
                 problems.append("history table: 'nothing changed' line missing or wrong")
         elif hist.get("steps"):
             problems.append(f"history table shown for {hist.get('transport')} (not a history question)")
-        if exp.get("max_words") and len(out["answer"].split()) > exp["max_words"]:
-            problems.append(f"answer has {len(out['answer'].split())} words > {exp['max_words']}")
+        if exp.get("max_words") and len(prose.split()) > exp["max_words"]:
+            problems.append(f"answer has {len(prose.split())} words > {exp['max_words']}")
         for rx in exp.get("answer_not_matches", []):
-            if re.search(rx, text, re.I):
+            if re.search(rx, prose, re.I):
                 problems.append(f"answer matches {rx!r}")
         secs = time.time() - t0
         if secs > exp.get("max_seconds", TARGET_S):
             problems.append(f"slow: {secs:.1f} s > {exp.get('max_seconds', TARGET_S)} s")
         if [t["tool"] for t in out["tool_trace"]].count("status") > 1:
             problems.append("status called more than once")
-        if len(out["grounding"]["flags"]) > exp.get("grounding_flags_max", 0):
-            problems.append(f"grounding flags: {[f['token'] for f in out['grounding']['flags']]}")
         cost = dollars(out["usage"])
         total_cost += cost
         worst = max(worst, cost)
         failures += bool(problems)
-        results.append({"id": c["id"], "skin": skin, "view": view, "question": c["question"], "ok": not problems, "problems": problems,
-                        "cost_usd": round(cost, 4), "seconds": round(time.time() - t0, 1),
-                        "first_text_s": round(first_text[0], 1) if first_text else None, **out})
-        print(f"{'PASS' if not problems else 'FAIL'} {skin}/{c['id']}  ${cost:.4f}  {time.time() - t0:.1f}s"
+        results.append({"id": c["id"], "question": c["question"], "ok": not problems, "problems": problems,
+                        "notes": notes, "shown": shown, "cost_usd": round(cost, 4), "seconds": round(secs, 1),
+                        **{k: v for k, v in out.items() if k != "new_results"}})
+        print(f"{'PASS' if not problems else 'FAIL'} {c['id']}  ${cost:.4f}  {secs:.1f}s"
               + f"  {out['usage']['requests']} requests, {len(out['tool_trace'])} calls"
-              + (f", {out['usage']['repeat_calls_skipped']} repeat(s) skipped" if out["usage"].get("repeat_calls_skipped") else "")
+              + "".join(f"  [{n}]" for n in notes)
               + ("".join(f"\n     - {p}" for p in problems)))
     outdir = RESULTS_DIR
     outdir.mkdir(exist_ok=True)
     path = outdir / f"eval-{time.strftime('%Y%m%dT%H%M%S')}.json"
-    path.write_text(json.dumps(results, indent=1, ensure_ascii=False))
-    print(f"\n{'skin':8}{'question':45} {'first text':>10} {'total':>7} {'limit':>6} {'cost':>8}  result")
-    for r, (skin, c) in zip(results, runs()):
-        ft = f"{r['first_text_s']:.1f} s" if r.get("first_text_s") is not None else "-"
+    path.write_text(json.dumps(results, indent=1, ensure_ascii=False, default=str))
+    print(f"\n{'question':45} {'total':>7} {'limit':>6} {'cost':>8}  result")
+    for r, c in zip(results, planned):
         tot = f"{r['seconds']:.1f} s" if "seconds" in r else "-"
         lim = f"{c['expect'].get('max_seconds', TARGET_S):g} s"
-        print(f"{skin:8}{r['question'][:45]:45} {ft:>10} {tot:>7} {lim:>6} {'$%.4f' % r['cost_usd']:>8}  "
+        print(f"{c['question'].splitlines()[-1][:45]:45} {tot:>7} {lim:>6} {'$%.4f' % r['cost_usd']:>8}  "
               + ("PASS" if r.get("ok") else "FAIL"))
-    print(f"\n{len(results) - (failures - (len(planned) - len(results)))}/{len(planned)} passed · actual cost ${total_cost:.4f} · {path.relative_to(ROOT)}")
+    passed = sum(1 for r in results if r.get("ok"))
+    print(f"\n{passed}/{len(planned)} passed · actual cost ${total_cost:.4f} · {path.relative_to(ROOT)}")
     return 1 if failures else 0
 
 
@@ -239,7 +217,6 @@ async def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--estimate", action="store_true")
     ap.add_argument("--only", nargs="*", default=[], help="golden case ids to run")
-    ap.add_argument("--skins", nargs="*", default=SKINS, choices=["partner", "direct"], help="skins to run")
     ap.add_argument("--full", action="store_true", help="every golden question (only before a tag)")
     ap.add_argument("--max-cost", type=float, default=MAX_COST[0], help="$ cap for this run (default 1.00)")
     args = ap.parse_args()
@@ -247,7 +224,6 @@ async def main() -> int:
         sys.exit("Name the affected questions (--only id ...), or --full before a tag (operator cost rule).")
     MAX_COST[0] = args.max_cost
     ONLY.update(args.only)
-    SKINS[:] = args.skins
     g = GrapheneMCP(config.GRAPHENE_MCP_COMMAND, call_timeout_s=config.TOOL_TIMEOUT_S)
     await g.start()
     client = new_client()

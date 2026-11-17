@@ -1,7 +1,8 @@
-# White-label (operator 2026-11-17): every case runs in both skins (partner on /, direct on /direct).
-# Answers speak as "I" ("I've learned", "I haven't learned … yet", never "trained"); the partner skin
-# never shows "Graphene"; no tool names or JSON words; claims are the "How do I know?" sources in SAP
-# terms. The facts checks below are unchanged: they still come from Graphene's own output.
+# Graphene by NiraamAI (operator 2026-11-17): one brand, a full SAP assistant in a chat UI. Answers
+# speak as "I" ("I've learned", "I haven't learned … yet", never "trained"); no tool names, field
+# names or JSON words. "system_facts" are the answer's statements about THIS system (checked strictly,
+# kept in the log and ?debug=1); general SAP knowledge is allowed but phrased as general. The facts
+# checks below still come from Graphene's own output.
 #
 # Golden questions. Expected values come from Graphene's own output (MCP, 2026-11-16,
 # Graphene demo-ready-v13, handshake 1.32.0;
@@ -39,7 +40,7 @@
         If you change table ZS4_IOT_DATA, 9 objects are affected: 5 CDS views, 2 function modules, 1 function group and 1 class.
         - 2 of them are RFC entry points: ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA.
         - 1 dynamic call (from ZCL_ZS4_IOT_PROJ_DPC_EXT to ZS4_IOT_INSERT_DATA) is a candidate, not a fact, so the impact may be larger.
-      claims:
+      system_facts:
         - {text: "Table ZS4_IOT_DATA has 9 dependent objects.", results: [1]}
         - {text: "Function modules ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA use ZS4_IOT_DATA and are RFC-enabled.", results: [1]}
         - {text: "Class ZCL_ZS4_IOT_PROJ_DPC_EXT calls ZS4_IOT_INSERT_DATA dynamically (a candidate).", results: [1]}
@@ -79,7 +80,7 @@
         - It reaches 2 RFC entry points: ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA.
         - 1 dynamic call touches the change, so the impact may be larger.
         My earlier scores used an older method.
-      claims:
+      system_facts:
         - {text: "Transport ZUZK900008 scores 0.47: high, 88th percentile.", results: [1]}
         - {text: "ZUZK900008 changes the table definition of ZS4_IOT_DATA.", results: [1]}
         - {text: "Function modules ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA are RFC entry points that use ZS4_IOT_DATA.", results: [1]}
@@ -140,7 +141,7 @@
     answer:
       answer: |-
         ZUZK900006 now scores 0.345 (moderate, 66th percentile) and rose in steps. Its main current reasons: table definition TABL:ZGR_DISC_RULES is in the transport, and PROG:ZGR_PRICE_SYNC → RUNS → JOB:JOB-5192e9d4d2ab, a periodic job (runs daily, 12 runs in window).
-      claims:
+      system_facts:
         - {text: "Transport ZUZK900006 scores 0.345: moderate, 66th percentile.", results: [1]}
         - {text: "Program ZGR_PRICE_SYNC runs job JOB-5192e9d4d2ab daily (12 runs in window).", results: [1]}
       history_for: ZUZK900006
@@ -164,7 +165,7 @@
       answer: |-
         I don't know a table called ZFAKE_TABLE in this system, and I won't guess.
         It may have been created after I last learned the dictionary, or sit outside what I've learned.
-      claims:
+      system_facts:
         - {text: "No object called ZFAKE_TABLE in the dictionary I've learned.", results: [1]}
 
 - id: what_graphene_does_not_know
@@ -185,7 +186,7 @@
         I've learned 6 of 11 areas of this system. These are next on my learning plan; I haven't started them yet:
         - Configuration, Access, Interfaces, Runtime evidence and Understanding.
         I also don't track what changed in SAP since I learned an area, and I never read business data, ABAP source code, job variants, dump texts or job logs.
-      claims:
+      system_facts:
         - {text: "6 of 11 areas are learned.", results: [1]}
         - {text: "Configuration, Access, Interfaces, Runtime evidence and Understanding are not started.", results: [1]}
 
@@ -197,15 +198,15 @@
   facts:
     - {tool: system_profile, path: result.learned, equals: true}
     - {tool: system_profile, path: result.release.sap_basis, equals: "751"}
-    - {tool: system_profile, path: result.components.items.94.component, equals: SAP_BASIS}
-    - {tool: system_profile, path: result.components.items.94.release, equals: "751"}
-    - {tool: system_profile, path: result.components.items.94.sp_level, equals: "0000000000"}
-    - {tool: system_profile, path: result.components.items.94.sp_level_note, equals: "SP 0000 (no support package), as shown in System → Status, operator check 2026-11-16; raw value 0000000000 (CVERS.EXTRELEASE)"}
-    - {tool: system_profile, path: result.components.items.94.support_package, equals: null}
-    - {tool: system_profile, path: result.components.items.94.support_package_note, equals: "not learned (the name isn't in CVERS)"}
+    - {tool: system_profile, path: result.components.items.0.component, equals: SAP_BASIS}
+    - {tool: system_profile, path: result.components.items.0.release, equals: "751"}
+    - {tool: system_profile, path: result.components.items.0.sp_level, equals: "0000000000"}
+    - {tool: system_profile, path: result.components.items.0.sp_level_note, equals: "SP 0000 (no support package), as shown in System → Status, operator check 2026-11-16; raw value 0000000000 (CVERS.EXTRELEASE)"}
+    - {tool: system_profile, path: result.components.items.0.support_package, equals: null}
+    - {tool: system_profile, path: result.components.items.0.support_package_note, equals: "not learned (the name isn't in CVERS)"}
     - {tool: system_profile, path: limits, contains: "sp_level is CVERS.EXTRELEASE exactly as SAP stores it, in 10 or 4 digits; sp_level_note gives the SP level as System → Status shows it (4 digits)."}
-    - {tool: system_profile, path: result.implemented_notes.learned, equals: false}
     - {tool: system_profile, path: result.l0.last_run, equals: "2026-11-05T14:26:30.307039+00:00"}
+    - {tool: system_profile, path: result.components.showing, equals: "showing 1 of 162"}
   expect:
     tools: [system_profile]
     # Operator 2026-11-16 (browser review): plain language; lead with Graphene's note ("SP 0000 (no
@@ -213,18 +214,18 @@
     # eval 2026-11-17: "SP level is 0000 (no support package, as System → Status shows)" is the same note
     answer_contains: ["SAP_BASIS", "751", ["SP 0000", "SP level 0000", "SP level is 0000"], "no support package", ["System → Status", "System > Status", "System->Status", "System Status"], ["haven't learned", "not learned"]]
     prose_not_contains: ["0000000000"]
-    claims_contain: ["0000000000"]
+    facts_contain: ["0000000000"]  # the raw value only in system_facts (log, ?debug=1)
     answer_not_matches: ['\bSP\s*(level\s*)?0\b', 'support package\s*0\b', '7\.51 sp']
     grounding_flags_max: 0
   mock:
     calls:
-      - {tool: system_profile, args: {}}
+      - {tool: system_profile, args: {components: [SAP_BASIS]}}  # only what the question needs (v18 filters)
     answer:
       answer: |-
         SAP_BASIS 751 · SP 0000 (no support package, as System → Status shows).
         - I haven't learned the support package name yet: it isn't in the table SAP keeps component versions in.
         - This is as of when I learned the system on 2026-11-05; I don't know anything newer.
-      claims:
+      system_facts:
         - {text: "SAP_BASIS release 751, SP level 0000000000 as SAP stores it in CVERS; System → Status shows it as SP 0000 (no support package).", results: [1]}
         - {text: "The support package name isn't in CVERS, so I haven't learned it.", results: [1]}
         - {text: "Learned on 2026-11-05.", results: [1]}
@@ -255,10 +256,54 @@
         - Resolve the dynamic calls (or confirm their targets) so the impact is known: score after 0.395.
         - Import into the test system and confirm return code ≤ 4: score after 0.3995.
         Each score is for that option alone; I don't have a score for doing both.
-      claims:
+      system_facts:
         - {text: "Transport ZUZK900008 scores 0.47.", results: [1]}
         - {text: "Class ZCL_ZS4_IOT_PROJ_DPC_EXT calls ZS4_IOT_INSERT_DATA dynamically; resolving that: score after 0.395.", results: [1]}
         - {text: "Test import with return code ≤ 4: score after 0.3995.", results: [1]}
+
+# Operator 2026-11-17: a pasted SAP Security Note (tests/fixtures/note_3778530_excerpt.txt, used exactly)
+# and "Is this relevant to our system?". The kernel comes from the engine (system_profile, kernel
+# section only): 7.53 (release 753) at patch 700; according to the note the fix is in patch 1616, so
+# affected. The Web Dispatcher is not known (say how to check); the note's workaround options; no patch
+# level that is neither in the engine's result nor in the note.
+- id: note_3778530_relevance
+  question_file: tests/fixtures/note_3778530_excerpt.txt
+  question_suffix: "\n\nIs this relevant to our system?"
+  facts:
+    - {tool: system_profile, path: result.kernel.0.release, equals: "753"}
+    - {tool: system_profile, path: result.kernel.0.patch_level, equals: "700"}
+    - {tool: system_profile, path: result.sections, equals: [kernel]}
+    - {tool: system_profile, path: evidence_ids, contains: "node:KERNEL:ZUZ:753:700"}
+  expect:
+    tools: [system_profile]
+    max_seconds: 20  # a long pasted note
+    max_words: 300
+    answer_contains: ["7.53", "753", "700", "1616", "according to the note", "affected", "Web Dispatcher",
+                      ["don't know", "haven't learned", "not known", "can't tell", "do not know"],
+                      "WebSocket", "3778788"]
+    # no invented patch levels: every patch level named is the engine's 700 or the note's 1616/1617
+    answer_not_matches: ['\bpatch(?:\s+level)?\s+(?!700\b|1616\b|1617\b)\d+', '\bSP\s?(?!1616\b|1617\b)\d{3,}',
+                         '\bnot affected\b']
+    grounding_flags_max: 0
+  mock:
+    calls:
+      - {tool: system_profile, args: {sections: [kernel]}}
+    answer:
+      answer: |-
+        **Yes, your system is affected.** Your kernel 7.53 (release 753) is at patch 700. According to the note, the fix is in patch 1616 (and all higher patch levels), so patch 700 doesn't have it yet.
+
+        ### What I don't know
+        - Your Web Dispatcher: I haven't learned it, so I can't tell whether the ICM is reached only through one. In general, you can check this in transaction SMICM and in your network setup.
+
+        ### What you can do (according to the note)
+        | Option | What it means |
+        |---|---|
+        | Update the kernel | to patch 1616 or higher |
+        | Web Dispatcher workaround | only if the ICM is reached exclusively through an SAP Web Dispatcher updated per FAQ Note 3778788 |
+        | Disable WebSocket support | not recommended: significant impact on interactive and integration scenarios |
+      system_facts:
+        - {text: "Kernel 7.53 (release 753) at patch level 700.", results: [1]}
+      history_for: ""
 
 # Negative control (make test only): a mocked answer with an invented number and object
 # must be flagged by the grounding check, not hidden.
@@ -292,7 +337,7 @@
         - I haven't learned which program each dump hit yet.
         - I haven't learned the system log (SM21) yet, CCMS is not configured, and SAP keeps no workload aggregates on this system.
         These are counts only; nothing newer than when I last learned operations.
-      claims:
+      system_facts:
         - {text: "41 background job runs, 0 cancelled.", results: [1]}
         - {text: "4305 short dumps, counted per day.", results: [1]}
         - {text: "0 alerts.", results: [1]}
@@ -317,7 +362,7 @@
       answer: |-
         I haven't learned the system log (SM21) yet, so I can't show its entries.
         What I do have from monitoring is counts only: 41 job runs, 4305 short dumps and 0 alerts.
-      claims:
+      system_facts:
         - {text: "The system log (SM21) isn't learned yet.", results: [1]}
         - {text: "41 background job runs, 4305 short dumps, 0 alerts.", results: [1]}
 
@@ -333,7 +378,7 @@
       - {tool: operations, args: {}}
     answer:
       answer: "I haven't learned the system log (SM21) yet, so I can't show its entries."
-      claims:
+      system_facts:
         - {text: "The system log (SM21) isn't learned yet.", results: [1]}
 
 - id: no_call_twice_is_an_error
@@ -345,19 +390,67 @@
       - {tool: operations, args: {}}
     answer:
       answer: "unused"
-      claims: []
+      system_facts: []
 
 - id: grounding_flags_invented_facts
   question: "What breaks if I change ZS4_IOT_DATA?"
   test_only: true
-  expect_flags: ["12", "ZS4_IOT_DELETE_DATA", "result 7"]  # result 7: not a result of this question
+  # Operator 2026-11-17: a statement about this system that isn't backed is rewritten once; here the
+  # rewrite repeats it, so it is held back, and with nothing left the user sees the fallback.
+  expect_flags: ["12", "ZS4_IOT_DELETE_DATA", "result 7"]
+  expect_outcome: fallback
   mock:
     calls:
       - {tool: impact, args: {name: ZS4_IOT_DATA}}
     answer:
       answer: "Changing ZS4_IOT_DATA affects 12 objects, including ZS4_IOT_DELETE_DATA."
-      claims:
+      system_facts:
         - {text: "12 objects are affected.", results: [7]}
+
+- id: unbacked_fact_is_rewritten
+  question: "What breaks if I change ZS4_IOT_DATA?"
+  test_only: true
+  expect_flags: ["ZS4_IOT_DELETE_DATA"]
+  expect_outcome: rewritten
+  mock:
+    calls:
+      - {tool: impact, args: {name: ZS4_IOT_DATA}}
+    answers:
+      - answer: "Changing table ZS4_IOT_DATA affects 9 objects, including ZS4_IOT_DELETE_DATA."
+        system_facts:
+          - {text: "Table ZS4_IOT_DATA has 9 dependent objects.", results: [1]}
+      - answer: "Changing table ZS4_IOT_DATA affects 9 objects."
+        system_facts:
+          - {text: "Table ZS4_IOT_DATA has 9 dependent objects.", results: [1]}
+
+- id: held_back_sentence
+  question: "What breaks if I change ZS4_IOT_DATA?"
+  test_only: true
+  expect_outcome: held back
+  mock:
+    calls:
+      - {tool: impact, args: {name: ZS4_IOT_DATA}}
+    answer:
+      answer: |-
+        Changing table ZS4_IOT_DATA affects 9 objects.
+        - 2 of them are RFC entry points: ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA. ZS4_IOT_PURGE_DATA is a third one.
+      system_facts:
+        - {text: "Table ZS4_IOT_DATA has 9 dependent objects.", results: [1]}
+
+# Operator 2026-11-17: a general SAP question needs no engine call; general knowledge (even with
+# numbers) is not checked, as long as it isn't stated as a fact about this system.
+- id: general_knowledge_needs_no_call
+  question: "What is transaction SM51 for?"
+  test_only: true
+  expect_outcome: passed
+  mock:
+    calls: []
+    answer:
+      answer: |-
+        In general, **SM51** lists the application servers of an SAP system and their services (dialog, batch, update, spool).
+        - From there you can open a server's work processes (SM50) or its ICM monitor (SMICM).
+        - Kernel releases such as 7.93 or 9.16 show the same list.
+      system_facts: []
 
 # Regression (make test only), make eval 2026-11-14/16: Claude repeated status {} and re-ran
 # assess_transport with show:1. One result per tool and object per question; a second call on the
@@ -375,7 +468,7 @@
          {tool: impact, args: {name: ZS4_IOT_DATA, show: 50}}]
     answer:
       answer: "Changing ZS4_IOT_DATA affects 9 objects. I have learned 6 of 11 areas."
-      claims:
+      system_facts:
         - {text: "9 objects are affected.", results: [1]}
 
 # Operator 2026-11-16: one round of Graphene calls per question. A clear result (found, or not
@@ -392,7 +485,7 @@
       - {tool: status, args: {}}
     answer:
       answer: "ZFAKE_TABLE is not found in the learned system."
-      claims:
+      system_facts:
         - {text: "ZFAKE_TABLE is not found in the learned system.", results: [1]}
 
 # Exception 1: not found WITH similar names (Graphene: ZS4_IOT_DAT -> similar_names
@@ -413,7 +506,7 @@
       - {tool: status, args: {}}
     answer:
       answer: "I don't know ZS4_IOT_DAT, but I know ZS4_IOT_DATA: changing it affects 9 objects."
-      claims:
+      system_facts:
         - {text: "ZS4_IOT_DAT is not found; similar name ZS4_IOT_DATA.", results: [1]}
         - {text: "Changing ZS4_IOT_DATA affects 9 objects.", results: [2]}
 
@@ -433,5 +526,5 @@
       - {tool: status, args: {}}
     answer:
       answer: "ZS4_IOT_X matches 2 objects: ZS4_IOT_FG and ZS4_IOT_INSERT_DATA."
-      claims:
+      system_facts:
         - {text: "2 objects match: ZS4_IOT_FG and ZS4_IOT_INSERT_DATA.", results: [1]}

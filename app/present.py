@@ -1,8 +1,10 @@
-"""What a skin shows (operator 2026-11-17, white-label). The internal answer contract (claims,
-tool_trace, grounding, coverage, freshness, limits, history) is built as before and logged; the
-browser gets only the plain answer, its "How do I know?" sources in SAP terms, and when each area
-was learned. Silent safety: if a name, number or date in what would be shown isn't in this
-question's engine results, or the wording rules are broken, the answer is replaced by FALLBACK_ANSWER.
+"""What the user sees (operator 2026-11-17: one brand, chat UI). The answer is markdown; for a risk
+history question the app adds the steps table straight from the engine's data. Sources, grounding,
+trace and limits stay in the server log and the ?debug=1 view only.
+
+Silent safety: the agent rewrites an answer once when a statement about this system isn't backed;
+whatever is still unbacked here is held back (the sentence or table row is left out, with a short
+note), and an answer with nothing left becomes the fallback.
 """
 
 from __future__ import annotations
@@ -10,97 +12,80 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from . import brand as brands
-from .contract import developer_words
-
-# Operator 2026-11-17: area names in the "What I've learned" sidebar (engine stage ids L0-L5).
-# Other stages keep the engine's own name.
-AREA_LABELS = {"L0": "System", "L1": "Dictionary", "L2": "Code", "L3": "Code relationships",
-               "L4": "Transports", "L5": "Operations"}
-_STAGE_RE = re.compile(r"\bL(\d{1,2})\b")
-_AGE_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*(min|h|d|w)\s*$")
-_AGE_UNITS = {"min": "minute", "h": "hour", "d": "day", "w": "week"}
+from . import wording
 
 
-def area_label(stage: str, engine_name: str | None = None) -> str:
-    return AREA_LABELS.get(stage) or engine_name or stage
+def history_table(h: dict[str, Any] | None) -> str:
+    """Operator 2026-11-16: the distinct score steps, from the engine's history (values verbatim)."""
+    if not h or not h.get("steps"):
+        return ""
+    rows = ["| Date | Score | What changed |", "|---|---|---|"]
+    for st in h["steps"]:
+        older = " (older method)" if st.get("older_engine") else ""
+        causes = "; ".join(st.get("causes") or []) or "—"
+        rows.append(f"| {st.get('at_display') or st.get('at') or ''} | {st.get('from')} → {st.get('to')}{older} | "
+                    f"{causes.replace('|', '/')} |")
+    out = "\n".join(rows)
+    if h.get("nothing_changed_since_last"):
+        out += "\n\nNothing changed since the last assessment."
+    return out
 
 
-def age_words(age: Any) -> str:
-    """The engine's age text in words ("5 d" -> "5 days"). Wording only: the number is the engine's."""
-    m = _AGE_RE.match(str(age or ""))
-    if not m:
-        return str(age or "")
-    n, unit = m.group(1), _AGE_UNITS[m.group(2)]
-    return f"{n} {unit}{'' if n == '1' else 's'}"
+def _drop_tokens(md: str, tokens: set[str]) -> tuple[str, int]:
+    """Leave out every sentence (or table row) that contains an unbacked token."""
+    dropped = 0
+    out_lines = []
+    for line in md.splitlines():
+        if line.lstrip().startswith("|"):
+            if any(t in line for t in tokens):
+                dropped += 1
+                continue
+            out_lines.append(line)
+            continue
+        m = re.match(r"^(\s*(?:[-*+]|\d+\.)\s+|\s*#{1,6}\s+)?(.*)$", line)
+        prefix, body = (m.group(1) or ""), m.group(2)
+        parts = re.split(r"(?<=[.!?])\s+", body)
+        kept = [p for p in parts if not any(t in p for t in tokens)]
+        dropped += len(parts) - len(kept)
+        if kept or not body.strip():
+            out_lines.append(prefix + " ".join(kept) if kept else line)
+    return "\n".join(out_lines).strip(), dropped
 
 
-def _stage_words(text: str, names: dict[str, str]) -> str:
-    """Stage ids (L5) in a displayed line become area names (Operations)."""
-    return _STAGE_RE.sub(lambda m: area_label(f"L{m.group(1)}", names.get(f"L{m.group(1)}")), text)
-
-
-def learned_for_answer(out: dict[str, Any]) -> list[dict[str, str]]:
-    """Which learned areas this answer used, and how long ago each was learned (engine values)."""
-    names: dict[str, str] = {}
-    for cov in out.get("coverage") or []:
-        for stage, info in (cov.get("this_answer_uses") or {}).items():
-            names.setdefault(stage, (info or {}).get("name") or stage)
-    rows = []
-    for stage, name in names.items():
-        age = ((out.get("freshness") or {}).get(stage) or {}).get("age")
-        rows.append({"area": area_label(stage, name), "age": age_words(age) if age else ""})
-    return rows
-
-
-def view(out: dict[str, Any], brand: brands.Brand) -> dict[str, Any]:
-    """The answer as this skin shows it, or the fallback. Adds out["presentation"] (logged only)."""
-    reasons: list[str] = []
-    # Names, numbers and dates are what the user sees; an evidence-id flag is internal only.
-    shown_flags = [f for f in out["grounding"]["flags"] if f["kind"] != "evidence"]
-    reasons += [f"not backed by the facts: {f['token']} ({f['where']})" for f in shown_flags]
+def finalize(out: dict[str, Any]) -> str:
+    """The markdown the user sees. Adds out["presentation"] (logged; ?debug=1)."""
     answer = out.get("answer", "")
-    reasons += brands.wording_problems(answer, brand)
-    reasons += [f"field name / JSON word: {w}" for w in developer_words(answer)]
-
-    stage_names = {s: n for s, n in ((k, v) for cov in out.get("coverage") or []
-                                     for k, v in ((st, (i or {}).get("name", st))
-                                                  for st, i in (cov.get("this_answer_uses") or {}).items()))}
-    sources, dropped = [], []
-    for c in out.get("claims") or []:
-        t = _stage_words(str(c.get("text", "")).strip(), stage_names)
-        bad = brands.wording_problems(t, brand) + developer_words(t)
-        (dropped if bad else sources).append(t)
-    history = None
-    if out.get("history") and out["history"].get("steps"):
-        h = out["history"]
-        steps = [{"date": st.get("at_display") or "", "date_full": st.get("at") or "", "from": st.get("from"),
-                  "to": st.get("to"), "older_method": bool(st.get("older_engine")),
-                  "causes": [_stage_words(x, stage_names) for x in st.get("causes") or []]} for st in h["steps"]]
-        for st in steps:
-            for x in st["causes"]:
-                reasons += [f"history: {p}" for p in brands.wording_problems(x, brand)]
-        history = {"transport": h.get("transport"), "steps": steps,
-                   "nothing_changed_since_last": h.get("nothing_changed_since_last")}
-
-    shown = not reasons
-    out["presentation"] = {"brand": brand.key, "shown": shown, "reasons": reasons, "sources_dropped": dropped}
-    if not shown:
-        return {"answer": brands.FALLBACK_ANSWER, "fallback": True, "sources": [], "learned": [], "history": None}
-    return {"answer": answer, "fallback": False, "sources": sources, "learned": learned_for_answer(out),
-            "history": history}
+    flags = [f for f in out["grounding"]["flags"] if f["kind"] != "evidence"]  # evidence ids are internal
+    probs = wording.problems(answer)
+    tokens = {f["token"] for f in flags if f["where"] == "answer" or f["where"].startswith("system fact")}
+    tokens |= {p.split(": ", 1)[1] for p in probs}
+    outcome = "rewritten" if out.get("rewritten") else "passed"
+    if tokens:
+        answer, dropped = _drop_tokens(answer, tokens)
+        outcome = "held back"
+        has_text = bool(re.sub(r"[\s|#*_\-]", "", answer))
+        answer = (answer + "\n\n" + wording.HELD_BACK_NOTE) if has_text and dropped else (answer or "")
+        if not has_text or wording.problems(answer):
+            answer, outcome = wording.FALLBACK_ANSWER, "fallback"
+    table = history_table(out.get("history"))
+    if table and outcome != "fallback":
+        answer = answer.rstrip() + "\n\n" + table
+    out["presentation"] = {"outcome": outcome, "unbacked": sorted(tokens),
+                           "first_draft_flags": out.get("first_draft_flags", [])}
+    return answer
 
 
-def learned_overview(status: dict[str, Any] | None) -> dict[str, Any]:
-    """The "What I've learned" sidebar and the status dot, from the engine's status result only."""
-    res = (status or {}).get("result") or {}
-    areas, latest = [], None
-    for s in res.get("stages") or []:
-        last = s.get("last_success") or {}
-        done = s.get("status") == "done"
-        areas.append({"area": area_label(s.get("stage", ""), s.get("name")), "learned": done,
-                      "age": age_words((last.get("age") or {}).get("text")) if done else ""})
-        if done and last.get("finished_at") and (latest is None or last["finished_at"] > latest[0]):
-            latest = (last["finished_at"], age_words((last.get("age") or {}).get("text")))
-    return {"sid": (res.get("tenant") or {}).get("sid"), "areas": areas,
-            "last_learned": latest[1] if latest else None}
+def debug(out: dict[str, Any]) -> dict[str, Any]:
+    """For us only (server log, ?debug=1): sources, grounding outcome, trace, the engine's limits."""
+    return {
+        "system_facts": out.get("system_facts", []),
+        "grounding": out.get("grounding"),
+        "presentation": out.get("presentation"),
+        "tool_trace": out.get("tool_trace", []),
+        "coverage": out.get("coverage", []),
+        "freshness": out.get("freshness", {}),
+        "limits": out.get("limits", []),
+        "usage": out.get("usage"),
+        "timing_ms": out.get("timing_ms"),
+        "model": out.get("model"),
+    }

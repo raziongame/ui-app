@@ -15,6 +15,17 @@ ROOT = Path(__file__).resolve().parent.parent
 GOLDEN = yaml.safe_load((ROOT / "tests" / "golden_questions.yaml").read_text())
 
 
+def question_of(case: dict[str, Any]) -> str:
+    """The message as the user sends it (Q10: the pasted note excerpt, used exactly, plus the question)."""
+    if "question_file" in case:
+        return ((ROOT / case["question_file"]).read_text() + case.get("question_suffix", "")).strip()
+    return case["question"]
+
+
+for _c in GOLDEN:
+    _c["question"] = question_of(_c)
+
+
 class FakeMessages:
     """Scripted stand-in for client.messages: replays a golden case's mock calls, then its answer."""
 
@@ -31,6 +42,7 @@ class FakeMessages:
 
     def _reply(self, kw: dict[str, Any]) -> Message:
         self.requests.append({**kw, "n_messages": len(kw["messages"]),  # messages grows in place:
+                              "messages_snapshot": [dict(m) for m in kw["messages"]],
                               "has_results": any(m["role"] == "user" and isinstance(m["content"], list)
                                                  for m in kw["messages"]),  # snapshot at request time
                               "last_message": kw["messages"][-1],
@@ -44,18 +56,21 @@ class FakeMessages:
         calls = script["calls"]
         # "promise_turns": N = the first N turns only promise to look it up, with no tool call (browser
         # testing 2026-11-17: "I'll check"); the app answers each with a system note (see NO_CALL_NOTE).
-        notes = sum(1 for m in msgs if m["role"] == "system")
+        notes = sum(1 for m in msgs if m["role"] == "system" and "without calling a tool" in m["content"])
         if done == 0 and notes < script.get("promise_turns", 0):
             return Message.model_validate({**base, "stop_reason": "end_turn", "content": [
                 {"type": "text", "text": json.dumps({"answer": "I'll check the system log for you.",
-                                                     "claims": [], "history_for": ""})}]})
+                                                     "system_facts": [], "history_for": ""})}]})
         if done < len(calls) and kw.get("tool_choice", {}).get("type") != "none":
             turn = calls[done] if isinstance(calls[done], list) else [calls[done]]  # list = one turn
             return Message.model_validate({**base, "stop_reason": "tool_use", "content": [
                 {"type": "tool_use", "id": f"toolu_{done}_{j}", "name": c["tool"], "input": c.get("args", {})}
                 for j, c in enumerate(turn)]})
+        # "answers": [draft, rewrite]: the second is returned once the app asked for a rewrite.
+        rewrites = sum(1 for m in msgs if m["role"] == "system" and "Your draft answer" in m["content"])
+        answers = script.get("answers") or [script["answer"]]
         return Message.model_validate({**base, "stop_reason": "end_turn", "content": [
-            {"type": "text", "text": json.dumps(script["answer"])}]})
+            {"type": "text", "text": json.dumps(answers[min(rewrites, len(answers) - 1)])}]})
 
 
 class FakeStream:
@@ -100,7 +115,7 @@ def client(fake_claude, tmp_path_factory):
     from app import config
     config.LOG_PATH = tmp_path_factory.mktemp("logs") / "app.jsonl"
     from app.server import create_app
-    with TestClient(create_app(claude_client=fake_claude)) as c:
+    with TestClient(create_app(claude_client=fake_claude, db_path=tmp_path_factory.mktemp("db") / "chats.sqlite3")) as c:
         import time
         deadline = time.time() + 90  # startup no longer blocks on Graphene: wait until it is ready
         while not c.get("/api/health").json()["engine"]["ready"] and time.time() < deadline:
@@ -108,21 +123,22 @@ def client(fake_claude, tmp_path_factory):
         yield c
 
 
-def ask(client: TestClient, question: str, brand: str = "partner") -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
-    """Ask through the real endpoint. Returns the INTERNAL answer contract (claims, tool_trace,
-    grounding, ...; never sent to the browser) and the browser's events (progress, final view)."""
-    out, events, _ = ask_raw(client, question, brand)
+def ask(client: TestClient, question: str, chat_id: str | None = None, debug: bool = False):
+    """Ask through the real endpoint. Returns the INTERNAL answer contract (system_facts, tool_trace,
+    grounding, ...; never sent to the browser) with out["shown"] / out["chat_id"], and the browser's events."""
+    out, events, _ = ask_raw(client, question, chat_id, debug)
     return out, events
 
 
-def ask_raw(client: TestClient, question: str, brand: str = "partner"):
+def ask_raw(client: TestClient, question: str, chat_id: str | None = None, debug: bool = False):
     """(internal contract or None, browser events, raw NDJSON body the browser received)."""
     client.app.state.last_answer = None
-    r = client.post("/api/ask", json={"question": question, "brand": brand})
-    assert r.status_code == 200
+    r = client.post("/api/ask" + ("?debug=1" if debug else ""), json={"message": question, "chat_id": chat_id})
+    assert r.status_code == 200, r.text
     events = [json.loads(line) for line in r.text.splitlines() if line.strip()]
-    final = next((e["data"] for e in events if e["type"] == "final"), None)
+    final = next((e for e in events if e["type"] == "final"), None)
     out = client.app.state.last_answer if final is not None else None
     if out is not None:
-        out["view"] = final
+        out["shown"] = final["answer"]
+        out["chat_id"] = next(e["chat"]["id"] for e in events if e["type"] == "chat")
     return out, events, r.text
