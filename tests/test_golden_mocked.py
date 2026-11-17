@@ -133,6 +133,8 @@ def test_request_shape_to_claude(fake_claude):
         assert '(e.g. "SP 0")' in text and "lead with the result's note" in text  # operator, v14/v15
         assert 'goes only in the sources ("claims"), never in the answer' in text  # browser review 11-16
         assert "Keep it to 1-2 short sentences" in text  # not found: short and clear (11-17)
+        assert 'Never approximate: no "about", "around", "roughly"' in text  # eval 11-17: "about 288 a day"
+        assert "copied character for character from a result" in text  # eval 11-17: built FUNC:ZS4_IOT_FG
         assert "set \"history_for\"" in text and "don't say that nothing changed" in text
         assert "relationship → to" in text and "Never summarise" in text  # v3 paths
         assert "lead with 2-3 sentences" in text  # operator: short impact answers (Q1 < 12 s)
