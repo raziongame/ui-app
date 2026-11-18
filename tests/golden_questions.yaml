@@ -461,7 +461,8 @@
     tools: [operations]
     answer_contains: ["41", "4305", ["SM21", "system log", "CCMS", "workload"]]
     # eval 2026-11-17 (76cfc6f): 112 words with a per-day breakdown and "about 288 a day"
-    answer_not_matches: ["\\bI(['’]ll| will) (check|look)", "\\blet me (check|look)", "\\babout \\d", "\\bpeak", '(?m)^\s*#{1,6}\s']
+    answer_not_matches: ["\\bI(['’]ll| will) (check|look)", "\\blet me (check|look)", "\\babout \\d", "\\bpeak", '(?m)^\s*#{1,6}\s',
+                         '(?mi)^\W*(?:main\s+)?gaps?\b[^.\n]*:', '(?m)^\s*[-*]\s']  # operator 2026-11-18: no "Gaps:" label, no bullets
     max_words: 100
     grounding_flags_max: 0
   mock:
@@ -469,9 +470,7 @@
       - {tool: operations, args: {}}
     answer:
       answer: |-
-        In the monitored window, this system had 41 background job runs (0 cancelled), 4305 short dumps and 0 alerts.
-        - Which program each dump hit isn't available here; you can see that in ST22.
-        - I don't have the system log for this system; you can check it in SM21. CCMS is not configured, and SAP keeps no workload aggregates on this system.
+        In the monitored window, this system had 41 background job runs (0 cancelled), 4305 short dumps and 0 alerts. I don't have the system log or which program each dump hit; you can check them in SM21 and ST22. CCMS is not configured, and SAP keeps no workload aggregates on this system.
       system_facts:
         - {text: "41 background job runs, 0 cancelled.", results: [1]}
         - {text: "4305 short dumps, counted per day.", results: [1]}
