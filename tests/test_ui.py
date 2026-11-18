@@ -101,3 +101,11 @@ def test_chat_title_from_a_pasted_note():
     assert title_for(note) == "Is this relevant to our system?"
     assert title_for("What breaks if I change ZS4_IOT_DATA?") == "What breaks if I change ZS4_IOT_DATA?"
     assert len(title_for("x" * 300)) == 60
+
+
+def test_input_has_no_inner_focus_outline():
+    """Operator 2026-11-18: only the rounded outer border highlights on focus."""
+    from pathlib import Path
+    html = (Path(__file__).resolve().parents[1] / "app/static/index.html").read_text()
+    assert "textarea:focus, textarea:focus-visible { outline: none; box-shadow: none; }" in html
+    assert "form:focus-within { border-color: var(--focus); }" in html

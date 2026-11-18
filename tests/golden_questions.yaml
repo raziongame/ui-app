@@ -360,6 +360,33 @@
         - {text: "Kernel 7.53 (release 753) at patch level 700.", results: [1]}
       history_for: ""
 
+# Operator 2026-11-18: an SAP Note number is recognised, never looked up as an object or transport.
+- id: note_number_only
+  question: "Is SAP Note 3778530 relevant to our system?"
+  expect:
+    no_tools: true
+    answer_contains: ["That looks like SAP Note 3778530.", "I can't open SAP Notes directly.", "Paste its text here"]
+    max_sentences: 3
+    max_words: 35
+  mock:
+    calls: []
+    answer:
+      answer: "That looks like SAP Note 3778530. I can't open SAP Notes directly. Paste its text here and I'll check it against your system."
+      system_facts: []
+
+- id: note_number_bare
+  question: "3778530"
+  expect:
+    no_tools: true
+    answer_contains: ["That looks like SAP Note 3778530.", "I can't open SAP Notes directly.", "Paste its text here"]
+    max_sentences: 3
+    max_words: 35
+  mock:
+    calls: []
+    answer:
+      answer: "That looks like SAP Note 3778530. I can't open SAP Notes directly. Paste its text here and I'll check it against your system."
+      system_facts: []
+
 # Negative control (make test only): a mocked answer with an invented number and object
 # must be flagged by the grounding check, not hidden.
 # Browser testing 2026-11-17 (operator): "system monitoring?" and "please list sm21 details" got

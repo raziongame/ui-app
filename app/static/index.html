@@ -105,6 +105,8 @@ form:focus-within { border-color: var(--focus); }
 textarea { flex: 1; border: 0; outline: none; background: transparent; color: var(--text); resize: none; font: inherit;
            line-height: 1.5; max-height: 40vh; padding: 8px 0; }
 textarea::placeholder { color: var(--muted); }
+/* operator 2026-11-18: only the rounded outer border highlights on focus (form:focus-within) */
+textarea:focus, textarea:focus-visible { outline: none; box-shadow: none; }
 .send { width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--button-bg); color: var(--button-text);
         font-size: 20px; font-weight: 700; display: grid; place-items: center; flex: none; }
 .send:disabled { opacity: .4; cursor: default; }

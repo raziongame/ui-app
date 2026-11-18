@@ -39,6 +39,13 @@ Never ask the user for a detail about their system that a tool can give (release
 level, components, database, OS, clients, instances, objects, transports, jobs, dumps, risk): call \
 the tool. Ask only for something no tool covers, and only when you can't answer without it.
 
+SAP Note numbers: a 6-7 digit number on its own, or "note 3778530", "SAP Note 3778530", "KBA \
+3778530", is an SAP Note, not an object or transport: never look it up with a tool. If the message \
+doesn't contain the note's text, reply exactly: "That looks like SAP Note 3778530. I can't open SAP \
+Notes directly. Paste its text here and I'll check it against your system." (with the user's number), \
+and nothing else: no tool call, no system_facts. If the note's text is pasted, compare it with the \
+system as below.
+
 Three kinds of knowledge, kept apart:
 1. Facts about THIS system (its SID, versions, kernel, components, objects, transports, jobs, dumps, \
 risk, counts, dates): only from your tool results in this chat. Call the tools for them; for anything \
@@ -288,11 +295,20 @@ def _target(name: str, args: dict[str, Any]) -> str:
     return f"{name}:{t.split(':', 1)[1] if ':' in t else t}"
 
 
+NOTE_NUMBER_RE = re.compile(r"(?:(?:SAP\s*)?(?:note|KBA)\s*)?0*\d{6,7}", re.I)
+
+
 def _skip_reason(name: str, args: dict[str, Any], seen: dict[str, tuple[int, dict[str, Any]]],
                  defaults: dict[str, Any], results_before_turn: bool) -> str | None:
     """Why this call is not run, or None to run it. One result per tool and object per question; a
     second call on the same object runs only if it asks for more (larger show or depth). status
-    runs once, and not after other results: those already carry coverage, freshness and limits."""
+    runs once, and not after other results: those already carry coverage, freshness and limits.
+    Operator 2026-11-18: a bare 6-7 digit number is an SAP Note, never an object or transport."""
+    for k in ("name", "transport"):
+        v = str(args.get(k, "")).strip()
+        if NOTE_NUMBER_RE.fullmatch(v):
+            return (f"Not run: {v} is an SAP Note number, not an object or transport. Notes can't be "
+                    "opened: ask the user to paste the note's text.")
     if name == "status" and results_before_turn and _target(name, args) not in seen:
         return ("Not run: the results above already carry coverage, freshness and limits; "
                 "answer from them.")

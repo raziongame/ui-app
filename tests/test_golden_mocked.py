@@ -410,3 +410,17 @@ def test_app_fills_evidence_ids_from_cited_results(client):
     trace = [{"n": 1, "tool": "impact", "arguments": {}, "ok": True, "ms": 1, "result": ""}]
     out = build({"answer": "ok", "system_facts": [{"text": "ZS4_IOT_DATA.", "results": [3]}], "history_for": ""}, trace, [r])
     assert [f["token"] for f in out["grounding"]["flags"]] == ["result 3"]  # not a result of this chat
+
+
+def test_note_numbers_are_never_looked_up_as_objects(client, fake_claude):
+    """Operator 2026-11-18: a 6-7 digit number is an SAP Note; a lookup with it is not run."""
+    from app.agent import _skip_reason
+    for args in ({"name": "3778530"}, {"transport": "3778530"}, {"name": "note 3778530"}, {"name": "SAP Note 377853"}):
+        assert "SAP Note number" in (_skip_reason("find_object", args, {}, {}, False) or ""), args
+    for args in ({"name": "ZS4_IOT_DATA"}, {"transport": "ZUZK900008"}, {"name": "12345"}):
+        assert _skip_reason("find_object", args, {}, {}, False) is None, args
+    mock = {"calls": [{"tool": "find_object", "args": {"name": "3778530"}}],
+            "answer": {"answer": "That looks like SAP Note 3778530. I can't open SAP Notes directly. Paste its text "
+                                 "here and I'll check it against your system.", "system_facts": [], "history_for": ""}}
+    out, _, _, _ = _run(client, fake_claude, mock, "3778530")
+    assert out is not None and out["tool_trace"] == [] and out["usage"]["repeat_calls_skipped"] == 1
