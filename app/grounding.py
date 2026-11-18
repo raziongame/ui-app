@@ -76,6 +76,11 @@ def _datetime_forms(s: str) -> set[str]:
     # dates in words and times as a result writes them (e.g. a kernel build date "Sep  1 2020 21:43:19")
     out |= {re.sub(r"\s+", " ", m.group(0)) for m in NATURAL_DATE_RE.finditer(s)}
     out |= {m.group(0) for m in TIME_RE.finditer(s)}
+    # SAP's compact dates (e.g. last_changed "20161027") back "2016-10-27" and "27 October 2016"
+    for m in re.finditer(r"(?<!\d)((?:19|20)\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)", s):
+        d = f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+        out.add(d)
+        out |= _natural_forms(d)
     for m in DATETIME_RE.finditer(s):
         d, hm, sec, frac, tz = m.group(1), m.group(2), m.group(3) or "", m.group(4) or "", m.group(5) or ""
         out.add(d)

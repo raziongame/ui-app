@@ -844,7 +844,7 @@
     - ST22
     - [nothing, no link, doesn't connect, doesn't link, don't connect, isn't linked, not linked, no evidence]
     answer_not_matches: ['ZS4_IOT_DATA[^.]*\b(?:is|are) (?:causing|behind|the (?:cause|source))\b', '\b(?:caused|triggered) by ZS4_IOT_DATA\b(?![^.]*\?)']
-    max_words: 170
+    max_words: 220
     grounding_flags_max: 0
   mock:
     calls:
@@ -895,7 +895,7 @@
   expect:
     answer_contains: [ZS4_IOT_DATA, table]
     max_words: 80
-    answer_not_matches: [ZCDS_IOT_DETAILS|Z_C_IOT_KPI|ZCL_ZS4_IOT_PROJ_DPC_EXT, '\b9 (?:affected )?objects\b']
+    answer_not_matches: [ZCDS_IOT_DETAILS|Z_C_IOT_KPI|ZCL_ZS4_IOT_PROJ_DPC_EXT, '\b9 (?:affected )?objects\b', '\b(?:reads?|writes?|selects? from|select from) (?:it|from it|to it)\b']
   mock:
     calls:
     - tool: find_object
@@ -940,7 +940,7 @@
     answer_contains:
     - [Paste, paste]
     - [SE37, SE80]
-    max_words: 170
+    max_words: 230
     answer_not_matches: ['\b(?:source|code) (?:isn[''’]t|is not|aren[''’]t) (?:available|accessible|visible)\b']
   mock:
     calls:

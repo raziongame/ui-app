@@ -10,7 +10,7 @@ from .contract import developer_words
 
 FORBIDDEN_WORDING_RE = re.compile(
     r"\b(?:trained|training|fine[- ]?tun(?:ed|ing)|learn(?:ed|ing|t)|AI model|language model|our own AI"
-    r"|engine|knowledge base|Graphene|Claude|Anthropic|my (?:own )?(?:\w+ )?data|my tools?"
+    r"|engine|knowledge base|Claude|Anthropic|my (?:own )?(?:\w+ )?data|my tools?"
     r"|What I don['’]t know)\b", re.I)
 INTERNAL_RE = re.compile(r"\b(?:find_object|assess_transport|system_profile|MCP|call:\d+|result \d+|tool_trace|evidence_ids?)\b")
 # Operator 2026-11-18: dates in words only; "Not available", never a "Gaps" label.
@@ -39,6 +39,9 @@ HELD_BACK_NOTE = "_I've left out a detail about your system that I couldn't conf
 def problems(text: str) -> list[str]:
     """Why this answer text may not be shown as is (empty = fine)."""
     out = [f"wording: {m.group(0)}" for m in FORBIDDEN_WORDING_RE.finditer(text)]
+    # the product name as a name ("Graphene"); upper-case SAP text such as a transport description
+    # "GRAPHENE DEMO - …" is system data (eval 2026-11-18)
+    out += [f"wording: {m.group(0)}" for m in re.finditer(r"\b[Gg]raphene\b", text)]
     out += [f"internal: {m.group(0)}" for m in INTERNAL_RE.finditer(text)]
     out += [f"numeric date: {m.group(0)}" for m in NUMERIC_DATE_RE.finditer(text)]
     out += [f"label: {m.group(0).strip()}" for m in GAPS_LABEL_RE.finditer(text)]

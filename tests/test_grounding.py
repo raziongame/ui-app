@@ -176,3 +176,19 @@ def test_tag_rule_style_only_vs_substance():
     assert m.tag_verdict([style, gap, dict(style, id="e"), dict(gap, id="f")]).startswith("NO TAG: 4 style-only")
     assert m.tag_verdict([style, fact]).startswith("NO TAG: substance failures ['c']")
     assert m.tag_verdict([{"ok": False, "id": "g", "error": "timeout"}]).startswith("NO TAG")
+
+
+
+def test_compact_sap_dates_back_iso_and_words():
+    """eval 2026-11-18: find_object's last_changed "20161027" backs "27 October 2016"."""
+    r = [{"result": {"objects": [{"name": "ZS4_IOT_DATA", "last_changed": "20161027"}]}}]
+    for t in ("ZS4_IOT_DATA was last changed on 27 October 2016.", "ZS4_IOT_DATA was last changed on 2016-10-27."):
+        assert grounding.check_system(t, [t], r, [], [], set())["ok"], t
+    assert not grounding.check_system("ZS4_IOT_DATA was last changed on 28 October 2016.", ["changed 28 October 2016"],
+                                      r, [], [], set())["ok"]
+
+
+def test_product_name_check_ignores_upper_case_sap_text():
+    from app.wording import problems
+    assert problems("Graphene says so.") and problems("graphene says so.")
+    assert problems('Its description is "GRAPHENE DEMO - IoT data change".') == []
