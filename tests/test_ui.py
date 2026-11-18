@@ -109,3 +109,21 @@ def test_input_has_no_inner_focus_outline():
     html = (Path(__file__).resolve().parents[1] / "app/static/index.html").read_text()
     assert "textarea:focus, textarea:focus-visible { outline: none; box-shadow: none; }" in html
     assert "form:focus-within { border-color: var(--focus); }" in html
+
+
+def test_user_bubble_trims_blank_lines_for_display_only():
+    """Operator 2026-11-18: trim leading/trailing blank lines, collapse 3+ blank lines into one; the
+    model still gets the original text."""
+    import re as _re
+    from pathlib import Path
+    html = (Path(__file__).resolve().parents[1] / "app/static/index.html").read_text()
+    assert "b.textContent = bubbleText(text)" in html
+    assert 'body: JSON.stringify({message: text' in html or "message: text" in html
+
+    def bubble(t):  # the same rules as bubbleText() in the page
+        t = t.replace("\r\n", "\n")
+        t = _re.sub(r"^(?:[ \t]*\n)+", "", t)
+        t = _re.sub(r"(?:\n[ \t]*)+$", "", t)
+        return _re.sub(r"\n(?:[ \t]*\n){3,}", "\n\n", t)
+    assert bubble("\n\n  \nNote 123\n\n\n\n\nIs this relevant?\n\n") == "Note 123\n\nIs this relevant?"
+    assert bubble("a\n\nb") == "a\n\nb" and bubble("a\n\n\nb") == "a\n\n\nb"

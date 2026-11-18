@@ -1,0 +1,24 @@
+9900001 - Missing Authorization Check in SAP NetWeaver AS Java (Guided Procedures)
+SAP Security Note, Version: 2, Released On: 2026.11.10
+Component: EP-GP   Priority: High   CVSS v3.0 Base Score: 7.4
+
+Symptom
+SAP NetWeaver Application Server Java (Guided Procedures) does not perform a necessary authorization check for an authenticated user, which can lead to escalation of privileges.
+
+Reason and Prerequisites
+A missing authorization check in a Guided Procedures service of the AS Java.
+SAP NetWeaver Application Server ABAP and SAP S/4HANA (ABAP) are not affected.
+
+Solution
+Apply the support package patches listed in "Support Packages & Patches" to the AS Java.
+
+Workaround
+Disable the Guided Procedures application in the AS Java (NWA → Operations → Start & Stop → Java Applications).
+
+Software Components (From - To)
+GP-CORE 7.50 - 7.50
+SERVERCORE 7.50 - 7.50
+
+Support Package Patches
+GP-CORE 7.50   SP027   000002
+GP-CORE 7.50   SP028   000001

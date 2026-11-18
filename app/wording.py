@@ -36,3 +36,16 @@ def _strip_code(md: str) -> str:
     """Profile parameters in code (e.g. `icm/HTTP/websocket_timeout`, with a slash) are SAP text, not
     field names; any other code span is still checked (a field name in backticks is still one)."""
     return re.sub(r"`[^`\n]*/[^`\n]*`", " ", md)
+
+
+_ESCAPED_NL = re.compile(r"\\n")
+
+
+def fix_escaped_newlines(md: str) -> str:
+    """eval 2026-11-18: the model sometimes writes line breaks as the two characters backslash-n
+    inside its JSON answer, which the browser would show as text. Outside code spans they become real
+    line breaks."""
+    if "\\n" not in md:
+        return md
+    parts = re.split(r"(`[^`]*`)", md)
+    return "".join(p if p.startswith("`") else _ESCAPED_NL.sub("\n", p) for p in parts)

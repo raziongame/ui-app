@@ -222,9 +222,15 @@ function md(src) {
 // ---------- rendering ----------
 function scrollDown() { const s = $("scroll"); s.scrollTop = s.scrollHeight; }
 function showEmpty(on) { $("empty").hidden = !on; $("conv").hidden = on; }
+// Operator 2026-11-18: display only (the model gets the original text): trim leading/trailing blank
+// lines and collapse 3+ blank lines into one.
+function bubbleText(text) {
+  return String(text).replace(/\r\n?/g, "\n").replace(/^(?:[ \t]*\n)+/, "").replace(/(?:\n[ \t]*)+$/, "")
+    .replace(/\n(?:[ \t]*\n){3,}/g, "\n\n");
+}
 function addUser(text) {
   const d = document.createElement("div"); d.className = "user";
-  const b = document.createElement("div"); b.className = "body"; b.textContent = text; d.appendChild(b);
+  const b = document.createElement("div"); b.className = "body"; b.textContent = bubbleText(text); d.appendChild(b);
   if (text.split("\n").length > 12 || text.length > 1200) {                // long paste: collapsed
     d.classList.add("long");
     const more = document.createElement("button"); more.className = "more"; more.type = "button"; more.textContent = "Show more";

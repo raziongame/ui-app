@@ -43,10 +43,11 @@ meets WCAG AA in light and dark, `tests/test_ui.py`). No other skins, no `/direc
    every other release as returned (SAP_BASIS 751, never 7.51). A note vs this system: show both
    values ("your kernel … patch 700; according to the note, the fix is in patch 1616") and say
    "according to the note".
-4. **Say what isn't known.** Pass on Graphene's `limits`, `coverage` and `freshness` in the voice
-   ("I don't have … for this system; you can check it in …"; dynamic calls are candidates, not facts),
-   under a **"Worth checking"** heading when there is one (never "What I don't know"). A date for the
-   system data only when it matters ("kernel details as of 5 November; confirm in System → Status").
+4. **Say what isn't known, when it matters.** Pass on Graphene's `limits`, `coverage` and `freshness`
+   in the voice ("I don't have … for this system; you can check it in …"; dynamic calls are
+   candidates, not facts) when they change the answer or the question is about them: one line, what
+   to check and where (never "What I don't know"). A date for the system data only when it matters
+   ("kernel details as of 5 November; confirm in System → Status").
 5. **Secrets:** `ANTHROPIC_API_KEY` lives only in this repo's `.env` (gitignored, chmod 600).
    Commit `.env.example` with a placeholder only. Never print, log or send the key to the
    browser. Never paste secrets into chat.
@@ -77,6 +78,17 @@ have … for this system; you can check it in …"). **Never talks about itself 
 model", "engine", "Graphene's tools", tool or field names, JSON words. Asked what it is or how it
 knows: one line, "I'm here to help with your SAP system; what would you like to check?", then carry
 on. `app/wording.py` enforces this in the silent check (rewrite once, then hold back) and in the eval.
+
+**Answer style (operator 2026-11-18, replaces any fixed format):** a senior SAP consultant talking to
+a colleague: short, natural, only what's relevant to this question. No fixed template, no standard
+headings. The direct answer first ("Yes, this note applies to your system." / "No, this one doesn't
+apply." / "Kernel 7.53 (release 753), patch level 700."), then only the facts that decide it, then the
+recommendation, if any. Simple questions: 1–2 sentences; a pasted SAP Note: a short paragraph plus a
+few bullets at most, no CVSS, tables or long descriptions unless asked. A missing fact that changes
+the answer: one line, what to check and where. Golden expectations check content (verdict first, key
+facts, recommendation) and a max length per question, never a layout.
+SAP Note numbers (6–7 digits, "note N") are never looked up: "That looks like SAP Note N. I can't open
+SAP Notes directly. Paste its text here and I'll check it against your system."
 
 ## Answer contract (internal: server, log, `?debug=1`)
 
@@ -133,13 +145,18 @@ Rules for each fix:
    what is never read; no stage counts or numbers.
 6–9. SAP_BASIS version, what would lower ZUZK900008's risk, system monitoring, SM21 (the stated gap).
 10. SAP Note 3778530 (CVE-2026-76964), pasted (`tests/fixtures/note_3778530_excerpt.txt`, used exactly),
-   + "Is this relevant to our system?" → "Yes, this note applies to your system. Your system runs
-   kernel 7.53 (release 753) at patch level 700. According to the note, kernel 7.53 is fixed from patch
-   1616 onward, so your system is affected." → **What to do** (patch 1616+, the note's workarounds) →
-   **Worth checking** (Web Dispatcher via SMICM; confirm the patch level in System → Status). No
-   invented patch levels.
+   + "Is this relevant to our system?" → first "Yes, this note applies to your system."; kernel 7.53
+   (release 753) patch 700 from the engine vs the fix in 1616 "according to the note"; recommend
+   patch 1616 or higher (the note's workarounds in a few words). No headings, tables or CVSS; ≤ 130
+   words; no invented patch levels.
 11. Identity ("What are you?", "How do you know all this about my system?") → the one line, no tool
-   call. "Which kernel are we running?" → from the engine, never asked of the user.
+   call. "Which kernel are we running?" → from the engine, never asked of the user, 1–2 sentences.
+12. SAP Note numbers alone ("Is SAP Note 3778530 relevant to our system?", "3778530") → the
+   paste-its-text line, no lookup.
+13. **Synthetic** notes (`tests/fixtures/SYNTHETIC_*`, not real SAP Notes; see `tests/fixtures/README.md`):
+   AS Java-only note → "No, this one doesn't apply" (engine: ABAP, SAP_BASIS 751, S/4HANA);
+   note that applies only with `icm/HTTP/support_http2` = TRUE → "I can't confirm this one yet",
+   kernel 700 vs the note's 1210, check the parameter in RZ11.
 
 Expected numbers come from Graphene; if Graphene's numbers change after a learn run, update
 the expectations from Graphene's own output, never by hand-guessing.

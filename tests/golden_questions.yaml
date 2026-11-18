@@ -179,6 +179,7 @@
   expect:
     tools: [status]
     answer_contains: ["Configuration", "Access", "Interfaces", "Runtime evidence", "Understanding", ["don't have", "not available", "isn't available", "aren't available"]]
+    max_words: 90
     answer_not_matches: ['\b6 of 11\b', '\bL\d+\b', 'learning plan', '\bstages?\b', 'graphene status']
     grounding_flags_max: 0
   mock:
@@ -214,7 +215,10 @@
     # Operator 2026-11-16 (browser review): plain language; lead with Graphene's note ("SP 0000 (no
     # support package) … System → Status"); the raw 0000000000 only in the claims (evidence panel).
     # eval 2026-11-17: "SP level is 0000 (no support package, as System → Status shows)" is the same note
-    answer_contains: ["SAP_BASIS", "751", ["SP 0000", "SP level 0000", "SP level is 0000"], "no support package", ["System → Status", "System > Status", "System->Status", "System Status"], ["don't have", "isn't available", "not available"]]
+    # Operator 2026-11-18 (answer style): the direct answer, only what's relevant; 1-2 sentences.
+    answer_contains: ["SAP_BASIS", "751", ["SP 0000", "SP level 0000", "SP level is 0000"], "no support package"]
+    first_sentence_contains: ["751"]
+    max_words: 60
     prose_not_contains: ["0000000000"]
     facts_contain: ["0000000000"]  # the raw value only in system_facts (log, ?debug=1)
     answer_not_matches: ['\bSP\s*(level\s*)?0\b', 'support package\s*0\b', '7\.51 sp']
@@ -224,13 +228,9 @@
       - {tool: system_profile, args: {components: [SAP_BASIS]}}  # only what the question needs (v18 filters)
     answer:
       answer: |-
-        SAP_BASIS 751 · SP 0000 (no support package, as System → Status shows).
-        - I don't have the support package name for this system: it isn't in the table SAP keeps component versions in.
-        - Version details as of 5 November; you can confirm them in System → Status.
+        SAP_BASIS is at release 751, SP 0000 (no support package, as System → Status shows).
       system_facts:
         - {text: "SAP_BASIS release 751, SP level 0000000000 as SAP stores it in CVERS; System → Status shows it as SP 0000 (no support package).", results: [1]}
-        - {text: "The support package name isn't in CVERS, so it isn't available.", results: [1]}
-        - {text: "Version details as of 2026-11-05.", results: [1]}
 
 - id: lowerers_zuzk900008
   question: "What would lower the risk of ZUZK900008?"
@@ -247,6 +247,7 @@
   expect:
     tools: [assess_transport]
     answer_contains: ["0.47", "0.395", "0.3995", "dynamic", "test system", "return code"]
+    max_words: 90
     answer_not_matches: ['\b0\.40?(?!\d)', '\b0\.07']
     grounding_flags_max: 0
   mock:
@@ -280,32 +281,28 @@
     tools: [system_profile]
     max_seconds: 20  # a long pasted note
     max_words: 300
-    # Operator 2026-11-18 target style: verdict, kernel vs the note, "What to do", "Worth checking".
-    answer_contains: ["7.53", "753", "700", "1616", "according to the note", "affected", "Web Dispatcher",
-                      ["don't have", "not known", "can't tell", "do not have"],
-                      "WebSocket", "3778788", "What to do", "Worth checking", "SMICM",
-                      ["System → Status", "System > Status", "System->Status", "System Status"]]
+    # Operator 2026-11-18 (answer style): content, not layout. The verdict first, the deciding facts
+    # (engine: kernel 7.53 / 753 / patch 700; note: fixed from 1616), the recommendation; a short
+    # paragraph plus a few bullets at most; no headings, tables, CVSS or symptom description.
     first_sentence_contains: [["this note applies", "the note applies", "applies to your system"]]
+    answer_contains: ["7.53", "753", "700", "1616", "according to the note",
+                      ["update the kernel", "upgrade the kernel", "kernel update", "kernel upgrade", "update to", "upgrade to", "patch 1616 or higher", "1616 or higher", "1616 or later"]]
     # no invented patch levels: every patch level named is the engine's 700 or the note's 1616/1617
     answer_not_matches: ['\bpatch(?:\s+level)?\s+(?!700\b|1616\b|1617\b)\d+', '\bSP\s?(?!1616\b|1617\b)\d{3,}',
-                         '\bnot affected\b', "What I don['’]t know"]
+                         '\b(?:your system|you|it)\s+(?:is|are)\s+not\s+affected\b', '\\n', '(?m)^\s*#{1,6}\s', '(?m)^\s*\|', 'CVSS', '\b10\.0\b', 'HotNews',
+                         "What I don['’]t know", 'Worth checking']
+    max_words: 130
     grounding_flags_max: 0
   mock:
     calls:
       - {tool: system_profile, args: {sections: [kernel]}}
     answer:
       answer: |-
-        Yes, this note applies to your system. Your system runs kernel 7.53 (release 753) at patch level 700. According to the note, kernel 7.53 is fixed from patch 1616 onward, so your system is affected.
+        Yes, this note applies to your system. Your system runs kernel 7.53 (release 753) at patch level 700; according to the note, kernel 7.53 is fixed from patch 1616 onward, so your system is affected.
 
-        ### What to do
-        - **Update the kernel** to patch 1616 or higher (according to the note, all higher patch levels also contain the fix).
-        - **Until then, the note's workarounds:**
-          - If the ICM is reached exclusively through an SAP Web Dispatcher, a Web Dispatcher updated to the patch levels in FAQ Note 3778788 can serve as a temporary workaround.
-          - Otherwise, WebSocket support can be disabled (not recommended: significant impact on interactive and integration scenarios).
-
-        ### Worth checking
-        - **Web Dispatcher:** I don't have this for your system. In general, you can see in transaction SMICM and in your network setup whether the ICM is reached only through a Web Dispatcher.
-        - **Kernel patch level:** confirm it in System → Status before you plan the update.
+        Plan a kernel update to patch 1616 or higher. Until then, the note offers two workarounds:
+        - an SAP Web Dispatcher in front of the ICM, updated per FAQ Note 3778788 (only if the ICM is reached exclusively through it);
+        - disabling WebSocket support, which the note doesn't recommend.
       system_facts:
         - {text: "Kernel 7.53 (release 753) at patch level 700.", results: [1]}
       history_for: ""
@@ -349,7 +346,9 @@
     tools: [system_profile]
     answer_contains: ["7.53", "753", "700"]
     answer_not_matches: ['\b(?:could|can) you (?:tell|share|provide|check|send)', '\bplease (?:tell|share|provide|send)', '\blet me know\b']
-    max_words: 80
+    first_sentence_contains: ["7.53", "700"]
+    max_sentences: 2  # operator 2026-11-18: a simple question gets 1-2 sentences
+    max_words: 45
     grounding_flags_max: 0
   mock:
     calls:
@@ -387,6 +386,61 @@
       answer: "That looks like SAP Note 3778530. I can't open SAP Notes directly. Paste its text here and I'll check it against your system."
       system_facts: []
 
+# Operator 2026-11-18: two SYNTHETIC notes (not real SAP Notes; see tests/fixtures/README.md).
+# Java-only: the note covers AS Java only; the engine shows an ABAP system (SAP_BASIS 751,
+# S/4HANA products; SERVERCORE not found) -> "No, this one doesn't apply."
+- id: synthetic_note_java_only
+  question_file: tests/fixtures/SYNTHETIC_note_9900001_java_only.txt
+  question_suffix: "\n\nIs this relevant to our system?"
+  facts:
+    - {tool: system_profile, path: result.release.sap_basis, equals: "751"}
+    - {tool: system_profile, path: result.release.s4hana, equals: true}
+  expect:
+    tools: [system_profile]
+    first_sentence_contains: [["doesn't apply", "does not apply", "not relevant", "doesn't affect", "does not affect", "isn't relevant"]]
+    answer_contains: ["Java", ["ABAP", "S/4HANA"]]
+    answer_not_matches: ['(?m)^\s*#{1,6}\s', '(?m)^\s*\|', 'CVSS', '\b7\.4\b', '^Yes\b', '\bapplies to your system\b',
+                         '\bpatch(?:\s+level)?\s+(?!000002\b|000001\b)\d+']
+    max_words: 80
+    grounding_flags_max: 0
+  mock:
+    calls:
+      - {tool: system_profile, args: {sections: [release]}}
+    answer:
+      answer: |-
+        No, this one doesn't apply. According to the note, it only affects the AS Java (Guided Procedures), and AS ABAP and SAP S/4HANA are not affected; your system is an S/4HANA ABAP system on SAP_BASIS 751. If you also run an AS Java system, check it there.
+      system_facts:
+        - {text: "The system is an S/4HANA ABAP system on SAP_BASIS 751.", results: [1]}
+      history_for: ""
+
+# Depends on an unknown fact: the note applies only if an ICM profile parameter is set; profile
+# parameters (configuration) aren't available -> "I can't confirm this one yet" + what to check, where.
+- id: synthetic_note_needs_profile_parameter
+  question_file: tests/fixtures/SYNTHETIC_note_9900002_needs_profile_parameter.txt
+  question_suffix: "\n\nIs this relevant to our system?"
+  facts:
+    - {tool: system_profile, path: result.kernel.0.release, equals: "753"}
+    - {tool: system_profile, path: result.kernel.0.patch_level, equals: "700"}
+  expect:
+    tools: [system_profile]
+    first_sentence_contains: [["can't confirm", "cannot confirm", "can't tell", "cannot tell", "depends", "can't say", "not sure yet", "might apply", "may apply"]]
+    answer_contains: ["700", "1210", "support_http2", ["RZ11", "RZ10", "profile parameter"]]
+    answer_not_matches: ['(?m)^\s*#{1,6}\s', '(?m)^\s*\|', 'CVSS', '\b7\.5\b', '^Yes\b', '^No\b',
+                         "\\bdoesn['’]t apply\\b", '\bpatch(?:\s+level)?\s+(?!700\b|1210\b|650\b)\d+']
+    max_words: 130  # like Q10: the condition, what to check, both outcomes (eval 142508: 127 words)
+    grounding_flags_max: 0
+  mock:
+    calls:
+      - {tool: system_profile, args: {sections: [kernel]}}
+    answer:
+      answer: |-
+        I can't confirm this one yet: it turns on a setting I don't have for your system. Your system runs kernel 7.53 (release 753) at patch level 700, below the fix in patch 1210 according to the note, but the note only applies if HTTP/2 support is enabled in the ICM.
+
+        Check `icm/HTTP/support_http2` in RZ11. If it's TRUE, plan a kernel update to patch 1210 or higher, or (per the note) set it to FALSE and restart the ICM; if it's FALSE, nothing to do.
+      system_facts:
+        - {text: "Kernel 7.53 (release 753) at patch level 700.", results: [1]}
+      history_for: ""
+
 # Negative control (make test only): a mocked answer with an invented number and object
 # must be flagged by the grounding check, not hidden.
 # Browser testing 2026-11-17 (operator): "system monitoring?" and "please list sm21 details" got
@@ -405,19 +459,18 @@
     - {tool: operations, path: evidence_ids, equals: ["run:L5:v3"]}
   expect:
     tools: [operations]
-    answer_contains: ["41", "4305", "SM21", ["don't have", "isn't available", "not available"]]
+    answer_contains: ["41", "4305", ["SM21", "system log", "CCMS", "workload"]]
     # eval 2026-11-17 (76cfc6f): 112 words with a per-day breakdown and "about 288 a day"
-    answer_not_matches: ["\\bI(['’]ll| will) (check|look)", "\\blet me (check|look)", "\\babout \\d", "\\bpeak"]
-    max_words: 110
+    answer_not_matches: ["\\bI(['’]ll| will) (check|look)", "\\blet me (check|look)", "\\babout \\d", "\\bpeak", '(?m)^\s*#{1,6}\s',
+                         '(?mi)^\W*(?:main\s+)?gaps?\b[^.\n]*:', '(?m)^\s*[-*]\s']  # operator 2026-11-18: no "Gaps:" label, no bullets
+    max_words: 100
     grounding_flags_max: 0
   mock:
     calls:
       - {tool: operations, args: {}}
     answer:
       answer: |-
-        In the monitored window, this system had 41 background job runs (0 cancelled), 4305 short dumps and 0 alerts.
-        - Which program each dump hit isn't available here; you can see that in ST22.
-        - I don't have the system log for this system; you can check it in SM21. CCMS is not configured, and SAP keeps no workload aggregates on this system.
+        In the monitored window, this system had 41 background job runs (0 cancelled), 4305 short dumps and 0 alerts. I don't have the system log or which program each dump hit; you can check them in SM21 and ST22. CCMS is not configured, and SAP keeps no workload aggregates on this system.
       system_facts:
         - {text: "41 background job runs, 0 cancelled.", results: [1]}
         - {text: "4305 short dumps, counted per day.", results: [1]}
