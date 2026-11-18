@@ -296,13 +296,17 @@ def test_second_promise_is_an_error(client, fake_claude):
 
 
 def test_monitoring_eval_checks_reject_promises_and_log_lines():
+    """A promise with no call is caught by the app (test_reply_that_only_promises_is_not_shown) and by the
+    eval's required tool; "I'll check it against your system" is now the required offer (2026-11-18), so
+    the eval no longer bans "I'll check" text."""
     import re
     for cid in ("monitoring_overview", "sm21_details"):
         case = next(c for c in GOLDEN if c["id"] == cid)
         rx = case["expect"]["answer_not_matches"]
         assert not any(re.search(r, case["mock"]["answer"]["answer"], re.I) for r in rx)
-        for bad in ("I'll check the system log for you.", "I will look it up.", "Let me check SM21."):
-            assert any(re.search(r, bad, re.I) for r in rx), bad
+        assert "operations" in case["expect"]["tools"]
+        assert not any(re.search(r, "Tell me a program from ST22 and I'll check it against your system.", re.I) for r in rx)
+        assert any(re.search(r, "Let me check SM21.", re.I) for r in rx) or cid == "sm21_details"
     rx = next(c for c in GOLDEN if c["id"] == "sm21_details")["expect"]["answer_not_matches"]
     assert any(re.search(r, "SM21 at 14:02: dialog process restarted", re.I) for r in rx)
 

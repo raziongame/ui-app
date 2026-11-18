@@ -39,18 +39,19 @@ meets WCAG AA in light and dark, `tests/test_ui.py`). No other skins, no `/direc
    objects, as a confident fact: "There's no table called ZFAKE_TABLE in this system. Check the
    spelling; if it's new, it may not be activated yet (SE11 shows that). Want me to look up a similar
    name?" (never invent an object; a similar name only if the engine lists it). A system
-   fact that isn't known: say so naturally and where to check it ("I don't have the system log for
-   this system; you can check it in SM21"). Never round a returned number; plain exact arithmetic on
+   fact that isn't in the results: give the place to get it as an action ("The system log is in
+   SM21: filter by …"), never a refusal. Never round a returned number; plain exact arithmetic on
    engine numbers is allowed with the source numbers in the same sentence ("288 a day is one every 5
    minutes"; grounding backs a ± × ÷ of that sentence's numbers or a time constant, logged as
    `derived`). Kernel: "kernel 7.53" (dotted form; the engine's release 753 backs it; never "7.53
    (release 753)", operator 2026-11-18); every other release as returned (SAP_BASIS 751, never 7.51). A note vs this system: show both
    values ("your kernel … patch 700; according to the note, the fix is in patch 1616") and say
    "according to the note".
-4. **Say what isn't known, when it matters.** Pass on Graphene's `limits`, `coverage` and `freshness`
-   in the voice ("I don't have … for this system; you can check it in …"; dynamic calls are
-   candidates, not facts) when they change the answer or the question is about them: one line, what
-   to check and where (never "What I don't know"). A date for the system data only when it matters
+4. **Turn what isn't known into an action, when it matters.** Pass on Graphene's `limits`,
+   `coverage` and `freshness` as one closing action line (where to get it: "ST22 shows the program for
+   each dump"; dynamic calls are candidates, not facts) when they change the answer or the question is
+   about them; never a limitation sentence, never "What I don't know", never what is "read" or
+   "recorded". A date for the system data only when it matters
    ("kernel details as of 5 November; confirm in System → Status").
 5. **Secrets:** `ANTHROPIC_API_KEY` lives only in this repo's `.env` (gitignored, chmod 600).
    Commit `.env.example` with a placeholder only. Never print, log or send the key to the
@@ -76,8 +77,22 @@ meets WCAG AA in light and dark, `tests/test_ui.py`). No other skins, no `/direc
 
 ## Voice (operator 2026-11-18, final)
 
-Natural and confident, short and clear, about the user's system ("Your system runs …", "I don't
-have … for this system; you can check it in …"). **Never talks about itself or how it knows:** no
+**The most important principle (operator 2026-11-18):** the user must feel a capable SAP AI assistant
+that gets their task done and improves their accuracy, like ChatGPT/Claude, but knowing their system.
+1. Open by doing the task (the answer, the analysis or the first concrete step); never open with "I
+   can't", "I don't have", "isn't permitted", "isn't recorded".
+2. Do as much of the task as possible with system facts + SAP expertise; turn what's missing into an
+   action ("Paste the code and I'll review it", or the exact transaction), never a refusal sentence.
+3. Accuracy: system facts exact, from the engine; SAP expertise confident and practical; point out
+   the risks the user may have missed.
+4. End with one useful offer of what to do next (check impact, assess the transport, review pasted
+   code/dump/note).
+5. Never mention the tool, permissions, what is "read" or "recorded", or how lookups work.
+The eval fails any answer whose first sentence is a refusal or limitation, or without an offer in its
+last two sentences; `app/wording.py` flags refusal sentences, tool talk and "recorded/permitted".
+
+Natural and confident, short and clear, about the user's system ("Your system runs …", "The system
+log is in SM21: …"). **Never talks about itself or how it knows:** no
 "I've learned", "learned", "learning run", "as I learned it", "my (kernel) data", "trained", "AI
 model", "engine", "Graphene's tools", tool or field names, JSON words. Asked what it is or how it
 knows: one line, "I'm here to help with your SAP system; what would you like to check?", then carry
@@ -108,12 +123,13 @@ the answer: one line, what to check and where. Golden expectations check content
 facts, recommendation) and a max length per question, never a layout.
 **Never undersell what's known** (operator 2026-11-18): before "I don't have X", check what is
 available (status: Dictionary with CDS views, Code inventory, Code relationships, Change history with
-transports, Operations with jobs and dump counts; find_object for objects) and name exactly what is
-missing ("which table was missing at runtime isn't recorded"), never a whole available area.
+transports, Operations with jobs and dump counts; find_object for objects) and turn exactly the
+missing detail into an action ("the dump in ST22 names the missing table"), never a whole available
+area. Connect facts only where the engine shows a link (never tie the dumps to a table or program).
 **Dates in words** ("29 October to 11 November"), never 2026-10-29. Requested reports may use short
 labels; what is missing is "Not available", never "Gaps" (`app/wording.py` flags both).
-SAP Note numbers (6–7 digits, "note N") are never looked up: "That looks like SAP Note N. I can't open
-SAP Notes directly. Paste its text here and I'll check it against your system."
+SAP Note numbers (6–7 digits, "note N") are never looked up: "That looks like SAP Note N. Paste its
+text here and I'll check it against your system."
 
 ## Answer contract (internal: server, log, `?debug=1`)
 
@@ -148,11 +164,15 @@ Rules for each fix:
 2. Add or update a case in `tests/golden_questions.yaml` so it can't come back.
 3. `make test` (mocked Claude, real Graphene MCP) must pass before any commit.
 4. **Eval cost rule (operator 2026-11-17, figures 2026-11-18).** The full eval (`make eval`: every
-   golden question, 23 today, **~$1.10–1.25**, stops at $1.50) runs **only before a tag**. While
+   golden question, 28 today, **~$1.45–1.70**) runs **only before a tag**. Its cap scales with its
+   size: **$0.065 a question, rounded up to the next 10 cents** (28 → $1.90), unless `--max-cost` is
+   given. While
    fixing, run only the affected questions: `make eval-cases CASES="id ..."`, capped at **$1 per run**
    (the runner stops before it would pass the cap). Report the cost estimate first
    (`make eval-estimate [CASES=…]`) and the actual cost after. `python eval/run_eval.py --rescore
    eval/results/<file>.json` re-checks saved answers with the current checks, no API calls.
+   **Soft limits (operator 2026-11-18):** word and sentence-count limits warn up to 20% over and fail
+   only above that. Facts, grounding, applies verdicts, priority/urgency and the offer rule stay strict.
    **Tag rule (operator 2026-11-18):** tag when the full eval passes, or when at most **3** cases fail
    and every failure is style only (length or sentence/gap count). Zero tolerance for anything else:
    facts, grounding, applies/doesn't-apply verdicts, priority/urgency (and tools, content, latency):
@@ -174,8 +194,8 @@ Rules for each fix:
    spelling; if it's new, it may not be activated yet (SE11 shows that). Want me to look up a similar
    name?" (operator 2026-11-18: a confident fact, no "I won't guess")
 5. "What information isn't available for this system yet?" (was "What haven't you learned yet?",
-   changed 2026-11-18) → "I don't have Configuration, Access, … for this system yet" (from status) +
-   what is never read; no stage counts or numbers.
+   changed 2026-11-18) → "Configuration, Access, … aren't covered for this system yet" (from status)
+   + what else isn't available, in natural words (never "never read"); no stage counts or numbers.
 6–9. SAP_BASIS version, what would lower ZUZK900008's risk, system monitoring, SM21 (the stated gap).
 10. SAP Note 3778530 (CVE-2026-76964), pasted (`tests/fixtures/note_3778530_excerpt.txt`, used exactly),
    + "Is this relevant to our system?" → first "Yes, this note applies to your system."; kernel 7.53
@@ -188,7 +208,8 @@ Rules for each fix:
    paste-its-text line, no lookup.
 13. **Synthetic** notes (`tests/fixtures/SYNTHETIC_*`, not real SAP Notes; see `tests/fixtures/README.md`):
    AS Java-only note → "No, this one doesn't apply" (engine: ABAP, SAP_BASIS 751, S/4HANA);
-   note that applies only with `icm/HTTP/support_http2` = TRUE → "I can't confirm this one yet",
+   note that applies only with `icm/HTTP/support_http2` = TRUE → "It depends on one setting in your
+   system: …",
    kernel 700 vs the note's 1210, check the parameter in RZ11.
 14. Runtime error names (ACM_UNEXPECTED_VALUE, DBSQL_TABLE_UNKNOWN: ALL CAPS with underscores, not
    Z*/Y*, not asked as an object) → an ST22 short dump: the meaning and typical causes (SAP

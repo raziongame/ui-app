@@ -171,7 +171,7 @@ def check(texts: dict[str, str], results: list[dict[str, Any]], evidence_used: l
 # Z/Y names need a digit or underscore (so "YES" in a table is not an object) unless typed (PROG:ZPRICE).
 SYSTEM_NAME_RE = re.compile(
     r"(?<![A-Za-z0-9_/])(?:[A-Z]{2,5}:[ZY][A-Z0-9_]{2,}|(?=[ZY][A-Z]*[_0-9])[ZY][A-Z0-9_]{2,}"
-    r"|/[A-Z0-9_]+/[A-Z0-9_]+|[A-Z0-9]{3}K\d{6})(?![A-Za-z0-9_])")
+    r"|/[A-Z0-9_]+/[A-Z0-9_]+|[A-Z0-9]{3}K\d{6})(?![A-Za-z0-9_*])")  # "ZS4_IOT*" is a search pattern (2026-11-18)
 # Sentences that speak about this system: their numbers and dates must be backed too.
 SYSTEM_MARKER_RE = re.compile(
     r"\b(?:your|our)\s+(?:SAP\s+)?(?:system|kernel|landscape|release|version|patch|database|server|instance)s?\b"

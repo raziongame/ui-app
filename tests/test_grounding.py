@@ -199,3 +199,34 @@ def test_full_eval_cap_scales_with_questions():
     """Operator 2026-11-18: $0.065 a question, rounded up to the next 10 cents."""
     m = _run_eval_module()
     assert m.full_cap(28) == 1.9 and m.full_cap(23) == 1.5 and m.full_cap(20) == 1.3 and m.full_cap(10) == 0.7
+
+
+def test_held_back_answer_still_reads_cleanly():
+    """Operator 2026-11-18: no orphaned sentences, steps renumbered, no empty lead-in after a hold-back."""
+    from app.present import _drop_tokens
+    md = ("Dumps are counted per day: 4,034 short dumps in total.\n\n"
+          "Nothing links them to ZS4_IOT_X. Those are the places a dump would show up.\n\n"
+          "To check:\n1. In ST22, read the runtime error.\n2. Filter by ZS4_IOT_X in ST22.\n3. Check the table in SE11.\n"
+          "4. Compare the timing in SM37.\n\nWant me to look at one of those objects?")
+    out, n = _drop_tokens(md, {"ZS4_IOT_X"})
+    assert "ZS4_IOT_X" not in out and "Those are the places" not in out and n == 3
+    assert "1. In ST22, read the runtime error.\n2. Check the table in SE11.\n3. Compare the timing in SM37." in out
+    assert "To check:" in out and "\n\n\n" not in out
+    only_steps_gone, _ = _drop_tokens("To check:\n1. Filter by ZS4_IOT_X.\n\nWant me to help?", {"ZS4_IOT_X"})
+    assert "To check:" not in only_steps_gone and only_steps_gone.startswith("Want me to help?")
+    kept, n = _drop_tokens("This system had 4 dumps. That is fine.", {"ZS4_IOT_X"})
+    assert kept == "This system had 4 dumps. That is fine." and n == 0  # back-references stay when nothing was dropped
+
+
+def test_soft_length_limits():
+    """Operator 2026-11-18: up to 20% over a length/sentence limit warns; above fails."""
+    m = _run_eval_module()
+    p, n = [], []
+    m.soft_limit(168, 140, "words", p, n)
+    assert p == [] and n and n[0].startswith("warning: 168 words > 140")
+    p, n = [], []
+    m.soft_limit(169, 140, "words", p, n)
+    assert p == ["answer has 169 words > 140"]
+    p, n = [], []
+    m.soft_limit(3, 2, "sentences", p, n)
+    assert p == ["answer has 3 sentences > 2"]  # 50% over

@@ -42,10 +42,42 @@ def history_table(h: dict[str, Any] | None) -> str:
     return out
 
 
+# Operator 2026-11-18: after a hold-back the answer still reads cleanly. A sentence that points back at
+# what was just left out ("Those are the places …") goes too, numbered steps are renumbered, and a
+# lead-in line ending in ":" with nothing left under it is removed.
+BACK_REFERENCE_RE = re.compile(r"^(?:Those|These|That|This|They|Them|It|Such|Both|Either|Neither)\b")
+STEP_RE = re.compile(r"^(\s*)(\d+)([.)])(\s+)(.*)$")
+
+
+def _tidy(lines: list[str]) -> list[str]:
+    out: list[str] = []
+    n = 0
+    for line in lines:
+        m = STEP_RE.match(line)
+        if m:
+            n += 1
+            out.append(f"{m.group(1)}{n}{m.group(3)}{m.group(4)}{m.group(5)}")
+            continue
+        if line.strip():
+            n = 0
+        out.append(line)
+    # a lead-in ("To check:") whose list is gone
+    tidy: list[str] = []
+    for i, line in enumerate(out):
+        if line.rstrip().endswith(":") and not line.lstrip().startswith("|"):
+            nxt = next((x for x in out[i + 1:] if x.strip()), "")
+            if not (STEP_RE.match(nxt) or re.match(r"^\s*[-*+]\s", nxt) or nxt.lstrip().startswith("|")):
+                continue
+        tidy.append(line)
+    # no runs of blank lines
+    return [x for i, x in enumerate(tidy) if x.strip() or (i and tidy[i - 1].strip())]
+
+
 def _drop_tokens(md: str, tokens: set[str]) -> tuple[str, int]:
-    """Leave out every sentence (or table row) that contains an unbacked token."""
+    """Leave out every sentence (or table row) that contains an unbacked token, then tidy up."""
     dropped = 0
     out_lines = []
+    last_dropped = False
     for line in md.splitlines():
         if line.lstrip().startswith("|"):
             if any(t in line for t in tokens):
@@ -53,14 +85,22 @@ def _drop_tokens(md: str, tokens: set[str]) -> tuple[str, int]:
                 continue
             out_lines.append(line)
             continue
-        m = re.match(r"^(\s*(?:[-*+]|\d+\.)\s+|\s*#{1,6}\s+)?(.*)$", line)
+        m = re.match(r"^(\s*(?:[-*+]|\d+[.)])\s+|\s*#{1,6}\s+)?(.*)$", line)
         prefix, body = (m.group(1) or ""), m.group(2)
-        parts = re.split(r"(?<=[.!?])\s+", body)
-        kept = [p for p in parts if not any(t in p for t in tokens)]
-        dropped += len(parts) - len(kept)
-        if kept or not body.strip():
-            out_lines.append(prefix + " ".join(kept) if kept else line)
-    return "\n".join(out_lines).strip(), dropped
+        if not body.strip():
+            out_lines.append(line)
+            continue
+        kept = []
+        for p in re.split(r"(?<=[.!?])\s+", body):
+            if any(t in p for t in tokens) or (last_dropped and BACK_REFERENCE_RE.match(p)):
+                dropped += 1
+                last_dropped = True
+                continue
+            kept.append(p)
+            last_dropped = False
+        if kept:
+            out_lines.append(prefix + " ".join(kept))
+    return "\n".join(_tidy(out_lines)).strip(), dropped
 
 
 def finalize(out: dict[str, Any]) -> str:

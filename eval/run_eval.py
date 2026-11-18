@@ -165,6 +165,20 @@ def tag_verdict(results: list[dict]) -> str:
     return f"TAG OK per rule: {len(style)} style-only failure(s) {style}"
 
 
+# Operator 2026-11-18: length and sentence-count limits are soft: up to 20% over is a warning (a note),
+# only above that a failure. Facts, grounding, verdicts, priority and the offer rule stay strict.
+SOFT_TOLERANCE = 0.20
+
+
+def soft_limit(value: int, limit: int | None, what: str, problems: list[str], notes: list[str]) -> None:
+    if not limit or value <= limit:
+        return
+    if value <= limit * (1 + SOFT_TOLERANCE):
+        notes.append(f"warning: {value} {what} > {limit} (within 20%)")
+    else:
+        problems.append(f"answer has {value} {what} > {limit}")
+
+
 def check(c: dict, out: dict, shown: str, secs: float) -> tuple[list[str], list[str]]:
     """Every eval check for one answer (live runs and --rescore of a saved result file)."""
     exp, problems, notes = c["expect"], [], []
@@ -225,8 +239,7 @@ def check(c: dict, out: dict, shown: str, secs: float) -> tuple[list[str], list[
     gaps = gap_sentences(prose)
     if "max_gap_mentions" in exp and len(gaps) > exp["max_gap_mentions"]:
         problems.append(f"gap mentioned in {len(gaps)} sentences > {exp['max_gap_mentions']}: {[g[:50] for g in gaps]}")
-    if exp.get("max_sentences") and len(sentences) > exp["max_sentences"]:
-        problems.append(f"answer has {len(sentences)} sentences > {exp['max_sentences']}")
+    soft_limit(len(sentences), exp.get("max_sentences"), "sentences", problems, notes)
     if exp.get("no_change_only_at_end"):
         for sent in sentences[:-1]:
             if re.search(r"nothing (has )?changed|no changes?\b|unchanged|same score", sent, re.I):
@@ -240,8 +253,7 @@ def check(c: dict, out: dict, shown: str, secs: float) -> tuple[list[str], list[
             problems.append("history table: 'nothing changed' line missing or wrong")
     elif hist.get("steps"):
         problems.append(f"history table shown for {hist.get('transport')} (not a history question)")
-    if exp.get("max_words") and len(prose.split()) > exp["max_words"]:
-        problems.append(f"answer has {len(prose.split())} words > {exp['max_words']}")
+    soft_limit(len(prose.split()), exp.get("max_words"), "words", problems, notes)
     for rx in exp.get("answer_matches", []):  # operator 2026-11-18: content that must be there
         if not re.search(rx, prose, re.I):
             problems.append(f"answer doesn't match {rx!r}")
