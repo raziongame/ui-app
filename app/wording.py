@@ -1,5 +1,6 @@
-"""Wording rules for every answer (operator 2026-11-17): first person, "learned", never "trained";
-no tool names, ids, field names or JSON words. Used by the silent check before an answer is shown."""
+"""Wording rules for every answer (operator 2026-11-18): the assistant never talks about itself or how
+it knows ("learned", "trained", "AI model", "engine", "my data", tool names); no ids, field names or
+JSON words. Used by the silent check before an answer is shown (rewrite once, then hold back)."""
 
 from __future__ import annotations
 
@@ -7,7 +8,10 @@ import re
 
 from .contract import developer_words
 
-FORBIDDEN_WORDING_RE = re.compile(r"\b(?:trained|training|fine[- ]?tuned|fine[- ]?tuning|our own AI model)\b", re.I)
+FORBIDDEN_WORDING_RE = re.compile(
+    r"\b(?:trained|training|fine[- ]?tun(?:ed|ing)|learn(?:ed|ing|t)|AI model|language model|our own AI"
+    r"|engine|knowledge base|Graphene|Claude|Anthropic|my (?:own )?(?:\w+ )?data|my tools?"
+    r"|What I don['’]t know)\b", re.I)
 INTERNAL_RE = re.compile(r"\b(?:find_object|assess_transport|system_profile|MCP|call:\d+|result \d+|tool_trace|evidence_ids?)\b")
 # A reply that only promises to look something up (browser testing 2026-11-17).
 PROMISE_RE = re.compile(r"\b(?:I['’]ll|I will|let me)\s+(?:check|look|find|verify|get back|search)\b", re.I)

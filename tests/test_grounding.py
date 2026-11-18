@@ -61,3 +61,24 @@ def test_time_followed_by_prose_colon():
                                    {"assessed_at": "2026-11-12T12:53:47+00:00", "score": 0.3225}]}}]
     ok = grounding.check({"answer": "- 2026-11-12 13:06:32: 0.3225 to 0.345\n- at 12:53: 0.3225"}, res, [], set())
     assert ok["ok"], ok["flags"]
+
+
+def test_self_talk_is_a_wording_problem():
+    """Operator 2026-11-18: the assistant never talks about itself or how it knows."""
+    from app.wording import problems
+    for bad in ("As I learned it, your kernel is 7.53.", "My kernel data says patch 700.",
+                "Since the last learning run nothing changed.", "### What I don't know",
+                "I was trained on your system.", "The engine returned 9 objects.", "Graphene's tools show it."):
+        assert problems(bad), bad
+    for ok in ("I don't have the system log for this system; you can check it in SM21.",
+               "### Worth checking", "Kernel details as of 5 November; confirm in System → Status.",
+               "I'm here to help with your SAP system; what would you like to check?"):
+        assert problems(ok) == [], ok
+
+
+def test_dates_in_words_are_checked_like_iso_dates():
+    r = [{"result": {"last_run": "2026-11-05T14:26:30+00:00", "kernel": [{"release": "753", "patch_level": "700"}]}}]
+    ok = grounding.check_system("Kernel details as of 5 November; confirm in System → Status.", [], r, [], [], set())
+    assert ok["ok"], ok
+    bad = grounding.check_system("Kernel details as of 6 November.", [], r, [], [], set())
+    assert [f["token"] for f in bad["flags"]] == ["6 November"]

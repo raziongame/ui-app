@@ -41,18 +41,18 @@ PROGRESS = {
     "find_object": "Looking up {name}",
     "impact": "Tracing what depends on {name}",
     "assess_transport": "Assessing transport {transport}",
-    "status": "Checking what I've learned",
+    "status": "Checking what is available for your system",
     "operations": "Reviewing jobs, dumps and alerts",
     "system_profile": "Reading the system profile",
 }
 
 
 def progress_text(tool: str, args: dict[str, Any]) -> str:
-    t = PROGRESS.get(tool, "Checking what I know")
+    t = PROGRESS.get(tool, "Checking your system")
     try:
         return t.format(name=args.get("name", "the object"), transport=args.get("transport", ""))
     except (KeyError, IndexError):
-        return "Checking what I know"
+        return "Checking your system"
 
 
 class Ask(BaseModel):

@@ -15,6 +15,17 @@ from typing import Any
 from . import wording
 
 
+def display_cause(cause: str) -> str:
+    """Operator 2026-11-18: the user never reads about the assistant itself. Display only (the steps
+    stay verbatim in the contract, log and ?debug=1): "engine change impact-4: …" -> "scoring method
+    change: …", ", learned in L5" dropped, "learned window" -> "observed window". Scores, objects and
+    relationships are unchanged."""
+    c = re.sub(r"^engine change\s+[\w.-]+:\s*", "scoring method change: ", cause)
+    c = re.sub(r",\s*learned in L\d+\b", "", c)
+    c = re.sub(r"\blearned (window|period)\b", r"observed \1", c)
+    return c
+
+
 def history_table(h: dict[str, Any] | None) -> str:
     """Operator 2026-11-16: the distinct score steps, from the engine's history (values verbatim)."""
     if not h or not h.get("steps"):
@@ -22,7 +33,7 @@ def history_table(h: dict[str, Any] | None) -> str:
     rows = ["| Date | Score | What changed |", "|---|---|---|"]
     for st in h["steps"]:
         older = " (older method)" if st.get("older_engine") else ""
-        causes = "; ".join(st.get("causes") or []) or "—"
+        causes = "; ".join(display_cause(c) for c in st.get("causes") or []) or "—"
         rows.append(f"| {st.get('at_display') or st.get('at') or ''} | {st.get('from')} → {st.get('to')}{older} | "
                     f"{causes.replace('|', '/')} |")
     out = "\n".join(rows)

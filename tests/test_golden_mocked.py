@@ -3,6 +3,7 @@ Operator 2026-11-17: Graphene by NiraamAI, one brand, chat UI, full SAP assistan
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 import pytest
@@ -36,6 +37,10 @@ def test_golden_contract_and_grounding(client, fake_claude, case):
     assert out is not None, [e for e in events if e["type"] == "error"]
     for k in ("answer", "system_facts", "tool_trace", "coverage", "freshness", "limits", "grounding"):
         assert k in out
+    if not case["mock"]["calls"]:  # operator 2026-11-18: identity line, no call, no system facts
+        assert out["tool_trace"] == [] and out["system_facts"] == [] and out["grounding"]["ok"]
+        assert out["presentation"]["outcome"] == "passed" and out["history"] is None
+        return
     # the app fills Graphene's own evidence ids into every system fact (operator 2026-11-17)
     assert out["system_facts"] and all(f["evidence_ids"] for f in out["system_facts"])
     for t in out["tool_trace"]:
@@ -45,6 +50,8 @@ def test_golden_contract_and_grounding(client, fake_claude, case):
     assert out["grounding"]["ok"], out["grounding"]["flags"]
     assert out["presentation"]["outcome"] == "passed", out["presentation"]
     assert out["shown"].startswith(out["answer"])
+    from app.wording import problems  # operator 2026-11-18: the app's own table too (no "learned", "engine")
+    assert problems(out["shown"]) == [], problems(out["shown"])
     assert out["limits"] and all(isinstance(x, str) for x in out["limits"])
     exp = case.get("expect", {})
     if "history_steps" in exp:  # operator 2026-11-16: the steps table, from Graphene's data
@@ -58,7 +65,10 @@ def test_golden_contract_and_grounding(client, fake_claude, case):
         assert item in json.dumps(out["system_facts"])
 
 
-@pytest.mark.parametrize("case", CASES, ids=[c["id"] for c in CASES])
+FACT_CASES = [c for c in CASES if c.get("facts")]  # identity cases have no system facts
+
+
+@pytest.mark.parametrize("case", FACT_CASES, ids=[c["id"] for c in FACT_CASES])
 def test_golden_facts_from_real_graphene(client, case):
     """Expected numbers come from Graphene. If a learn run changes them, this fails: update
     golden_questions.yaml from Graphene's own output."""
@@ -91,6 +101,7 @@ def test_browser_gets_only_the_answer(client, fake_claude, case):
     for e in events:
         if e["type"] == "progress":
             assert not any(t in e["text"] for t in ("impact", "status", "operations", "find_object", "system_profile"))
+            assert not re.search(r"learn|\bI\b|engine", e["text"], re.I), e["text"]  # operator 2026-11-18
     assert "trained" not in final["answer"].lower()
 
 
@@ -187,7 +198,7 @@ def test_tool_call_cap(client, fake_claude):
     from app import config
     many = {"calls": [[{"tool": "find_object", "args": {"name": f"ZCAP_TEST_{i}"}}
                        for i in range(config.MAX_TOOL_CALLS + 2)]],
-            "answer": {"answer": "I have learned 6 of 11 areas.", "system_facts": [], "history_for": ""}}
+            "answer": {"answer": "Nothing found for those names.", "system_facts": [], "history_for": ""}}
     out, _, _, reqs = _run(client, fake_claude, many, "cap test")
     assert out is not None
     assert len(out["tool_trace"]) == config.MAX_TOOL_CALLS
@@ -208,12 +219,17 @@ def test_request_shape_to_claude(client, fake_claude):
     assert {t["name"] for t in kw["tools"]} == {"find_object", "impact", "assess_transport", "status", "operations",
                                                 "system_profile"}
     text = kw["system"]
-    assert "You are Graphene by NiraamAI" in text and "Cloudbox" not in text and "sample partner app" not in text
-    assert "Never say trained" in text and '"I\'ve learned this system"' in text
+    assert "expert SAP assistant for one SAP system" in text and "Cloudbox" not in text and "sample partner app" not in text
+    # operator 2026-11-18: never about itself; identity in one line; never ask for system details
+    assert "never about yourself" in text and '"I\'ve learned"' in text and '"trained"' in text
+    assert "\"I'm here to help with your SAP system; what would you like to check?\"" in text
+    assert "Never ask the user for a detail about their system that a tool can give" in text
+    assert '"Worth checking"' in text and '(never "What I don\'t know")' in text
+    assert "you can check it in SM21" in text and "as of 5 November" in text
     assert "General SAP knowledge" in text and "never as a fact about this system" in text
-    assert "and say how to check it" in text  # an unknown system fact: say so and how to check it
+    assert "say so naturally and where to check it" in text  # an unknown system fact
     assert 'write "kernel 7.53 (release 753)"' in text and "SAP_BASIS 751, never 7.51" in text
-    assert "according to the note" in text and "Show both values" in text
+    assert "According to the note, kernel 7.53 is fixed from patch 1616 onward" in text and "### What to do" in text
     assert "ask only for what the question needs" in text  # v18 filters
     assert "I don't know a table called ZFAKE_TABLE in this system, and I won't guess." in text
     assert '(e.g. "SP 0")' in text and "goes only in \"system_facts\", never in the answer" in text
@@ -224,8 +240,8 @@ def test_request_shape_to_claude(client, fake_claude):
     assert "never show field names, ids or JSON words" in text
     assert "Never reply that you will check" in text and "A general SAP question needs no call" in text
     assert "call operations" in text and "sentence 1 states the gap" in text
-    assert "Only call something \"next on my learning plan\" when the status result lists" in text
-    assert "Never add a gap the results don't state" in text
+    assert "learning plan" not in text.split("Background about the data source")[0].replace('no "learning plan"', "")
+    assert "never add a gap the results don't state" in text
     assert 'Never approximate a number' in text or 'no "about", "around", "roughly"' in text
     assert "Never write evidence ids: the app takes them from those results." in text
     assert "Results from earlier in this chat keep their numbers" in text
@@ -327,7 +343,8 @@ def test_second_round_predicate_uses_graphene_fields():
                                   ("grounding_flags_invented_facts", "unbacked_fact_is_rewritten", "held_back_sentence")],
                          ids=lambda c: c["id"])
 def test_mock_answers_follow_the_wording_rules(case):
-    """Operator 2026-11-17: first person, never "trained"; no tool names, field names or JSON words."""
+    """Operator 2026-11-18: never about itself (no "learned", "trained", "engine", tool names); no field
+    names or JSON words."""
     from app.wording import problems
     from app.contract import developer_words
     answers = case["mock"].get("answers") or [case["mock"]["answer"]]
@@ -388,7 +405,7 @@ def test_app_fills_evidence_ids_from_cited_results(client):
                                   "path:TABL:ZS4_IOT_DATA > FUGR:ZS4_IOT_FG"]
     root = fill_evidence({"text": "Table ZS4_IOT_DATA has 9 dependent objects.", "results": [1]}, [r])
     assert root["evidence_ids"] == ["node:TABL:ZS4_IOT_DATA"]
-    none = fill_evidence({"text": "No such table in what I've learned.", "results": [1]}, [r])
+    none = fill_evidence({"text": "No such table in this system.", "results": [1]}, [r])
     assert none["evidence_ids"] == ["call:1"]
     trace = [{"n": 1, "tool": "impact", "arguments": {}, "ok": True, "ms": 1, "result": ""}]
     out = build({"answer": "ok", "system_facts": [{"text": "ZS4_IOT_DATA.", "results": [3]}], "history_for": ""}, trace, [r])

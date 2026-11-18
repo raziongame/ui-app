@@ -3,7 +3,7 @@
 Internally (repo, docs, commits) this is a **demo application built by the Graphene team** on top of
 the Graphene engine, reached **only through its MCP server**, with every boundary below.
 
-**One brand** (operator 2026-11-17): **Graphene by NiraamAI**, served on `/` (NiraamAI logo
+**One brand** (operator 2026-11-17, final requirements 2026-11-18): **Graphene by NiraamAI**, served on `/` (NiraamAI logo
 `static/brand/logo.png`; colours navy #003858, ocean blue #2A82B4, teal #1298B0, cyan #4AC2E0; text
 meets WCAG AA in light and dark, `tests/test_ui.py`). No other skins, no `/direct`.
 
@@ -14,13 +14,17 @@ meets WCAG AA in light and dark, `tests/test_ui.py`). No other skins, no `/direc
   right-side bubbles, answers as markdown with headings, lists and tables), a multi-line input at the
   bottom (Enter sends, Shift+Enter is a new line, pastes up to 200,000 characters). The empty chat
   shows only "How can I help with your SAP system?". It answers questions about the learned system,
-  general SAP questions, and questions about text the user pastes (SAP Notes, errors, logs).
+  general SAP questions, and questions about text the user pastes (SAP Notes, errors, logs). It already
+  knows the system through the engine's tools and **never asks the user for a system detail a tool can
+  give** (versions, kernel, components, objects, transports, jobs, …).
+- **Not in scope:** web search, file uploads (later).
 - **Is not:** a source of facts about the system. Every fact about THIS system (versions, kernel,
   components, objects, relationships, transports, jobs, dumps, risk, counts, dates) comes from
   Graphene's tools. This app never computes, changes or guesses such a fact.
 - **Not in the UI:** suggestion chips, a "What I've learned" sidebar, a status dot, "How do I know?",
   grounding badges, timings, tool names, field names, ids, JSON words. Sources, grounding results
-  and the trace stay in the server log and the `?debug=1` view (for us only).
+  and the trace stay in the server log and the `?debug=1` view (for us only). While an answer runs,
+  one neutral grey line ("Checking your system…", "Looking up ZS4_IOT_DATA…") that disappears.
 
 ## Hard boundaries (non-negotiable)
 
@@ -33,15 +37,16 @@ meets WCAG AA in light and dark, `tests/test_ui.py`). No other skins, no `/direc
    (names and numbers from a pasted note or log may be repeated, attributed to it). General SAP
    knowledge is allowed, phrased as general knowledge, never as a fact about this system. Unknown
    objects: "I don't know a table called ZFAKE_TABLE in this system, and I won't guess." A system
-   fact that isn't known: say so and how to check it. Never recompute or round a number. Kernel:
+   fact that isn't known: say so naturally and where to check it ("I don't have the system log for
+   this system; you can check it in SM21"). Never recompute or round a number. Kernel:
    "kernel 7.53 (release 753)" (dotted form as people read it, release as the engine returns it);
    every other release as returned (SAP_BASIS 751, never 7.51). A note vs this system: show both
    values ("your kernel … patch 700; according to the note, the fix is in patch 1616") and say
    "according to the note".
 4. **Say what isn't known.** Pass on Graphene's `limits`, `coverage` and `freshness` in the voice
-   (e.g. "I haven't learned the system log (SM21) yet"; dynamic calls are candidates, not facts).
-   "Next on my learning plan" / "learning next" only for stages Graphene's status lists as not
-   started; a stated gap inside a learned stage is just "I haven't learned … yet".
+   ("I don't have … for this system; you can check it in …"; dynamic calls are candidates, not facts),
+   under a **"Worth checking"** heading when there is one (never "What I don't know"). A date for the
+   system data only when it matters ("kernel details as of 5 November; confirm in System → Status").
 5. **Secrets:** `ANTHROPIC_API_KEY` lives only in this repo's `.env` (gitignored, chmod 600).
    Commit `.env.example` with a placeholder only. Never print, log or send the key to the
    browser. Never paste secrets into chat.
@@ -58,16 +63,20 @@ meets WCAG AA in light and dark, `tests/test_ui.py`). No other skins, no `/direc
 - Chats are stored on the server per browser (random id in an HttpOnly cookie), in SQLite
   (`data/chats.sqlite3`, gitignored), kept until the user deletes them. Earlier turns go to the model
   as context; engine results are stored per chat and keep their numbers, so follow-ups may cite them.
-- `system_profile`: only the sections or components a question needs (v18 filters).
+- Graphene 1.37.0 (handshake, 2026-11-18). `system_profile`: only the sections or components a
+  question needs (v18 filters).
 - Runs as the systemd user service `sap-assistant` (README "Service").
 - Reached from the operator's laptop with
   `ssh -p 2222 -L 8080:127.0.0.1:8080 grpadm@127.0.0.1`, then http://localhost:8080.
 
-## Voice
+## Voice (operator 2026-11-18, final)
 
-First person, natural and confident, short and clear: "I've learned this system", "I know", "I
-haven't learned … yet". Never "trained", "training", "fine-tuned", "trained model" or "our own AI
-model". No tool names, field names or JSON words in answers.
+Natural and confident, short and clear, about the user's system ("Your system runs …", "I don't
+have … for this system; you can check it in …"). **Never talks about itself or how it knows:** no
+"I've learned", "learned", "learning run", "as I learned it", "my (kernel) data", "trained", "AI
+model", "engine", "Graphene's tools", tool or field names, JSON words. Asked what it is or how it
+knows: one line, "I'm here to help with your SAP system; what would you like to check?", then carry
+on. `app/wording.py` enforces this in the silent check (rewrite once, then hold back) and in the eval.
 
 ## Answer contract (internal: server, log, `?debug=1`)
 
@@ -119,12 +128,18 @@ Rules for each fix:
    ZGR_PRICE_SYNC (runs daily, 12 runs in window).
 4. "What uses table ZFAKE_TABLE?" → "I don't know a table called ZFAKE_TABLE in this system, and
    I won't guess."
-5. "What haven't you learned yet?" → stages not learned (from status), stated limits.
+5. "What information isn't available for this system yet?" (was "What haven't you learned yet?",
+   changed 2026-11-18) → "I don't have Configuration, Access, … for this system yet" (from status) +
+   what is never read; no stage counts or numbers.
 6–9. SAP_BASIS version, what would lower ZUZK900008's risk, system monitoring, SM21 (the stated gap).
 10. SAP Note 3778530 (CVE-2026-76964), pasted (`tests/fixtures/note_3778530_excerpt.txt`, used exactly),
-   + "Is this relevant to our system?" → kernel 7.53 (release 753) patch 700 from the engine; fixed in
-   patch 1616 according to the note → affected; Web Dispatcher not known (how to check); the note's
-   workaround options; no invented patch levels.
+   + "Is this relevant to our system?" → "Yes, this note applies to your system. Your system runs
+   kernel 7.53 (release 753) at patch level 700. According to the note, kernel 7.53 is fixed from patch
+   1616 onward, so your system is affected." → **What to do** (patch 1616+, the note's workarounds) →
+   **Worth checking** (Web Dispatcher via SMICM; confirm the patch level in System → Status). No
+   invented patch levels.
+11. Identity ("What are you?", "How do you know all this about my system?") → the one line, no tool
+   call. "Which kernel are we running?" → from the engine, never asked of the user.
 
 Expected numbers come from Graphene; if Graphene's numbers change after a learn run, update
 the expectations from Graphene's own output, never by hand-guessing.

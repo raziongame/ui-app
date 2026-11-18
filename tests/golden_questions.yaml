@@ -1,6 +1,8 @@
-# Graphene by NiraamAI (operator 2026-11-17): one brand, a full SAP assistant in a chat UI. Answers
-# speak as "I" ("I've learned", "I haven't learned … yet", never "trained"); no tool names, field
-# names or JSON words. "system_facts" are the answer's statements about THIS system (checked strictly,
+# Graphene by NiraamAI (operator 2026-11-18, final): one brand, a full SAP assistant in a chat UI. Answers
+# never talk about the assistant itself (no "learned", "trained", "AI model", "engine", "my data", tool
+# names); unknowns are "I don't have … for this system; you can check it in …" and go under "Worth
+# checking"; asked what it is, one line ("I'm here to help with your SAP system; …"). No field
+# names or JSON words. Every eval answer also passes app/wording.py (the self-talk check). "system_facts" are the answer's statements about THIS system (checked strictly,
 # kept in the log and ?debug=1); general SAP knowledge is allowed but phrased as general. The facts
 # checks below still come from Graphene's own output.
 #
@@ -79,7 +81,7 @@
         - It changes the table definition of ZS4_IOT_DATA, and 9 objects are affected.
         - It reaches 2 RFC entry points: ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA.
         - 1 dynamic call touches the change, so the impact may be larger.
-        My earlier scores used an older method.
+        Earlier scores used an older method.
       system_facts:
         - {text: "Transport ZUZK900008 scores 0.47: high, 88th percentile.", results: [1]}
         - {text: "ZUZK900008 changes the table definition of ZS4_IOT_DATA.", results: [1]}
@@ -163,32 +165,32 @@
       - {tool: find_object, args: {name: ZFAKE_TABLE}}
     answer:
       answer: |-
-        I don't know a table called ZFAKE_TABLE in this system, and I won't guess.
-        It may have been created after I last learned the dictionary, or sit outside what I've learned.
+        I don't know a table called ZFAKE_TABLE in this system, and I won't guess. If it was created recently, you can check it in transaction SE11.
       system_facts:
-        - {text: "No object called ZFAKE_TABLE in the dictionary I've learned.", results: [1]}
+        - {text: "No object called ZFAKE_TABLE in this system.", results: [1]}
 
-- id: what_graphene_does_not_know
-  question: "What haven't you learned yet?"
+# Operator 2026-11-18: Q5 asks about the system, not the assistant (was "What haven't you learned yet?").
+- id: what_is_not_available
+  question: "What information isn't available for this system yet?"
   facts:
     - {tool: status, path: result.overall.stages_complete, equals: 6}
     - {tool: status, path: result.overall.stages_total, equals: 11}
     - {tool: status, path: limits, contains: "L6 Configuration is not learned yet (not started): this answer can't include it."}
   expect:
     tools: [status]
-    answer_contains: ["Configuration", "Access", "Interfaces", "Runtime evidence", "Understanding", ["haven't learned", "not learned", "learning plan", "not started"]]
+    answer_contains: ["Configuration", "Access", "Interfaces", "Runtime evidence", "Understanding", ["don't have", "not available", "isn't available", "aren't available"]]
+    answer_not_matches: ['\b6 of 11\b', '\bL\d+\b', 'learning plan', '\bstages?\b', 'graphene status']
     grounding_flags_max: 0
   mock:
     calls:
       - {tool: status, args: {}}
     answer:
       answer: |-
-        I've learned 6 of 11 areas of this system. These are next on my learning plan; I haven't started them yet:
-        - Configuration, Access, Interfaces, Runtime evidence and Understanding.
-        I also don't track what changed in SAP since I learned an area, and I never read business data, ABAP source code, job variants, dump texts or job logs.
+        I don't have these areas for this system yet: Configuration, Access, Interfaces, Runtime evidence and Understanding.
+        - Changes made in SAP since the system data was last read aren't tracked here.
+        - Business data, ABAP source code, job variants, dump texts and job logs are never read.
       system_facts:
-        - {text: "6 of 11 areas are learned.", results: [1]}
-        - {text: "Configuration, Access, Interfaces, Runtime evidence and Understanding are not started.", results: [1]}
+        - {text: "Configuration, Access, Interfaces, Runtime evidence and Understanding are not available for this system yet.", results: [1]}
 
 - id: system_profile_sap_basis
   question: "What is the component version of SAP_BASIS?"
@@ -212,7 +214,7 @@
     # Operator 2026-11-16 (browser review): plain language; lead with Graphene's note ("SP 0000 (no
     # support package) … System → Status"); the raw 0000000000 only in the claims (evidence panel).
     # eval 2026-11-17: "SP level is 0000 (no support package, as System → Status shows)" is the same note
-    answer_contains: ["SAP_BASIS", "751", ["SP 0000", "SP level 0000", "SP level is 0000"], "no support package", ["System → Status", "System > Status", "System->Status", "System Status"], ["haven't learned", "not learned"]]
+    answer_contains: ["SAP_BASIS", "751", ["SP 0000", "SP level 0000", "SP level is 0000"], "no support package", ["System → Status", "System > Status", "System->Status", "System Status"], ["don't have", "isn't available", "not available"]]
     prose_not_contains: ["0000000000"]
     facts_contain: ["0000000000"]  # the raw value only in system_facts (log, ?debug=1)
     answer_not_matches: ['\bSP\s*(level\s*)?0\b', 'support package\s*0\b', '7\.51 sp']
@@ -223,12 +225,12 @@
     answer:
       answer: |-
         SAP_BASIS 751 · SP 0000 (no support package, as System → Status shows).
-        - I haven't learned the support package name yet: it isn't in the table SAP keeps component versions in.
-        - This is as of when I learned the system on 2026-11-05; I don't know anything newer.
+        - I don't have the support package name for this system: it isn't in the table SAP keeps component versions in.
+        - Version details as of 5 November; you can confirm them in System → Status.
       system_facts:
         - {text: "SAP_BASIS release 751, SP level 0000000000 as SAP stores it in CVERS; System → Status shows it as SP 0000 (no support package).", results: [1]}
-        - {text: "The support package name isn't in CVERS, so I haven't learned it.", results: [1]}
-        - {text: "Learned on 2026-11-05.", results: [1]}
+        - {text: "The support package name isn't in CVERS, so it isn't available.", results: [1]}
+        - {text: "Version details as of 2026-11-05.", results: [1]}
 
 - id: lowerers_zuzk900008
   question: "What would lower the risk of ZUZK900008?"
@@ -252,7 +254,7 @@
       - {tool: assess_transport, args: {transport: ZUZK900008}}
     answer:
       answer: |-
-        ZUZK900008 scores 0.47 now. I see 2 things that would lower it, each on its own:
+        ZUZK900008 scores 0.47 now. 2 things would lower it, each on its own:
         - Resolve the dynamic calls (or confirm their targets) so the impact is known: score after 0.395.
         - Import into the test system and confirm return code ≤ 4: score after 0.3995.
         Each score is for that option alone; I don't have a score for doing both.
@@ -278,29 +280,82 @@
     tools: [system_profile]
     max_seconds: 20  # a long pasted note
     max_words: 300
+    # Operator 2026-11-18 target style: verdict, kernel vs the note, "What to do", "Worth checking".
     answer_contains: ["7.53", "753", "700", "1616", "according to the note", "affected", "Web Dispatcher",
-                      ["don't know", "haven't learned", "not known", "can't tell", "do not know"],
-                      "WebSocket", "3778788"]
+                      ["don't have", "not known", "can't tell", "do not have"],
+                      "WebSocket", "3778788", "What to do", "Worth checking", "SMICM",
+                      ["System → Status", "System > Status", "System->Status", "System Status"]]
+    first_sentence_contains: [["this note applies", "the note applies", "applies to your system"]]
     # no invented patch levels: every patch level named is the engine's 700 or the note's 1616/1617
     answer_not_matches: ['\bpatch(?:\s+level)?\s+(?!700\b|1616\b|1617\b)\d+', '\bSP\s?(?!1616\b|1617\b)\d{3,}',
-                         '\bnot affected\b']
+                         '\bnot affected\b', "What I don['’]t know"]
     grounding_flags_max: 0
   mock:
     calls:
       - {tool: system_profile, args: {sections: [kernel]}}
     answer:
       answer: |-
-        **Yes, your system is affected.** Your kernel 7.53 (release 753) is at patch 700. According to the note, the fix is in patch 1616 (and all higher patch levels), so patch 700 doesn't have it yet.
+        Yes, this note applies to your system. Your system runs kernel 7.53 (release 753) at patch level 700. According to the note, kernel 7.53 is fixed from patch 1616 onward, so your system is affected.
 
-        ### What I don't know
-        - Your Web Dispatcher: I haven't learned it, so I can't tell whether the ICM is reached only through one. In general, you can check this in transaction SMICM and in your network setup.
+        ### What to do
+        - **Update the kernel** to patch 1616 or higher (according to the note, all higher patch levels also contain the fix).
+        - **Until then, the note's workarounds:**
+          - If the ICM is reached exclusively through an SAP Web Dispatcher, a Web Dispatcher updated to the patch levels in FAQ Note 3778788 can serve as a temporary workaround.
+          - Otherwise, WebSocket support can be disabled (not recommended: significant impact on interactive and integration scenarios).
 
-        ### What you can do (according to the note)
-        | Option | What it means |
-        |---|---|
-        | Update the kernel | to patch 1616 or higher |
-        | Web Dispatcher workaround | only if the ICM is reached exclusively through an SAP Web Dispatcher updated per FAQ Note 3778788 |
-        | Disable WebSocket support | not recommended: significant impact on interactive and integration scenarios |
+        ### Worth checking
+        - **Web Dispatcher:** I don't have this for your system. In general, you can see in transaction SMICM and in your network setup whether the ICM is reached only through a Web Dispatcher.
+        - **Kernel patch level:** confirm it in System → Status before you plan the update.
+      system_facts:
+        - {text: "Kernel 7.53 (release 753) at patch level 700.", results: [1]}
+      history_for: ""
+
+# Operator 2026-11-18 (final requirements): identity in one line, no self-talk, no tool call.
+- id: identity_what_are_you
+  question: "What are you?"
+  expect:
+    no_tools: true
+    answer_contains: ["help with your SAP system"]
+    max_sentences: 2
+    max_words: 30
+    answer_not_matches: ['\bAI\b', '\bmodel\b', '\bassistant built\b', '\bNiraamAI\b']
+  mock:
+    calls: []
+    answer:
+      answer: "I'm here to help with your SAP system; what would you like to check?"
+      system_facts: []
+
+- id: identity_how_do_you_know
+  question: "How do you know all this about my system?"
+  expect:
+    no_tools: true
+    answer_contains: ["help with your SAP system"]
+    max_sentences: 2
+    max_words: 30
+    answer_not_matches: ['\bAI\b', '\bmodel\b', '\bconnected\b', '\bread\w* (?:from|your)\b']
+  mock:
+    calls: []
+    answer:
+      answer: "I'm here to help with your SAP system; what would you like to check?"
+      system_facts: []
+
+# Operator 2026-11-18: never ask the user for system details a tool can give.
+- id: kernel_never_ask_the_user
+  question: "Which kernel are we running?"
+  facts:
+    - {tool: system_profile, path: result.kernel.0.release, equals: "753"}
+    - {tool: system_profile, path: result.kernel.0.patch_level, equals: "700"}
+  expect:
+    tools: [system_profile]
+    answer_contains: ["7.53", "753", "700"]
+    answer_not_matches: ['\b(?:could|can) you (?:tell|share|provide|check|send)', '\bplease (?:tell|share|provide|send)', '\blet me know\b']
+    max_words: 80
+    grounding_flags_max: 0
+  mock:
+    calls:
+      - {tool: system_profile, args: {sections: [kernel]}}
+    answer:
+      answer: "Your system runs kernel 7.53 (release 753) at patch level 700."
       system_facts:
         - {text: "Kernel 7.53 (release 753) at patch level 700.", results: [1]}
       history_for: ""
@@ -323,7 +378,7 @@
     - {tool: operations, path: evidence_ids, equals: ["run:L5:v3"]}
   expect:
     tools: [operations]
-    answer_contains: ["41", "4305", "SM21", ["haven't learned", "not learned"]]
+    answer_contains: ["41", "4305", "SM21", ["don't have", "isn't available", "not available"]]
     # eval 2026-11-17 (76cfc6f): 112 words with a per-day breakdown and "about 288 a day"
     answer_not_matches: ["\\bI(['’]ll| will) (check|look)", "\\blet me (check|look)", "\\babout \\d", "\\bpeak"]
     max_words: 110
@@ -333,15 +388,14 @@
       - {tool: operations, args: {}}
     answer:
       answer: |-
-        Over the days I've learned, I counted 41 background job runs (0 cancelled), 4305 short dumps and 0 alerts.
-        - I haven't learned which program each dump hit yet.
-        - I haven't learned the system log (SM21) yet, CCMS is not configured, and SAP keeps no workload aggregates on this system.
-        These are counts only; nothing newer than when I last learned operations.
+        In the monitored window, this system had 41 background job runs (0 cancelled), 4305 short dumps and 0 alerts.
+        - Which program each dump hit isn't available here; you can see that in ST22.
+        - I don't have the system log for this system; you can check it in SM21. CCMS is not configured, and SAP keeps no workload aggregates on this system.
       system_facts:
         - {text: "41 background job runs, 0 cancelled.", results: [1]}
         - {text: "4305 short dumps, counted per day.", results: [1]}
         - {text: "0 alerts.", results: [1]}
-        - {text: "The system log (SM21) isn't learned yet.", results: [1]}
+        - {text: "The system log (SM21) isn't available for this system.", results: [1]}
 
 - id: sm21_details
   question: "Show me SM21 details"
@@ -349,10 +403,10 @@
     - {tool: operations, path: limits, contains: "The system log (SM21) is not learned: a stated L5 gap."}
   expect:
     tools: [operations]
-    answer_contains: ["SM21", ["haven't learned", "not learned"]]
+    answer_contains: ["SM21", ["don't have", "isn't available", "not available"]]
     # the stated gap, no invented entries: no promise, no log lines (times, message ids)
     answer_not_matches: ["\\bI(['’]ll| will) (check|look)", "\\blet me (check|look)", "\\b\\d{1,2}:\\d{2}\\b"]
-    first_sentence_contains: ["SM21", ["haven't learned", "not learned"]]
+    first_sentence_contains: [["SM21", "system log"], ["don't have", "isn't available", "not available"]]
     max_words: 80
     grounding_flags_max: 0
   mock:
@@ -360,10 +414,10 @@
       - {tool: operations, args: {}}
     answer:
       answer: |-
-        I haven't learned the system log (SM21) yet, so I can't show its entries.
-        What I do have from monitoring is counts only: 41 job runs, 4305 short dumps and 0 alerts.
+        I don't have the system log for this system; you can check its entries in SM21.
+        From monitoring there are counts only: 41 job runs, 4305 short dumps and 0 alerts.
       system_facts:
-        - {text: "The system log (SM21) isn't learned yet.", results: [1]}
+        - {text: "The system log (SM21) isn't available for this system.", results: [1]}
         - {text: "41 background job runs, 4305 short dumps, 0 alerts.", results: [1]}
 
 # Regression (make test only), browser testing 2026-11-17: a reply that only promises to look it up,
@@ -377,9 +431,9 @@
     calls:
       - {tool: operations, args: {}}
     answer:
-      answer: "I haven't learned the system log (SM21) yet, so I can't show its entries."
+      answer: "I don't have the system log for this system; you can check its entries in SM21."
       system_facts:
-        - {text: "The system log (SM21) isn't learned yet.", results: [1]}
+        - {text: "The system log (SM21) isn't available for this system.", results: [1]}
 
 - id: no_call_twice_is_an_error
   question: "system monitoring?"
@@ -397,15 +451,16 @@
   test_only: true
   # Operator 2026-11-17: a statement about this system that isn't backed is rewritten once; here the
   # rewrite repeats it, so it is held back, and with nothing left the user sees the fallback.
-  expect_flags: ["12", "ZS4_IOT_DELETE_DATA", "result 7"]
+  # 47: not in the real impact result (1.37.0 has a 12 in it, so the old "12" was backed)
+  expect_flags: ["47", "ZS4_IOT_DELETE_DATA", "result 7"]
   expect_outcome: fallback
   mock:
     calls:
       - {tool: impact, args: {name: ZS4_IOT_DATA}}
     answer:
-      answer: "Changing ZS4_IOT_DATA affects 12 objects, including ZS4_IOT_DELETE_DATA."
+      answer: "Changing ZS4_IOT_DATA affects 47 objects, including ZS4_IOT_DELETE_DATA."
       system_facts:
-        - {text: "12 objects are affected.", results: [7]}
+        - {text: "47 objects are affected.", results: [7]}
 
 - id: unbacked_fact_is_rewritten
   question: "What breaks if I change ZS4_IOT_DATA?"
@@ -467,7 +522,7 @@
          {tool: impact, args: {name: TABL:ZS4_IOT_DATA, show: 1}}, {tool: status, args: {}},
          {tool: impact, args: {name: ZS4_IOT_DATA, show: 50}}]
     answer:
-      answer: "Changing ZS4_IOT_DATA affects 9 objects. I have learned 6 of 11 areas."
+      answer: "Changing ZS4_IOT_DATA affects 9 objects."
       system_facts:
         - {text: "9 objects are affected.", results: [1]}
 
@@ -484,9 +539,9 @@
       - {tool: find_object, args: {name: ZFAKE_TABLE}}
       - {tool: status, args: {}}
     answer:
-      answer: "ZFAKE_TABLE is not found in the learned system."
+      answer: "I don't know a table called ZFAKE_TABLE in this system, and I won't guess."
       system_facts:
-        - {text: "ZFAKE_TABLE is not found in the learned system.", results: [1]}
+        - {text: "ZFAKE_TABLE is not found in this system.", results: [1]}
 
 # Exception 1: not found WITH similar names (Graphene: ZS4_IOT_DAT -> similar_names
 # [TABL:ZS4_IOT_DATA]) allows one more round; a third round is never requested.

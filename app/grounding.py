@@ -25,6 +25,21 @@ NUM_RE = re.compile(r"(?<![A-Za-z0-9_.:/-])-?\d+(?:\.\d+)?(?![0-9])")
 DATETIME_RE = re.compile(r"(?<![\d-])(\d{4}-\d{2}-\d{2})"
                          r"(?:[T ](\d{2}:\d{2})(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?(?!\d|:\d)")
 TIME_RE = re.compile(r"(?<![\d:])\d{2}:\d{2}(?::\d{2})?(?!\d|:\d)")  # "13:06: text" is a time
+# Operator 2026-11-18: a date in words ("kernel details as of 5 November") is checked as a whole date.
+MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
+          "October", "November", "December"]
+_MON = r"(?:" + "|".join(sorted(MONTHS, key=len, reverse=True)) + "|" + "|".join(m[:3] + r"\.?" for m in MONTHS) + ")"
+NATURAL_DATE_RE = re.compile(rf"(?<![\w-])(?:\d{{1,2}}\s+{_MON}(?:,?\s+\d{{4}})?|{_MON}\s+\d{{1,2}}(?:,?\s+\d{{4}})?)(?![\w-])")
+
+
+def _natural_forms(d: str) -> set[str]:
+    y, m, day = d.split("-")
+    full = MONTHS[int(m) - 1]
+    out: set[str] = set()
+    for mon in {full, full[:3], full[:3] + "."}:
+        dd = str(int(day))
+        out |= {f"{dd} {mon}", f"{dd} {mon} {y}", f"{mon} {dd}", f"{mon} {dd}, {y}", f"{mon} {dd} {y}"}
+    return out
 
 # Words that look like names but are ordinary vocabulary in answers.
 IGNORE_NAMES: set[str] = set()
@@ -57,9 +72,13 @@ def _names_in(text: str) -> list[str]:
 def _datetime_forms(s: str) -> set[str]:
     """Every way an answer may quote a timestamp Graphene returned (date, time, date + time)."""
     out: set[str] = set()
+    # dates in words and times as a result writes them (e.g. a kernel build date "Sep  1 2020 21:43:19")
+    out |= {re.sub(r"\s+", " ", m.group(0)) for m in NATURAL_DATE_RE.finditer(s)}
+    out |= {m.group(0) for m in TIME_RE.finditer(s)}
     for m in DATETIME_RE.finditer(s):
         d, hm, sec, frac, tz = m.group(1), m.group(2), m.group(3) or "", m.group(4) or "", m.group(5) or ""
         out.add(d)
+        out |= _natural_forms(d)
         if hm:
             out |= {hm, hm + sec, f"{d} {hm}", f"{d} {hm}{sec}", f"{d}T{hm}{sec}", m.group(0)}
             if tz:
@@ -105,9 +124,9 @@ def check(texts: dict[str, str], results: list[dict[str, Any]], evidence_used: l
     checked_names = checked_nums = 0
     for where, text in texts.items():
         stripped = text
-        for rx in (DATETIME_RE, TIME_RE):
+        for rx in (DATETIME_RE, NATURAL_DATE_RE, TIME_RE):
             for m in list(rx.finditer(stripped)):
-                tok = m.group(0)
+                tok = re.sub(r"\s+", " ", m.group(0))
                 checked_nums += 1
                 if tok not in dates:
                     flags.append({"token": tok, "kind": "date", "where": where,
@@ -150,7 +169,7 @@ SYSTEM_NAME_RE = re.compile(
 # Sentences that speak about this system: their numbers and dates must be backed too.
 SYSTEM_MARKER_RE = re.compile(
     r"\b(?:your|our)\s+(?:SAP\s+)?(?:system|kernel|landscape|release|version|patch|database|server|instance)s?\b"
-    r"|\bthis system\b|\byou(?:'re| are)\s+(?:on|running)\b|\byou run\b|\bI(?:'ve| have) learned\b", re.I)
+    r"|\bthis system\b|\byou(?:'re| are)\s+(?:on|running)\b|\byou run\b|\bas of\b", re.I)
 
 
 def kernel_display_forms(results: list[dict[str, Any]]) -> set[str]:
@@ -187,10 +206,10 @@ def check_system(answer: str, facts: list[str], results: list[dict[str, Any]], u
     def check_numbers_dates(text: str, where: str) -> str:
         nonlocal checked
         stripped = text
-        for rx in (DATETIME_RE, TIME_RE):
+        for rx in (DATETIME_RE, NATURAL_DATE_RE, TIME_RE):
             for m in list(rx.finditer(stripped)):
                 checked += 1
-                if m.group(0) not in dates:
+                if re.sub(r"\s+", " ", m.group(0)) not in dates:
                     flags.append({"token": m.group(0), "kind": "date", "where": where})
             stripped = rx.sub(" ", stripped)
         for n in sorted(set(_names_in(text)), key=len, reverse=True):
