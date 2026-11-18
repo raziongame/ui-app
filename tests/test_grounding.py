@@ -91,3 +91,88 @@ def test_escaped_newlines_become_line_breaks():
     assert f("Yes.\\n\\n- Update the kernel.") == "Yes.\n\n- Update the kernel."
     assert f("Use `a\\nb` here.") == "Use `a\\nb` here."
     assert f("No escapes.\nFine.") == "No escapes.\nFine."
+
+
+def test_numeric_dates_and_gaps_labels_are_wording_problems():
+    """Operator 2026-11-18: dates in words only; "Not available", never a "Gaps" label."""
+    from app.wording import problems
+    for bad in ("4305 dumps from 2026-10-29 to 2026-11-11.", "Released on 2026.11.10.", "Since 29.10.2026.",
+                "Gaps:\n- SM21", "**Gaps:** SM21", "Main gaps: SM21"):
+        assert problems(bad), bad
+    for ok in ("4305 dumps from 29 October to 11 November.", "**Not available:** the system log (check SM21).",
+               "The gaps are small.", "SAP_BASIS 751, kernel 7.53 (release 753)."):
+        assert problems(ok) == [], ok
+
+
+
+def test_exact_derivations_with_their_source_numbers_are_backed():
+    """Operator 2026-11-18: plain arithmetic on engine numbers, the source number in the same sentence."""
+    r = [{"result": {"jobs": {"runs": 42}, "dumps": {"total": 4034, "per_day": {"2026-11-04": 288}},
+                     "run": {"days": ["d"] * 14}}}]
+    ok = ["This system had 4,034 short dumps in total.",
+          "This system logs 288 dumps a day, which is one every 5 minutes.",
+          "This system had 42 job runs in 14 days, so 3 a day.",
+          "This system logs 288 dumps a day, 12 an hour."]
+    for t in ok:
+        c = grounding.check_system(t, [], r, [], [], set())
+        assert c["ok"], (t, c["flags"])
+    derived = grounding.check_system(ok[1], [], r, [], [], set())["derived"]
+    assert [d["token"] for d in derived] == ["5"]  # logged for ?debug=1
+    bad = {"This system had 4034 short dumps, 17 of them today.": "17",      # not derivable
+           "This system: one every 5 minutes.": "5",                          # no source number alongside
+           "This system logs 288 dumps a day, one every 4 minutes.": "4",     # wrong arithmetic
+           "This system had 4,035 short dumps in total.": "4,035"}
+    for t, tok in bad.items():
+        c = grounding.check_system(t, [], r, [], [], set())
+        assert tok in [f["token"] for f in c["flags"]], (t, c)
+
+
+
+def test_eval_counts_either_sentences_as_gap_mentions():
+    """Operator 2026-11-18: the one-sentence closing check also catches "… either"."""
+    import importlib.util, pathlib, re as _re
+    spec = importlib.util.spec_from_file_location("run_eval", pathlib.Path(__file__).resolve().parents[1] / "eval/run_eval.py")
+    m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+    closing = ("Which program each dump hit isn't recorded here, and neither is the system log. Check the system log "
+               "in SM21. CCMS isn't configured on this system either.")
+    sentences = [x for x in _re.split(r"(?<=[.!?])\s+", closing) if x]
+    assert [bool(m.GAP_RE.search(x)) for x in sentences] == [True, False, True]
+    one = "Which program each dump hit and the system log aren't recorded here; check them in ST22 and SM21."
+    assert m.GAP_RE.search(one) and not m.GAP_RE.search("Check the system log in SM21.")
+
+
+
+def _run_eval_module():
+    import importlib.util, pathlib
+    spec = importlib.util.spec_from_file_location("run_eval", pathlib.Path(__file__).resolve().parents[1] / "eval/run_eval.py")
+    m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+    return m
+
+
+def test_gap_detector_skips_steps_and_recommendations():
+    """Operator 2026-11-18: a gap turned into a recommendation (SM36 → Standard Jobs) or inside a numbered
+    step is not a gap mention; standalone gap sentences still count."""
+    m = _run_eval_module()
+    monitoring = ("Next steps:\n3. Workload statistics aren't collected, which usually means the standard jobs aren't "
+                  "scheduled. In SM36 use Standard Jobs.\n\nWhich program each dump hit isn't recorded here, and neither "
+                  "is the system log; check the system log in SM21.")
+    assert len(m.gap_sentences(monitoring)) == 1
+    sm21 = ("CCMS isn't configured and there are no alerts. Workload statistics aren't being collected, so SM36 → "
+            "Standard Jobs (including SAP_COLLECTOR_FOR_PERFMONITOR) is worth checking. The system log content itself "
+            "isn't recorded for this system.")
+    assert len(m.gap_sentences(sm21)) == 1
+    two = ("Which program each dump hit isn't recorded here, and neither is the system log. Check the system log in SM21. "
+           "CCMS isn't configured on this system either.")
+    assert len(m.gap_sentences(two)) == 2
+
+
+def test_tag_rule_style_only_vs_substance():
+    m = _run_eval_module()
+    style = {"ok": False, "id": "a", "problems": ["answer has 153 words > 140"]}
+    gap = {"ok": False, "id": "b", "problems": ["gap mentioned in 2 sentences > 1: ['x', 'y']"]}
+    fact = {"ok": False, "id": "c", "problems": ["answer lacks ['1616']"]}
+    ok = {"ok": True, "id": "d", "problems": []}
+    assert m.tag_verdict([style, gap, ok]).startswith("TAG OK")
+    assert m.tag_verdict([style, gap, dict(style, id="e"), dict(gap, id="f")]).startswith("NO TAG: 4 style-only")
+    assert m.tag_verdict([style, fact]).startswith("NO TAG: substance failures ['c']")
+    assert m.tag_verdict([{"ok": False, "id": "g", "error": "timeout"}]).startswith("NO TAG")

@@ -164,3 +164,19 @@ Each entry: question, what Graphene returned, what's expected. Graphene `1.30.0`
   (`deploy/install-risk-baseline-timer.sh`). The app can't and won't run either.
 - **App behaviour meanwhile:** it passes on what Graphene says (no current score, the stale reason and
   Graphene's fix). It never puts the `previous` score forward as the current one.
+
+## G-10 · Short dumps: no runtime error name per dump — OPEN
+
+- **Found:** 2026-11-18, operator request (runtime error names such as ACM_UNEXPECTED_VALUE,
+  DBSQL_TABLE_UNKNOWN are ST22 short dumps). Graphene handshake 1.37.0.
+- **Question:** "What is ACM_UNEXPECTED_VALUE?" / "We keep getting DBSQL_TABLE_UNKNOWN. What's going on?"
+- **What Graphene returned:** `operations` → `result.dumps: {"total": 4305, "per_day": {"2026-10-29": 668, …,
+  "2026-11-11": 288}, "note": "counts only; which program each dump hit is not learned yet"}`; limits
+  "Dumps are counted per day; which program each dump hit is not learned yet." and "Not permitted, never
+  read: … dump texts …". No runtime error name per dump, no way to ask for one name.
+- **Expected:** per runtime error name (from the dump header, e.g. SNAP's error id, not the dump text):
+  count per day, and ideally the program and user pseudonym, so "how often did DBSQL_TABLE_UNKNOWN occur
+  and where?" can be answered from facts. Optionally an `operations` argument to filter by error name.
+- **App behaviour meanwhile:** it treats such names as short dumps, gives the total and window, says the
+  error names per dump aren't available, points to ST22 (filter by the runtime error name), and explains
+  the error only from general SAP knowledge it is sure of (otherwise one "not sure" line, no guess).

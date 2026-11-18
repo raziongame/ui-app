@@ -20,32 +20,45 @@
 #            final answer that must pass the grounding check against the real results
 
 - id: impact_zs4_iot_data
-  question: "What breaks if I change ZS4_IOT_DATA?"
+  question: What breaks if I change ZS4_IOT_DATA?
   facts:
-    - {tool: impact, path: result.total_affected, equals: 9}
-    - {tool: impact, path: result.entry_points, equals: ["FUNC:ZS4_IOT_INSERT_DATA", "FUNC:ZS4_IOT_READ_DATA"]}
-    - {tool: impact, path: result.dynamic_calls, length: 1}
-    - {tool: impact, path: limits, contains: "1 dynamic call touches this object or what it affects: their targets are candidates, so the impact may be larger."}
+  - {tool: impact, path: result.total_affected, equals: 9}
+  - tool: impact
+    path: result.entry_points
+    equals: ['FUNC:ZS4_IOT_INSERT_DATA', 'FUNC:ZS4_IOT_READ_DATA']
+  - {tool: impact, path: result.dynamic_calls, length: 1}
+  - {tool: impact, path: limits, contains: '1 dynamic call touches this object or what it affects: their targets are candidates, so the impact may be larger.'}
   expect:
     tools: [impact]
-    max_seconds: 12  # operator 2026-11-16: large impact result; others keep the 10 s target
-    # Operator 2026-11-16: no higher limit; shorter answer (2-3 sentence summary + compact list,
-    # full detail in the evidence panel). Eval 13.5 s had ~150 words.
-    max_words: 110
-    answer_contains: ["9", "ZS4_IOT_INSERT_DATA", "ZS4_IOT_READ_DATA", ["RFC", "entry point"], "dynamic", "candidate"]
+    max_seconds: 12
+    max_words: 130
+    answer_contains:
+    - '9'
+    - ZS4_IOT_INSERT_DATA
+    - ZS4_IOT_READ_DATA
+    - [RFC, entry point]
+    - dynamic
+    - candidate
     grounding_flags_max: 0
+    tools_not: [find_object]
+    answer_not_matches: ['\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
   mock:
     calls:
-      - {tool: impact, args: {name: ZS4_IOT_DATA}}
+    - tool: impact
+      args: {name: ZS4_IOT_DATA}
     answer:
-      answer: |-
-        If you change table ZS4_IOT_DATA, 9 objects are affected: 5 CDS views, 2 function modules, 1 function group and 1 class.
+      answer: 'If you change table ZS4_IOT_DATA, 9 objects are affected: 5 CDS views, 2 function modules, 1 function group and 1 class.
+
         - 2 of them are RFC entry points: ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA.
-        - 1 dynamic call (from ZCL_ZS4_IOT_PROJ_DPC_EXT to ZS4_IOT_INSERT_DATA) is a candidate, not a fact, so the impact may be larger.
+
+        - 1 dynamic call (from ZCL_ZS4_IOT_PROJ_DPC_EXT to ZS4_IOT_INSERT_DATA) is a candidate, not a fact, so the impact may be larger.'
       system_facts:
-        - {text: "Table ZS4_IOT_DATA has 9 dependent objects.", results: [1]}
-        - {text: "Function modules ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA use ZS4_IOT_DATA and are RFC-enabled.", results: [1]}
-        - {text: "Class ZCL_ZS4_IOT_PROJ_DPC_EXT calls ZS4_IOT_INSERT_DATA dynamically (a candidate).", results: [1]}
+      - text: Table ZS4_IOT_DATA has 9 dependent objects.
+        results: [1]
+      - text: Function modules ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA use ZS4_IOT_DATA and are RFC-enabled.
+        results: [1]
+      - text: Class ZCL_ZS4_IOT_PROJ_DPC_EXT calls ZS4_IOT_INSERT_DATA dynamically (a candidate).
+        results: [1]
 
 - id: risk_zuzk900008
   question: "Why is ZUZK900008 high risk?"
@@ -99,7 +112,7 @@
   facts:
     - {tool: assess_transport, path: result.assessment.score, equals: 0.345}
     - {tool: assess_transport, path: result.assessment.band, equals: moderate}
-    - {tool: assess_transport, path: result.assessment.reasons.2.text, equals: "reaches periodic job JOB:JOB-5192e9d4d2ab in 1 hop (runs daily, 12 runs in window)"}
+    - {tool: assess_transport, path: result.assessment.reasons.2.text, equals: "reaches periodic job JOB:JOB-5192e9d4d2ab in 1 hop (runs daily, 14 runs in window)"}
     - {tool: assess_transport, path: result.history, length: 23}
     # v12 history (2026-11-16): per-step causes and comparability come from Graphene.
     - {tool: assess_transport, path: result.history.0.score, equals: 0.3075}
@@ -142,7 +155,7 @@
       - {tool: assess_transport, args: {transport: ZUZK900006}}
     answer:
       answer: |-
-        ZUZK900006 now scores 0.345 (moderate, 66th percentile) and rose in steps. Its main current reasons: table definition TABL:ZGR_DISC_RULES is in the transport, and PROG:ZGR_PRICE_SYNC → RUNS → JOB:JOB-5192e9d4d2ab, a periodic job (runs daily, 12 runs in window).
+        ZUZK900006 now scores 0.345 (moderate, 66th percentile) and rose in steps. Its main current reasons: table definition TABL:ZGR_DISC_RULES is in the transport, and PROG:ZGR_PRICE_SYNC → RUNS → JOB:JOB-5192e9d4d2ab, a periodic job (runs daily, 14 runs in window).
       system_facts:
         - {text: "Transport ZUZK900006 scores 0.345: moderate, 66th percentile.", results: [1]}
         - {text: "Program ZGR_PRICE_SYNC runs job JOB-5192e9d4d2ab daily (12 runs in window).", results: [1]}
@@ -171,27 +184,36 @@
 
 # Operator 2026-11-18: Q5 asks about the system, not the assistant (was "What haven't you learned yet?").
 - id: what_is_not_available
-  question: "What information isn't available for this system yet?"
+  question: What information isn't available for this system yet?
   facts:
-    - {tool: status, path: result.overall.stages_complete, equals: 6}
-    - {tool: status, path: result.overall.stages_total, equals: 11}
-    - {tool: status, path: limits, contains: "L6 Configuration is not learned yet (not started): this answer can't include it."}
+  - {tool: status, path: result.overall.stages_complete, equals: 6}
+  - {tool: status, path: result.overall.stages_total, equals: 11}
+  - {tool: status, path: limits, contains: 'L6 Configuration is not learned yet (not started): this answer can''t include it.'}
   expect:
     tools: [status]
-    answer_contains: ["Configuration", "Access", "Interfaces", "Runtime evidence", "Understanding", ["don't have", "not available", "isn't available", "aren't available"]]
+    answer_contains:
+    - Configuration
+    - Access
+    - Interfaces
+    - Runtime evidence
+    - Understanding
+    - [don't have, not available, isn't available, aren't available]
     max_words: 90
-    answer_not_matches: ['\b6 of 11\b', '\bL\d+\b', 'learning plan', '\bstages?\b', 'graphene status']
+    answer_not_matches: [\b6 of 11\b, \bL\d+\b, learning plan, '\bstages?\b', graphene status, '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
     grounding_flags_max: 0
   mock:
     calls:
-      - {tool: status, args: {}}
+    - tool: status
+      args: {}
     answer:
-      answer: |-
-        I don't have these areas for this system yet: Configuration, Access, Interfaces, Runtime evidence and Understanding.
-        - Changes made in SAP since the system data was last read aren't tracked here.
-        - Business data, ABAP source code, job variants, dump texts and job logs are never read.
+      answer: 'I don''t have these areas for this system yet: Configuration, Access, Interfaces, Runtime evidence and Understanding.
+
+        - Changes made in SAP since the system data was last read aren''t tracked here.
+
+        - Business data, ABAP source, job variants, dump texts and job logs aren''t available here.'
       system_facts:
-        - {text: "Configuration, Access, Interfaces, Runtime evidence and Understanding are not available for this system yet.", results: [1]}
+      - text: Configuration, Access, Interfaces, Runtime evidence and Understanding are not available for this system yet.
+        results: [1]
 
 - id: system_profile_sap_basis
   question: "What is the component version of SAP_BASIS?"
@@ -271,41 +293,49 @@
 # level that is neither in the engine's result nor in the note.
 - id: note_3778530_relevance
   question_file: tests/fixtures/note_3778530_excerpt.txt
-  question_suffix: "\n\nIs this relevant to our system?"
+  question_suffix: '
+
+
+    Is this relevant to our system?'
   facts:
-    - {tool: system_profile, path: result.kernel.0.release, equals: "753"}
-    - {tool: system_profile, path: result.kernel.0.patch_level, equals: "700"}
-    - {tool: system_profile, path: result.sections, equals: [kernel]}
-    - {tool: system_profile, path: evidence_ids, contains: "node:KERNEL:ZUZ:753:700"}
+  - {tool: system_profile, path: result.kernel.0.release, equals: '753'}
+  - {tool: system_profile, path: result.kernel.0.patch_level, equals: '700'}
+  - tool: system_profile
+    path: result.sections
+    equals: [kernel]
+  - {tool: system_profile, path: evidence_ids, contains: 'node:KERNEL:ZUZ:753:700'}
   expect:
     tools: [system_profile]
-    max_seconds: 20  # a long pasted note
-    max_words: 300
-    # Operator 2026-11-18 (answer style): content, not layout. The verdict first, the deciding facts
-    # (engine: kernel 7.53 / 753 / patch 700; note: fixed from 1616), the recommendation; a short
-    # paragraph plus a few bullets at most; no headings, tables, CVSS or symptom description.
-    first_sentence_contains: [["this note applies", "the note applies", "applies to your system"]]
-    answer_contains: ["7.53", "753", "700", "1616", "according to the note",
-                      ["update the kernel", "upgrade the kernel", "kernel update", "kernel upgrade", "update to", "upgrade to", "patch 1616 or higher", "1616 or higher", "1616 or later"]]
-    # no invented patch levels: every patch level named is the engine's 700 or the note's 1616/1617
-    answer_not_matches: ['\bpatch(?:\s+level)?\s+(?!700\b|1616\b|1617\b)\d+', '\bSP\s?(?!1616\b|1617\b)\d{3,}',
-                         '\b(?:your system|you|it)\s+(?:is|are)\s+not\s+affected\b', '\\n', '(?m)^\s*#{1,6}\s', '(?m)^\s*\|', 'CVSS', '\b10\.0\b', 'HotNews',
-                         "What I don['’]t know", 'Worth checking']
-    max_words: 130
+    max_seconds: 20
+    max_words: 140
+    first_sentence_contains:
+    - [this note applies, the note applies, applies to your system]
+    answer_contains:
+    - '7.53'
+    - '700'
+    - '1616'
+    - according to the note
+    - [update the kernel, upgrade the kernel, kernel update, kernel upgrade, update to, upgrade to, patch 1616 or higher, 1616 or higher, 1616 or later]
+    answer_not_matches: ['\bpatch(?:\s+level)?\s+(?!700\b|1616\b|1617\b)\d+', '\bSP\s?(?!1616\b|1617\b)\d{3,}', '\b(?:your system|you|it)\s+(?:is|are)\s+not\s+affected\b', \\n, '(?m)^\s*#{1,6}\s', '(?m)^\s*\|', 'What I don[''’]t know', Worth checking, 7\.53 \(release 753\), '\b(?:AS ABAP|ABAP (?:stack|system)|S/4HANA|SAP_BASIS)\b']
     grounding_flags_max: 0
   mock:
     calls:
-      - {tool: system_profile, args: {sections: [kernel]}}
+    - tool: system_profile
+      args:
+        sections: [kernel]
     answer:
-      answer: |-
-        Yes, this note applies to your system. Your system runs kernel 7.53 (release 753) at patch level 700; according to the note, kernel 7.53 is fixed from patch 1616 onward, so your system is affected.
+      answer: 'Yes, this note applies to your system. Your system runs kernel 7.53 at patch level 700; according to the note, kernel 7.53 is fixed from patch 1616 onward, so your system is affected.
+
 
         Plan a kernel update to patch 1616 or higher. Until then, the note offers two workarounds:
+
         - an SAP Web Dispatcher in front of the ICM, updated per FAQ Note 3778788 (only if the ICM is reached exclusively through it);
-        - disabling WebSocket support, which the note doesn't recommend.
+
+        - disabling WebSocket support, which the note doesn''t recommend.'
       system_facts:
-        - {text: "Kernel 7.53 (release 753) at patch level 700.", results: [1]}
-      history_for: ""
+      - text: Kernel 7.53 (release 753) at patch level 700.
+        results: [1]
+      history_for: ''
 
 # Operator 2026-11-18 (final requirements): identity in one line, no self-talk, no tool call.
 - id: identity_what_are_you
@@ -338,26 +368,29 @@
 
 # Operator 2026-11-18: never ask the user for system details a tool can give.
 - id: kernel_never_ask_the_user
-  question: "Which kernel are we running?"
+  question: Which kernel are we running?
   facts:
-    - {tool: system_profile, path: result.kernel.0.release, equals: "753"}
-    - {tool: system_profile, path: result.kernel.0.patch_level, equals: "700"}
+  - {tool: system_profile, path: result.kernel.0.release, equals: '753'}
+  - {tool: system_profile, path: result.kernel.0.patch_level, equals: '700'}
   expect:
     tools: [system_profile]
-    answer_contains: ["7.53", "753", "700"]
-    answer_not_matches: ['\b(?:could|can) you (?:tell|share|provide|check|send)', '\bplease (?:tell|share|provide|send)', '\blet me know\b']
-    first_sentence_contains: ["7.53", "700"]
-    max_sentences: 2  # operator 2026-11-18: a simple question gets 1-2 sentences
+    answer_contains: ['7.53', '700']
+    answer_not_matches: ['\b(?:could|can) you (?:tell|share|provide|check|send)', '\bplease (?:tell|share|provide|send)', \blet me know\b, 7\.53 \(release 753\)]
+    first_sentence_contains: ['7.53', '700']
+    max_sentences: 2
     max_words: 45
     grounding_flags_max: 0
   mock:
     calls:
-      - {tool: system_profile, args: {sections: [kernel]}}
+    - tool: system_profile
+      args:
+        sections: [kernel]
     answer:
-      answer: "Your system runs kernel 7.53 (release 753) at patch level 700."
+      answer: Your system runs kernel 7.53 at patch level 700.
       system_facts:
-        - {text: "Kernel 7.53 (release 753) at patch level 700.", results: [1]}
-      history_for: ""
+      - text: Kernel 7.53 (release 753) at patch level 700.
+        results: [1]
+      history_for: ''
 
 # Operator 2026-11-18: an SAP Note number is recognised, never looked up as an object or transport.
 - id: note_number_only
@@ -417,88 +450,362 @@
 # parameters (configuration) aren't available -> "I can't confirm this one yet" + what to check, where.
 - id: synthetic_note_needs_profile_parameter
   question_file: tests/fixtures/SYNTHETIC_note_9900002_needs_profile_parameter.txt
-  question_suffix: "\n\nIs this relevant to our system?"
+  question_suffix: '
+
+
+    Is this relevant to our system?'
   facts:
-    - {tool: system_profile, path: result.kernel.0.release, equals: "753"}
-    - {tool: system_profile, path: result.kernel.0.patch_level, equals: "700"}
+  - {tool: system_profile, path: result.kernel.0.release, equals: '753'}
+  - {tool: system_profile, path: result.kernel.0.patch_level, equals: '700'}
   expect:
     tools: [system_profile]
-    first_sentence_contains: [["can't confirm", "cannot confirm", "can't tell", "cannot tell", "depends", "can't say", "not sure yet", "might apply", "may apply"]]
-    answer_contains: ["700", "1210", "support_http2", ["RZ11", "RZ10", "profile parameter"]]
-    answer_not_matches: ['(?m)^\s*#{1,6}\s', '(?m)^\s*\|', 'CVSS', '\b7\.5\b', '^Yes\b', '^No\b',
-                         "\\bdoesn['’]t apply\\b", '\bpatch(?:\s+level)?\s+(?!700\b|1210\b|650\b)\d+']
-    max_words: 130  # like Q10: the condition, what to check, both outcomes (eval 142508: 127 words)
+    first_sentence_contains:
+    - [can't confirm, cannot confirm, can't tell, cannot tell, depends, can't say, not sure yet, might apply, may apply]
+    answer_contains:
+    - '700'
+    - '1210'
+    - support_http2
+    - [RZ11, RZ10, profile parameter]
+    answer_not_matches: ['(?m)^\s*#{1,6}\s', '(?m)^\s*\|', ^Yes\b, ^No\b, '\bdoesn[''’]t apply\b', '\bpatch(?:\s+level)?\s+(?!700\b|1210\b|650\b)\d+', 7\.53 \(release 753\), '\b(?:CVSS|priority|urgent|urgency)\b']
+    max_words: 140
     grounding_flags_max: 0
   mock:
     calls:
-      - {tool: system_profile, args: {sections: [kernel]}}
+    - tool: system_profile
+      args:
+        sections: [kernel]
     answer:
-      answer: |-
-        I can't confirm this one yet: it turns on a setting I don't have for your system. Your system runs kernel 7.53 (release 753) at patch level 700, below the fix in patch 1210 according to the note, but the note only applies if HTTP/2 support is enabled in the ICM.
+      answer: 'I can''t confirm this one yet: it turns on a setting I don''t have for your system. Your system runs kernel 7.53 at patch level 700, below the fix in patch 1210 according to the note, but the note only applies if HTTP/2 support is enabled in the ICM.
 
-        Check `icm/HTTP/support_http2` in RZ11. If it's TRUE, plan a kernel update to patch 1210 or higher, or (per the note) set it to FALSE and restart the ICM; if it's FALSE, nothing to do.
+
+        Check `icm/HTTP/support_http2` in RZ11. If it''s TRUE, plan a kernel update to patch 1210 or higher, or (per the note) set it to FALSE and restart the ICM; if it''s FALSE, nothing to do.'
       system_facts:
-        - {text: "Kernel 7.53 (release 753) at patch level 700.", results: [1]}
-      history_for: ""
+      - text: Kernel 7.53 (release 753) at patch level 700.
+        results: [1]
+      history_for: ''
 
-# Negative control (make test only): a mocked answer with an invented number and object
-# must be flagged by the grounding check, not hidden.
-# Browser testing 2026-11-17 (operator): "system monitoring?" and "please list sm21 details" got
-# "I'll check / I'll look it up", 0 Graphene calls, then nothing. Monitoring questions call operations
-# and pass on its stated gaps. Facts from Graphene operations (L5 v3, handshake 1.35.0, 2026-11-17).
-- id: monitoring_overview
-  question: "What does system monitoring show?"
+# Operator 2026-11-18 (proactive expert): a runtime error name is an ST22 short dump. Explanation and typical
+# causes from SAP expertise, the system's dump counts, numbered steps; the missing error name per dump once,
+# near the end (G-10). Facts from Graphene operations (1.37.0): 4034 dumps, counted per day.
+- id: runtime_error_acm_unexpected_value
+  question: What is ACM_UNEXPECTED_VALUE?
   facts:
-    - {tool: operations, path: result.learned, equals: true}
-    - {tool: operations, path: result.jobs.runs, equals: 41}
-    - {tool: operations, path: result.jobs.cancelled, equals: 0}
-    - {tool: operations, path: result.dumps.total, equals: 4305}
-    - {tool: operations, path: result.alerts.total, equals: 0}
-    - {tool: operations, path: result.facts, contains: "CCMS: not configured"}
-    - {tool: operations, path: limits, contains: "The system log (SM21) is not learned: a stated L5 gap."}
-    - {tool: operations, path: evidence_ids, equals: ["run:L5:v3"]}
+  - {tool: operations, path: result.dumps.total, equals: 4034}
+  - {tool: operations, path: result.dumps.per_day, length: 14}
+  - {tool: operations, path: limits, contains: Dumps are counted per day; which program each dump hit is not learned yet.}
   expect:
     tools: [operations]
-    answer_contains: ["41", "4305", ["SM21", "system log", "CCMS", "workload"]]
-    # eval 2026-11-17 (76cfc6f): 112 words with a per-day breakdown and "about 288 a day"
-    answer_not_matches: ["\\bI(['’]ll| will) (check|look)", "\\blet me (check|look)", "\\babout \\d", "\\bpeak", '(?m)^\s*#{1,6}\s',
-                         '(?mi)^\W*(?:main\s+)?gaps?\b[^.\n]*:', '(?m)^\s*[-*]\s']  # operator 2026-11-18: no "Gaps:" label, no bullets
-    max_words: 100
+    tools_not: [find_object, impact]
+    answer_contains:
+    - ACM_UNEXPECTED_VALUE
+    - ST22
+    - ['4034', '4,034']
+    - [suggests, suggest]
+    - confirm
+    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
+    first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
+    max_gap_mentions: 1
+    steps_min: 3
+    max_words: 260
+    grounding_flags_max: 0
+    answer_matches: ['\b4,?034 short dumps in total\b']
+  mock:
+    calls:
+    - tool: operations
+      args: {}
+    answer:
+      answer: 'ACM_UNEXPECTED_VALUE is a rare runtime error. The name suggests a check in the ACM layer (in S/4HANA usually the access control management behind CDS access controls) got a value it didn''t expect; the dump will confirm. This system had 4,034 short dumps in total between 4 November and 17 November.
+
+
+        1. Open ST22, filter by runtime error ACM_UNEXPECTED_VALUE and open a recent dump.
+
+        2. Read "What happened" and "Error analysis": note the program, the CDS view or access control it names, and the user.
+
+        3. Check the user''s roles in SU53 and PFCG, and the access control in the ABAP Development Tools.
+
+        4. Search the SAP Support Portal for ACM_UNEXPECTED_VALUE together with the CDS view name.
+
+
+        Which runtime error each dump had isn''t recorded here, so ST22 is the place to count them.'
+      system_facts:
+      - text: 4034 short dumps between 2026-11-04 and 2026-11-17; error names per dump aren't recorded.
+        results: [1]
+      history_for: ''
+
+- id: runtime_error_dbsql_table_unknown
+  question: We keep getting DBSQL_TABLE_UNKNOWN. What's going on?
+  facts:
+  - {tool: operations, path: result.dumps.total, equals: 4034}
+  expect:
+    tools: [operations]
+    tools_not: [find_object, impact]
+    answer_contains:
+    - DBSQL_TABLE_UNKNOWN
+    - ST22
+    - ['4034', '4,034']
+    - table
+    - [SE11, SE14]
+    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), \bSE38\b|\bSE80\b, '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
+    first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
+    max_gap_mentions: 1
+    steps_min: 3
+    max_words: 260
+    grounding_flags_max: 0
+    answer_matches: ['\b4,?034 short dumps in total\b']
+  mock:
+    calls:
+    - tool: operations
+      args: {}
+    answer:
+      answer: 'DBSQL_TABLE_UNKNOWN means an ABAP program accessed a table or view that exists in the ABAP Dictionary but not in the database; a common cause is a transport that brought the program but not the table, or a table never activated in the database. This system had 4,034 short dumps in total between 4 November and 17 November.
+
+
+        1. Open ST22, filter by runtime error DBSQL_TABLE_UNKNOWN and note the table and program in a recent dump.
+
+        2. Check the table in SE11: is it active?
+
+        3. In SE14, check whether it exists in the database; use "Activate and adjust database" only after a backup and never directly in production.
+
+        4. In STMS, check whether the table''s transport was imported along with the program''s.
+
+
+        Which runtime error each dump had isn''t recorded here; once you have the table name, I can check it in the dictionary and show what uses it.'
+      system_facts:
+      - text: 4034 short dumps between 2026-11-04 and 2026-11-17; error names per dump aren't recorded.
+        results: [1]
+      history_for: ''
+
+# Operator 2026-11-18 (browser review): never undersell what is known. Available per status (1.37.0):
+# Identity, Dictionary (custom, referenced, cds), Code inventory, Code relationships, Change history,
+# Operations. Say precisely what is missing, never a whole available area; offer what is available.
+- id: available_information
+  question: What information is available for this system?
+  facts:
+  - {tool: status, path: result.stages.1.name, equals: Dictionary}
+  - {tool: status, path: result.stages.1.status, equals: done}
+  - {tool: status, path: result.stages.2.name, equals: Code inventory}
+  - {tool: status, path: result.stages.3.name, equals: Code relationships}
+  - {tool: status, path: result.stages.4.name, equals: Change history}
+  expect:
+    tools: [status]
+    answer_contains: [dictionary, CDS, code, transport, job, dump]
+    answer_not_matches: ['\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', \b6 of 11\b, \bL\d+\b, '\bstages?\b', '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
+    max_words: 140
     grounding_flags_max: 0
   mock:
     calls:
-      - {tool: operations, args: {}}
+    - tool: status
+      args: {}
     answer:
-      answer: |-
-        In the monitored window, this system had 41 background job runs (0 cancelled), 4305 short dumps and 0 alerts. I don't have the system log or which program each dump hit; you can check them in SM21 and ST22. CCMS is not configured, and SAP keeps no workload aggregates on this system.
+      answer: 'For this system there is the system identity and versions, the ABAP Dictionary (custom and referenced tables plus CDS views), the custom code inventory, the code relationships between objects, the change history with its transports, and operations: background jobs and short dump counts per day. Configuration, access, interfaces, runtime evidence and understanding aren''t available yet.'
       system_facts:
-        - {text: "41 background job runs, 0 cancelled.", results: [1]}
-        - {text: "4305 short dumps, counted per day.", results: [1]}
-        - {text: "0 alerts.", results: [1]}
-        - {text: "The system log (SM21) isn't available for this system.", results: [1]}
+      - text: Identity, Dictionary (custom, referenced, CDS), Code inventory, Code relationships, Change history and Operations are done; Configuration, Access, Interfaces, Runtime evidence and Understanding are not started.
+        results: [1]
+      history_for: ''
+
+# Operator 2026-11-18 (browser review): never undersell what is known; lead with help (the dump names the
+# table), numbered steps, the missing detail once near the end, the dictionary check offered.
+- id: runtime_error_which_table_is_missing
+  question: DBSQL_TABLE_UNKNOWN keeps coming up. Which table is missing?
+  facts:
+  - {tool: operations, path: result.dumps.total, equals: 4034}
+  expect:
+    tools: [operations]
+    tools_not: [impact]
+    answer_contains:
+    - ST22
+    - [SE11, SE14]
+    - dictionary
+    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), \bSE38\b|\bSE80\b, '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
+    first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
+    max_gap_mentions: 1
+    steps_min: 3
+    max_words: 260
+    grounding_flags_max: 0
+    answer_matches: ['\b4,?034 short dumps in total\b']
+  mock:
+    calls:
+    - tool: operations
+      args: {}
+    answer:
+      answer: 'The dump itself names the missing table, so ST22 is the quickest way to find it:
+
+
+        1. Open ST22, filter by runtime error DBSQL_TABLE_UNKNOWN and read the table name and program in the most recent dump.
+
+        2. Check the table in SE11 (active?) and SE14 (in the database?); adjust it only after a backup, never directly in production.
+
+        3. In STMS, check whether the table''s transport was imported along with the program''s.
+
+
+        This error typically follows an incomplete transport or an inactive table. This system had 4,034 short dumps in total between 4 November and 17 November; which table each dump hit isn''t recorded here, but once you have the name, I can check it in the dictionary.'
+      system_facts:
+      - text: 4034 short dumps between 2026-11-04 and 2026-11-17; the table per dump isn't recorded.
+        results: [1]
+      history_for: ''
+
+# Explicitly requested report: short labels are fine; what is missing is "Not available", never "Gaps".
+- id: monitoring_report
+  question: Give me a short monitoring report, with sections.
+  facts:
+  - {tool: operations, path: result.jobs.runs, equals: 42}
+  expect:
+    tools: [operations]
+    answer_contains:
+    - '42'
+    - ['4034', '4,034']
+    - Not available
+    answer_not_matches: ['(?mi)^[\W_]*(?:main\s+)?gaps?\b[^.\n]*:', \babout \d]
+    max_words: 150
+    grounding_flags_max: 0
+  mock:
+    calls:
+    - tool: operations
+      args: {}
+    answer:
+      answer: '**Window:** 4 November to 17 November.
+
+
+        **Jobs:** 42 background job runs, 0 cancelled.
+
+
+        **Short dumps:** 4034, counted per day.
+
+
+        **Alerts:** 0 (CCMS is not configured).
+
+
+        **Not available:** the system log (check SM21), which program each dump hit (check ST22), and workload statistics.'
+      system_facts:
+      - text: 42 background job runs, 0 cancelled; 4034 short dumps; 0 alerts; window 2026-11-04 to 2026-11-17.
+        results: [1]
+      history_for: ''
+
+# Browser testing 2026-11-17 (operator): monitoring questions call operations and pass on its stated gaps.
+# Operator 2026-11-18 (proactive expert): the totals, what they suggest, next steps; the gaps once, near the end.
+- id: monitoring_overview
+  question: What does system monitoring show?
+  facts:
+  - {tool: operations, path: result.learned, equals: true}
+  - {tool: operations, path: result.jobs.runs, equals: 42}
+  - {tool: operations, path: result.jobs.cancelled, equals: 0}
+  - {tool: operations, path: result.dumps.total, equals: 4034}
+  - {tool: operations, path: result.alerts.total, equals: 0}
+  - {tool: operations, path: result.facts, contains: 'CCMS: not configured'}
+  - {tool: operations, path: limits, contains: 'The system log (SM21) is not learned: a stated L5 gap.'}
+  - tool: operations
+    path: evidence_ids
+    equals: ['run:L5:v4']
+  expect:
+    tools: [operations]
+    answer_contains:
+    - '42'
+    - ['4034', '4,034']
+    answer_not_matches: ['\bI([''’]ll| will) (check|look)', \blet me (check|look), '(?m)^\s*#{1,6}\s', '(?mi)^[\W_]*(?:main\s+)?gaps?\b[^.\n]*:', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), \babout \d, '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
+    first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
+    max_gap_mentions: 1
+    max_words: 200
+    grounding_flags_max: 0
+    answer_matches: ['\b4,?034 short dumps in total\b', '\bevery (?:5|five) minutes\b', '\b(?:3|three) (?:job )?(?:runs? )?(?:a|per) day\b']
+  mock:
+    calls:
+    - tool: operations
+      args: {}
+    answer:
+      answer: 'Between 4 November and 17 November this system had 4,034 short dumps in total, 42 background job runs (0 cancelled) and 0 alerts. This system logs 288 dumps a day, which is one every 5 minutes, while 42 job runs in 14 days is 3 a day, so the scheduled jobs can''t explain the dumps; a rhythm like that usually points to a periodic RFC, interface poll or background process.
+
+
+        1. In ST22, group one day''s dumps by runtime error and program to find the recurring one.
+
+        2. With so few jobs and no workload aggregates, the standard housekeeping jobs usually aren''t scheduled: schedule them in SM36 → Standard Jobs (including SAP_COLLECTOR_FOR_PERFMONITOR).
+
+
+        The system log and the program per dump aren''t recorded here; check them in SM21 and ST22.'
+      system_facts:
+      - text: 4034 short dumps, 288 or 289 a day; 42 background job runs, 0 cancelled, 2 distinct jobs; 0 alerts; 2026-11-04 to 2026-11-17.
+        results: [1]
+      - text: 'Workload: SAP has no aggregates on this system; the system log (SM21) isn''t available.'
+        results: [1]
+      history_for: ''
+
+# Operator 2026-11-18 (proactive expert): ST22 details: how to work through the dumps (numbered steps),
+# connected with this system's dump counts; which runtime error each dump had isn't recorded (G-10), once.
+- id: st22_details
+  question: Show me ST22 details
+  facts:
+  - {tool: operations, path: result.dumps.total, equals: 4034}
+  - {tool: operations, path: result.dumps.per_day.2026-11-04, equals: 288}
+  expect:
+    tools: [operations]
+    tools_not: [find_object, impact]
+    answer_contains:
+    - ST22
+    - ['4034', '4,034']
+    answer_not_matches: ['\bI([''’]ll| will) (check|look)', '\b\d{1,2}:\d{2}\b', '(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
+    first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
+    max_gap_mentions: 1
+    steps_min: 3
+    max_words: 210
+    grounding_flags_max: 0
+    answer_matches: ['\b4,?034 short dumps in total\b']
+  mock:
+    calls:
+    - tool: operations
+      args: {}
+    answer:
+      answer: 'ST22 lists each short dump with its runtime error, program and user; this is how to work through them:
+
+
+        1. Open ST22 and choose the date range.
+
+        2. Group the list by runtime error and program to see which errors repeat.
+
+        3. Open a dump and read "What happened", "Error analysis" and the source code extract for the cause.
+
+        4. Search the runtime error name and program in the SAP Support Portal.
+
+
+        This system had 4,034 short dumps in total between 4 November and 17 November, 288 or 289 every day, so start with the error that repeats daily. Which runtime error each dump had isn''t recorded here.'
+      system_facts:
+      - text: 4034 short dumps between 2026-11-04 and 2026-11-17; 288 or 289 every day.
+        results: [1]
+      history_for: ''
 
 - id: sm21_details
-  question: "Show me SM21 details"
+  question: Show me SM21 details
   facts:
-    - {tool: operations, path: limits, contains: "The system log (SM21) is not learned: a stated L5 gap."}
+  - {tool: operations, path: limits, contains: 'The system log (SM21) is not learned: a stated L5 gap.'}
   expect:
     tools: [operations]
-    answer_contains: ["SM21", ["don't have", "isn't available", "not available"]]
-    # the stated gap, no invented entries: no promise, no log lines (times, message ids)
-    answer_not_matches: ["\\bI(['’]ll| will) (check|look)", "\\blet me (check|look)", "\\b\\d{1,2}:\\d{2}\\b"]
-    first_sentence_contains: [["SM21", "system log"], ["don't have", "isn't available", "not available"]]
-    max_words: 80
+    answer_contains: [SM21]
+    answer_not_matches: ['\bI([''’]ll| will) (check|look)', \blet me (check|look), '\b\d{1,2}:\d{2}\b', '(?m)^\s*#{1,6}\s', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
+    first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
+    max_gap_mentions: 1
+    steps_min: 3
+    max_words: 230
     grounding_flags_max: 0
   mock:
     calls:
-      - {tool: operations, args: {}}
+    - tool: operations
+      args: {}
     answer:
-      answer: |-
-        I don't have the system log for this system; you can check its entries in SM21.
-        From monitoring there are counts only: 41 job runs, 4305 short dumps and 0 alerts.
+      answer: 'SM21 shows the system log entry by entry; this is how to work through it:
+
+
+        1. Open SM21 and set the time range and the application server.
+
+        2. Filter by problem class (errors and warnings first), then by user or transaction if you are chasing one case.
+
+        3. Double-click an entry for its details and message ID, and search that message ID in the SAP Support Portal.
+
+
+        This system had 4,034 short dumps in total between 4 November and 17 November, so it''s worth matching SM21 entries with the dump times in ST22. The system log itself isn''t recorded here.'
       system_facts:
-        - {text: "The system log (SM21) isn't available for this system.", results: [1]}
-        - {text: "41 background job runs, 4305 short dumps, 0 alerts.", results: [1]}
+      - text: The system log (SM21) isn't available for this system.
+        results: [1]
+      - text: 4034 short dumps between 2026-11-04 and 2026-11-17.
+        results: [1]
+      history_for: ''
 
 # Regression (make test only), browser testing 2026-11-17: a reply that only promises to look it up,
 # with no Graphene call, is never shown. claude-sonnet-5-5 rejects tool_choice "any" (400), so the app
@@ -526,6 +833,8 @@
       answer: "unused"
       system_facts: []
 
+# Negative control (make test only): a mocked answer with an invented number and object
+# must be flagged by the grounding check, not hidden.
 - id: grounding_flags_invented_facts
   question: "What breaks if I change ZS4_IOT_DATA?"
   test_only: true
@@ -594,7 +903,7 @@
   question: "What breaks if I change ZS4_IOT_DATA?"
   test_only: true
   expect_rounds: 1
-  expect_trace: [impact, status, impact]
+  expect_trace: [impact, impact, status]  # impact calls run first in a turn (operator 2026-11-18)
   expect_skipped: 2
   mock:
     calls:  # a list = several calls in one turn

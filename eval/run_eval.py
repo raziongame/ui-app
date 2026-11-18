@@ -26,6 +26,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from app import agent, contract, config, present, wording  # noqa: E402
+
+# A sentence that states a missing system detail (operator 2026-11-18: at most once, never first).
+GAP_RE = re.compile(r"\b(?:I don['’]t have|I do not have|isn['’]t recorded|aren['’]t recorded|not recorded"
+                    r"|isn['’]t available|aren['’]t available|not available|I can['’]t (?:say|tell|see|show)"
+                    r"|isn['’]t either|aren['’]t either|neither|(?:isn['’]t|aren['’]t) (?:being )?collected"
+                    # operator 2026-11-18: "CCMS isn't configured on this system either." continues the gap list
+                    r"|(?:isn['’]t|aren['’]t|is not|are not|not)\b[^.!?]*\beither)\b", re.I)
 from app.mcp_client import GrapheneMCP  # noqa: E402
 
 # Claude Sonnet 5.5, $ per million tokens (Anthropic first-party pricing).
@@ -103,6 +110,145 @@ async def estimate(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> None:
           f"~{OUT_FINAL} for the final answer. If Claude makes twice the calls, budget about 2x.")
 
 
+# Operator 2026-11-18: a gap sentence that also gives the fix (a transaction plus schedule/activate/
+# configure/enable/Standard Jobs) is a recommendation, and numbered steps are steps: neither counts as
+# a gap mention. Only standalone gap sentences outside the steps count.
+FIX_RE = re.compile(r"\b(?:schedul\w*|activat\w*|configur\w*|enabl\w*|Standard Jobs)\b", re.I)
+TX_RE = re.compile(r"\b(?:[A-Z]{2,4}\d{2}[A-Z]?|PFCG|STMS|SMICM|SMQ[12])\b")
+
+
+def gap_sentences(prose: str) -> list[str]:
+    out = []
+    for line in prose.splitlines():
+        if re.match(r"^\s*\d+[.)]\s", line):
+            continue
+        for x in re.split(r"(?<=[.!?])\s+", line.strip()):
+            if x and GAP_RE.search(x) and not (FIX_RE.search(x) and TX_RE.search(x)):
+                out.append(x)
+    return out
+
+
+# Operator 2026-11-18 tag rule: up to 3 style-only failures (length / sentence count) are OK; any
+# other failure (facts, grounding, applies verdicts, priority/urgency, tools, content) blocks a tag.
+STYLE_RE = re.compile(r"^(?:answer has \d+ (?:words|sentences) > \d+|gap mentioned in \d+ sentences > \d+)")
+
+
+def is_style(problem: str) -> bool:
+    return bool(STYLE_RE.match(problem))
+
+
+def tag_verdict(results: list[dict]) -> str:
+    failed = [r for r in results if not r.get("ok")]
+    substance = [r["id"] for r in failed if r.get("error") or any(not is_style(p) for p in r.get("problems", []))]
+    style = [r["id"] for r in failed if r["id"] not in substance]
+    if substance:
+        return f"NO TAG: substance failures {substance}" + (f"; style-only {style}" if style else "")
+    if len(style) > 3:
+        return f"NO TAG: {len(style)} style-only failures > 3: {style}"
+    return f"TAG OK per rule: {len(style)} style-only failure(s) {style}"
+
+
+def check(c: dict, out: dict, shown: str, secs: float) -> tuple[list[str], list[str]]:
+    """Every eval check for one answer (live runs and --rescore of a saved result file)."""
+    exp, problems, notes = c["expect"], [], []
+    outcome = out["presentation"]["outcome"]
+    if outcome in ("held back", "fallback"):
+        problems.append(f"{outcome}: {out['presentation']['unbacked']}")
+    elif outcome == "rewritten":
+        notes.append(f"rewritten (first draft: {[f['token'] for f in out['first_draft_flags']]})")
+    for p in wording.problems(shown):
+        problems.append(p)
+    called = {t["tool"] for t in out["tool_trace"]}
+    for bad in exp.get("tools_not", []):
+        if bad in called:
+            problems.append(f"tool called that must not be: {bad}")
+    if exp.get("no_tools") and called:
+        problems.append(f"tools called for a question that needs none: {sorted(called)}")
+    for need in exp.get("tools", []):
+        opts = need if isinstance(need, list) else [need]
+        if not called & set(opts):
+            problems.append(f"tool not called: {opts}")
+    text = shown.lower()
+    for item in exp.get("answer_contains", []):
+        opts = item if isinstance(item, list) else [item]
+        if not any(str(o).lower() in text for o in opts):
+            problems.append(f"answer lacks {opts}")
+    for bad in exp.get("answer_not_contains", []):
+        if str(bad).lower() in text:
+            problems.append(f"answer contains {bad!r}")
+    facts_text = json.dumps(out["system_facts"], ensure_ascii=False)
+    for item in exp.get("facts_contain", []):
+        if str(item) not in facts_text:
+            problems.append(f"system facts lack {item!r}")
+    for bad in exp.get("prose_not_contains", []):
+        if str(bad).lower() in out["answer"].lower():
+            problems.append(f"answer text contains {bad!r} (belongs in the system facts only)")
+    prose = out["answer"]
+    sentences = [x for x in re.split(r"(?<=[.!?])\s+", prose.strip()) if x]
+    for item in exp.get("first_sentence_contains", []):
+        opts = item if isinstance(item, list) else [item]
+        if not sentences or not any(str(o).lower() in sentences[0].lower() for o in opts):
+            problems.append(f"first sentence lacks {opts!r}")
+    # operator 2026-11-18 (proactive expert): help first, numbered steps, a gap at most once
+    for rx in exp.get("first_sentence_not_matches", []):
+        if sentences and re.search(rx, sentences[0], re.I):
+            problems.append(f"first sentence matches {rx!r}: {sentences[0][:80]!r}")
+    steps = len(re.findall(r"(?m)^\s*\d+[.)]\s", prose))
+    if exp.get("steps_min") and steps < exp["steps_min"]:
+        problems.append(f"{steps} numbered steps < {exp['steps_min']}")
+    gaps = gap_sentences(prose)
+    if "max_gap_mentions" in exp and len(gaps) > exp["max_gap_mentions"]:
+        problems.append(f"gap mentioned in {len(gaps)} sentences > {exp['max_gap_mentions']}: {[g[:50] for g in gaps]}")
+    if exp.get("max_sentences") and len(sentences) > exp["max_sentences"]:
+        problems.append(f"answer has {len(sentences)} sentences > {exp['max_sentences']}")
+    if exp.get("no_change_only_at_end"):
+        for sent in sentences[:-1]:
+            if re.search(r"nothing (has )?changed|no changes?\b|unchanged|same score", sent, re.I):
+                problems.append(f"'no change' wording before the end: {sent[:60]!r}")
+    hist = out.get("history") or {}
+    if "history_steps" in exp:
+        got = [{k: st[k] for k in ("at", "from", "to", "older_engine", "causes")} for st in hist.get("steps", [])]
+        if got != exp["history_steps"]:
+            problems.append(f"history table differs from Graphene's steps: {got}")
+        if hist.get("nothing_changed_since_last") != exp.get("nothing_changed_since_last"):
+            problems.append("history table: 'nothing changed' line missing or wrong")
+    elif hist.get("steps"):
+        problems.append(f"history table shown for {hist.get('transport')} (not a history question)")
+    if exp.get("max_words") and len(prose.split()) > exp["max_words"]:
+        problems.append(f"answer has {len(prose.split())} words > {exp['max_words']}")
+    for rx in exp.get("answer_matches", []):  # operator 2026-11-18: content that must be there
+        if not re.search(rx, prose, re.I):
+            problems.append(f"answer doesn't match {rx!r}")
+    for rx in exp.get("answer_not_matches", []):
+        if re.search(rx, prose, re.I):
+            problems.append(f"answer matches {rx!r}")
+    if secs > exp.get("max_seconds", TARGET_S):
+        problems.append(f"slow: {secs:.1f} s > {exp.get('max_seconds', TARGET_S)} s")
+    if [t["tool"] for t in out["tool_trace"]].count("status") > 1:
+        problems.append("status called more than once")
+    return problems, notes
+
+
+def rescore(path: str) -> int:
+    """Re-check a saved result file with the current checks and golden expectations (no API calls)."""
+    saved = json.loads(Path(path).read_text())
+    golden = {c["id"]: c for c in yaml.safe_load((ROOT / "tests" / "golden_questions.yaml").read_text()) if not c.get("test_only")}
+    results = []
+    print(f"{'case':42} {'saved':>6} {'now':>6}  problems now")
+    for r in saved:
+        c = golden.get(r["id"])
+        if c is None or "answer" not in r:
+            results.append(r)
+            print(f"{r['id'][:42]:42} {'FAIL' if not r.get('ok') else 'PASS':>6} {'-':>6}  (no answer saved / not a golden case)")
+            continue
+        problems, _ = check(c, r, r["shown"], r.get("seconds", 0.0))
+        results.append({**r, "ok": not problems, "problems": problems})
+        print(f"{r['id'][:42]:42} {'PASS' if r.get('ok') else 'FAIL':>6} {'PASS' if not problems else 'FAIL':>6}  "
+              + "; ".join(problems))
+    print(f"\n{sum(1 for x in results if x.get('ok'))}/{len(results)} pass now · {tag_verdict(results)}")
+    return 0
+
+
 async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
     results, failures, total_cost = [], 0, 0.0
     planned, worst = cases(), 0.0
@@ -127,68 +273,9 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
             print(f"FAIL {c['id']}: {e}  ${cost:.4f}  {len(e.trace)} tool calls: "
                   + ", ".join(f"{t['tool']}{json.dumps(t['arguments'])}" for t in e.trace))
             continue
-        exp, problems, notes = c["expect"], [], []
         shown = present.finalize(out)  # what the user sees (silent grounding applied)
-        outcome = out["presentation"]["outcome"]
-        if outcome in ("held back", "fallback"):
-            problems.append(f"{outcome}: {out['presentation']['unbacked']}")
-        elif outcome == "rewritten":
-            notes.append(f"rewritten (first draft: {[f['token'] for f in out['first_draft_flags']]})")
-        for p in wording.problems(shown):
-            problems.append(p)
-        called = {t["tool"] for t in out["tool_trace"]}
-        if exp.get("no_tools") and called:
-            problems.append(f"tools called for a question that needs none: {sorted(called)}")
-        for need in exp.get("tools", []):
-            opts = need if isinstance(need, list) else [need]
-            if not called & set(opts):
-                problems.append(f"tool not called: {opts}")
-        text = shown.lower()
-        for item in exp.get("answer_contains", []):
-            opts = item if isinstance(item, list) else [item]
-            if not any(str(o).lower() in text for o in opts):
-                problems.append(f"answer lacks {opts}")
-        for bad in exp.get("answer_not_contains", []):
-            if str(bad).lower() in text:
-                problems.append(f"answer contains {bad!r}")
-        facts_text = json.dumps(out["system_facts"], ensure_ascii=False)
-        for item in exp.get("facts_contain", []):
-            if str(item) not in facts_text:
-                problems.append(f"system facts lack {item!r}")
-        for bad in exp.get("prose_not_contains", []):
-            if str(bad).lower() in out["answer"].lower():
-                problems.append(f"answer text contains {bad!r} (belongs in the system facts only)")
-        prose = out["answer"]
-        sentences = [x for x in re.split(r"(?<=[.!?])\s+", prose.strip()) if x]
-        for item in exp.get("first_sentence_contains", []):
-            opts = item if isinstance(item, list) else [item]
-            if not sentences or not any(str(o).lower() in sentences[0].lower() for o in opts):
-                problems.append(f"first sentence lacks {opts!r}")
-        if exp.get("max_sentences") and len(sentences) > exp["max_sentences"]:
-            problems.append(f"answer has {len(sentences)} sentences > {exp['max_sentences']}")
-        if exp.get("no_change_only_at_end"):
-            for sent in sentences[:-1]:
-                if re.search(r"nothing (has )?changed|no changes?\b|unchanged|same score", sent, re.I):
-                    problems.append(f"'no change' wording before the end: {sent[:60]!r}")
-        hist = out.get("history") or {}
-        if "history_steps" in exp:
-            got = [{k: st[k] for k in ("at", "from", "to", "older_engine", "causes")} for st in hist.get("steps", [])]
-            if got != exp["history_steps"]:
-                problems.append(f"history table differs from Graphene's steps: {got}")
-            if hist.get("nothing_changed_since_last") != exp.get("nothing_changed_since_last"):
-                problems.append("history table: 'nothing changed' line missing or wrong")
-        elif hist.get("steps"):
-            problems.append(f"history table shown for {hist.get('transport')} (not a history question)")
-        if exp.get("max_words") and len(prose.split()) > exp["max_words"]:
-            problems.append(f"answer has {len(prose.split())} words > {exp['max_words']}")
-        for rx in exp.get("answer_not_matches", []):
-            if re.search(rx, prose, re.I):
-                problems.append(f"answer matches {rx!r}")
         secs = time.time() - t0
-        if secs > exp.get("max_seconds", TARGET_S):
-            problems.append(f"slow: {secs:.1f} s > {exp.get('max_seconds', TARGET_S)} s")
-        if [t["tool"] for t in out["tool_trace"]].count("status") > 1:
-            problems.append("status called more than once")
+        problems, notes = check(c, out, shown, secs)
         cost = dollars(out["usage"])
         total_cost += cost
         worst = max(worst, cost)
@@ -212,6 +299,7 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
               + ("PASS" if r.get("ok") else "FAIL"))
     passed = sum(1 for r in results if r.get("ok"))
     print(f"\n{passed}/{len(planned)} passed · actual cost ${total_cost:.4f} · {path.relative_to(ROOT)}")
+    print(tag_verdict(results))
     return 1 if failures else 0
 
 
@@ -220,8 +308,11 @@ async def main() -> int:
     ap.add_argument("--estimate", action="store_true")
     ap.add_argument("--only", nargs="*", default=[], help="golden case ids to run")
     ap.add_argument("--full", action="store_true", help="every golden question (only before a tag)")
+    ap.add_argument("--rescore", metavar="RESULT_JSON", help="re-check a saved result file, no API calls")
     ap.add_argument("--max-cost", type=float, default=MAX_COST[0], help="$ cap for this run (default 1.00)")
     args = ap.parse_args()
+    if args.rescore:
+        return rescore(args.rescore)
     if not args.estimate and not args.full and not args.only:
         sys.exit("Name the affected questions (--only id ...), or --full before a tag (operator cost rule).")
     MAX_COST[0] = args.max_cost

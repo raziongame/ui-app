@@ -158,9 +158,9 @@ def test_names_and_numbers_from_the_users_text_may_be_repeated(client, fake_clau
 
 
 def test_kernel_dotted_form_is_backed_by_the_engines_release(client, fake_claude):
-    """Operator 2026-11-17: "kernel 7.53 (release 753)" even with no note pasted."""
+    """Operator 2026-11-18: "kernel 7.53" (the engine's release 753 backs it; never both forms)."""
     mock = {"calls": [{"tool": "system_profile", "args": {"sections": ["kernel"]}}],
-            "answer": {"answer": "Your kernel is 7.53 (release 753) at patch 700.",
+            "answer": {"answer": "Your kernel is 7.53 at patch 700.",
                        "system_facts": [{"text": "Kernel 7.53 (release 753), patch 700.", "results": [1]}], "history_for": ""}}
     out, *_ = _run(client, fake_claude, mock, "Which kernel do we run?")
     assert out["presentation"]["outcome"] == "passed", out["grounding"]
@@ -226,13 +226,28 @@ def test_request_shape_to_claude(client, fake_claude):
     assert "Never ask the user for a detail about their system that a tool can give" in text
     # operator 2026-11-18 (answer style): no fixed template or standard headings
     assert "No fixed template and no standard headings" in text and "### " not in text
-    assert "Mention a missing fact only when it changes the answer" in text
+    # operator 2026-11-18 (proactive expert): help first, gaps once near the end, numbered steps
+    assert "Lead with help, not gaps" in text and "Never open with \"I don't" in text
+    assert "at most once, briefly, near the end" in text and "numbered, practical steps" in text
+    assert "Connect the dots" in text and "use it freely and generously" in text
+    assert "Name a specific SAP Note or KBA number only" in text
+    assert "only from general SAP knowledge you are sure of" not in text and "offer no guess" not in text
     assert "you can check it in SM21" in text and "as of 5 November" in text
-    assert "General SAP knowledge" in text and "never as a fact about this system" in text
+    assert "SAP expertise: use it freely" in text and "never as a fact about this system" in text
     assert "say so naturally and where to check it" in text  # an unknown system fact
-    assert 'write "kernel 7.53 (release 753)"' in text and "SAP_BASIS 751, never 7.51" in text
+    assert 'write "kernel 7.53"' in text and "never both forms" in text and "SAP_BASIS 751, never 7.51" in text
+    # operator 2026-11-18: exact derivations with source numbers, totals not one error type, cautions
+    assert "one every 5 minutes" in text and "Never present a derived number without its" in text
+    assert '"4,034 short dumps in total"' in text and "Risky transactions get a one-line caution" in text
+    assert "SAP_COLLECTOR_FOR_PERFMONITOR" in text and "the dump will confirm" in text
+    assert "no step that" in text and "State each fact once" in text
+    assert "below always win over connecting the dots" in text
+    assert '"older method" line (the table already marks it)' in text
+    assert "gets no priority or urgency line" in text
+    assert "(e.g. workload statistics → the SM36 standard jobs step)" in text
+    assert "ST22 shows which of them, if any, are this error" in text
     assert '"No, this one doesn\'t apply."' in text and '"I can\'t confirm this one yet."' in text
-    assert "no CVSS score, priority or symptom" in text and "according to the note" in text
+    assert "no symptom description; the note's" in text and "according to the note" in text
     assert "ask only for what the question needs" in text  # v18 filters
     assert "I don't know a table called ZFAKE_TABLE in this system, and I won't guess." in text
     assert '(e.g. "SP 0")' in text and "goes only in \"system_facts\", never in the answer" in text
@@ -242,7 +257,7 @@ def test_request_shape_to_claude(client, fake_claude):
     assert "answer from the assessment's lowerers" in text
     assert "never show field names, ids or JSON words" in text
     assert "Never reply that you will check" in text and "A general SAP question needs no call" in text
-    assert "call operations" in text and "sentence 1 states the gap" in text
+    assert "call operations" in text and "open with help" in text
     assert "learning plan" not in text.split("Background about the data source")[0].replace('no "learning plan"', "")
     assert "never add a gap the results don't state" in text
     assert 'Never approximate a number' in text or 'no "about", "around", "roughly"' in text
@@ -427,3 +442,48 @@ def test_note_numbers_are_never_looked_up_as_objects(client, fake_claude):
                                  "here and I'll check it against your system.", "system_facts": [], "history_for": ""}}
     out, _, _, _ = _run(client, fake_claude, mock, "3778530")
     assert out is not None and out["tool_trace"] == [] and out["usage"]["repeat_calls_skipped"] == 1
+
+
+def test_runtime_error_without_a_call_gets_one_nudge(client, fake_claude):
+    """Operator 2026-11-18 (eval: ACM_UNEXPECTED_VALUE answered in one sentence, no call): a reply without
+    any call to a message naming a runtime error gets one note to call operations."""
+    from app.agent import RUNTIME_ERROR_RE
+    case = next(c for c in GOLDEN if c["id"] == "runtime_error_acm_unexpected_value")
+    mock = {**case["mock"], "skip_call_turns": 1}
+    out, _, _, reqs = _run(client, fake_claude, mock, case["question"])
+    assert out is not None and [t["tool"] for t in out["tool_trace"]] == ["operations"]
+    assert out["usage"]["runtime_error_nudges"] == 1
+    assert any("looks like an ABAP runtime error" in m["content"] for m in reqs[-1]["messages_snapshot"] if m["role"] == "system")
+    for name in ("ACM_UNEXPECTED_VALUE", "DBSQL_TABLE_UNKNOWN", "TSV_TNEW_PAGE_ALLOC_FAILED", "MESSAGE_TYPE_X"):
+        assert RUNTIME_ERROR_RE.search(f"What is {name}?"), name
+    for text in ("What is SAP_BASIS?", "What uses table ZFAKE_TABLE?", "What breaks if I change ZS4_IOT_DATA?",
+                 "Is SAP Note 3778530 relevant?", "check TABL:ZGR_DISC_RULES"):
+        assert not RUNTIME_ERROR_RE.search(text), text
+    # a general answer to a non-runtime-error name is accepted after the one note (no error)
+    general = {"calls": [], "skip_call_turns": 5, "answer": {"answer": "unused", "system_facts": [], "history_for": ""}}
+    out2, _, _, _ = _run(client, fake_claude, general, "What does BAPI_USER_GET_DETAIL return?")
+    assert out2 is not None and out2["tool_trace"] == [] and out2["usage"]["runtime_error_nudges"] == 1
+
+
+def test_reply_that_stops_at_a_lead_in_is_not_shown(client, fake_claude):
+    """eval 2026-11-18 (SM21): "SM21 shows the log entry by entry; this is how to work through it:" with no
+    call and nothing after the colon is dropped and asked again, like a promise."""
+    from app import agent
+    assert "this is how to work through it:" not in agent.SYSTEM_PROMPT
+    case = next(c for c in GOLDEN if c["id"] == "sm21_details")
+    mock = {**case["mock"], "promise_turns": 1,
+            "promise_text": "SM21 shows the log entry by entry; this is how to work through it:"}
+    out, _, _, reqs = _run(client, fake_claude, mock, case["question"])
+    assert out is not None and [t["tool"] for t in out["tool_trace"]] == ["operations"]
+    assert out["usage"].get("no_call_retries") == 1 and not out["answer"].rstrip().endswith(":")
+
+
+def test_object_lookup_covered_by_impact_is_not_run(client, fake_claude):
+    """Operator 2026-11-18 (Q1 latency): find_object for an object this message's impact covers is skipped,
+    whatever order the model asks for them in."""
+    case = next(c for c in GOLDEN if c["id"] == "impact_zs4_iot_data")
+    mock = {**case["mock"], "calls": [[{"tool": "find_object", "args": {"name": "ZS4_IOT_DATA"}},
+                                       {"tool": "impact", "args": {"name": "ZS4_IOT_DATA"}}]]}
+    out, _, _, _ = _run(client, fake_claude, mock, case["question"])
+    assert out is not None and [t["tool"] for t in out["tool_trace"]] == ["impact"]
+    assert out["usage"]["repeat_calls_skipped"] == 1

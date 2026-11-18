@@ -38,9 +38,11 @@ meets WCAG AA in light and dark, `tests/test_ui.py`). No other skins, no `/direc
    knowledge is allowed, phrased as general knowledge, never as a fact about this system. Unknown
    objects: "I don't know a table called ZFAKE_TABLE in this system, and I won't guess." A system
    fact that isn't known: say so naturally and where to check it ("I don't have the system log for
-   this system; you can check it in SM21"). Never recompute or round a number. Kernel:
-   "kernel 7.53 (release 753)" (dotted form as people read it, release as the engine returns it);
-   every other release as returned (SAP_BASIS 751, never 7.51). A note vs this system: show both
+   this system; you can check it in SM21"). Never round a returned number; plain exact arithmetic on
+   engine numbers is allowed with the source numbers in the same sentence ("288 a day is one every 5
+   minutes"; grounding backs a ± × ÷ of that sentence's numbers or a time constant, logged as
+   `derived`). Kernel: "kernel 7.53" (dotted form; the engine's release 753 backs it; never "7.53
+   (release 753)", operator 2026-11-18); every other release as returned (SAP_BASIS 751, never 7.51). A note vs this system: show both
    values ("your kernel … patch 700; according to the note, the fix is in patch 1616") and say
    "according to the note".
 4. **Say what isn't known, when it matters.** Pass on Graphene's `limits`, `coverage` and `freshness`
@@ -79,6 +81,21 @@ model", "engine", "Graphene's tools", tool or field names, JSON words. Asked wha
 knows: one line, "I'm here to help with your SAP system; what would you like to check?", then carry
 on. `app/wording.py` enforces this in the silent check (rewrite once, then hold back) and in the eval.
 
+**Proactive SAP expert (operator 2026-11-18, latest):** two layers. Facts about THIS system: strictly
+from the engine; exact arithmetic on them is encouraged when it connects the dots, with the source
+numbers alongside ("42 job runs in 14 days is 3 a day, so the jobs can't explain 288 dumps a day").
+Dumps: "4,034 short dumps in total", never implying one error type until the engine records error
+names. Risky transactions (SE14 adjust, SM12, SM13, table edits) get a one-line caution. Clear SAP
+practice turns a gap into a recommendation (no workload aggregates + few jobs → SM36 → Standard Jobs,
+SAP_COLLECTOR_FOR_PERFMONITOR). Steps never repeat each other; each fact once. Well-known errors get a
+confident explanation; rare ones "The name suggests …; the dump will confirm." SAP
+expertise (what errors mean, typical causes, troubleshooting, transactions, Support Portal search
+terms, best practice): used freely; "typically", "usually", "a common cause is" are fine; specific
+SAP Note numbers only when certain, else search terms. Lead with help, never open with a gap; all
+missing system details in ONE short sentence near the end. Connect the dots (release, dump counts,
+jobs, impact) when it helps. Troubleshooting gets numbered steps (≤ 5, one sentence each). An
+ALL-CAPS runtime error name with no call in the reply gets one app note to call operations.
+
 **Answer style (operator 2026-11-18, replaces any fixed format):** a senior SAP consultant talking to
 a colleague: short, natural, only what's relevant to this question. No fixed template, no standard
 headings. The direct answer first ("Yes, this note applies to your system." / "No, this one doesn't
@@ -87,6 +104,12 @@ recommendation, if any. Simple questions: 1–2 sentences; a pasted SAP Note: a 
 few bullets at most, no CVSS, tables or long descriptions unless asked. A missing fact that changes
 the answer: one line, what to check and where. Golden expectations check content (verdict first, key
 facts, recommendation) and a max length per question, never a layout.
+**Never undersell what's known** (operator 2026-11-18): before "I don't have X", check what is
+available (status: Dictionary with CDS views, Code inventory, Code relationships, Change history with
+transports, Operations with jobs and dump counts; find_object for objects) and name exactly what is
+missing ("which table was missing at runtime isn't recorded"), never a whole available area.
+**Dates in words** ("29 October to 11 November"), never 2026-10-29. Requested reports may use short
+labels; what is missing is "Not available", never "Gaps" (`app/wording.py` flags both).
 SAP Note numbers (6–7 digits, "note N") are never looked up: "That looks like SAP Note N. I can't open
 SAP Notes directly. Paste its text here and I'll check it against your system."
 
@@ -122,10 +145,17 @@ Rules for each fix:
    fix commit.
 2. Add or update a case in `tests/golden_questions.yaml` so it can't come back.
 3. `make test` (mocked Claude, real Graphene MCP) must pass before any commit.
-4. **Eval cost rule (operator 2026-11-17).** The full eval (`make eval`: every golden question,
-   ~$0.55) runs **only before a tag**. While fixing, run only the affected questions:
-   `make eval-cases CASES="id ..."`, capped at **$1 per run** (the runner stops before it would pass
-   the cap). Report the cost estimate first (`make eval-estimate [CASES=…]`) and the actual cost after.
+4. **Eval cost rule (operator 2026-11-17, figures 2026-11-18).** The full eval (`make eval`: every
+   golden question, 23 today, **~$1.10–1.25**, stops at $1.50) runs **only before a tag**. While
+   fixing, run only the affected questions: `make eval-cases CASES="id ..."`, capped at **$1 per run**
+   (the runner stops before it would pass the cap). Report the cost estimate first
+   (`make eval-estimate [CASES=…]`) and the actual cost after. `python eval/run_eval.py --rescore
+   eval/results/<file>.json` re-checks saved answers with the current checks, no API calls.
+   **Tag rule (operator 2026-11-18):** tag when the full eval passes, or when at most **3** cases fail
+   and every failure is style only (length or sentence/gap count). Zero tolerance for anything else:
+   facts, grounding, applies/doesn't-apply verdicts, priority/urgency (and tools, content, latency):
+   any of those → stop and show the operator. Failed cases may be re-run and the combined latest
+   answers re-scored; the runner prints the verdict ("TAG OK per rule" / "NO TAG").
 5. Small commits on a branch, merge when the operator approves (after a look in the browser), tag
    `graphene-ui-vN` (earlier: `partner-demo-vN`, `whitelabel-v1`).
 
@@ -137,7 +167,7 @@ Rules for each fix:
    1 dynamic call (candidate).
 2. "Why is ZUZK900008 high risk?" → 0.470, high, 88th percentile, its top reasons.
 3. "Why is ZUZK900006 riskier than before?" → 0.345, the daily job reached through
-   ZGR_PRICE_SYNC (runs daily, 12 runs in window).
+   ZGR_PRICE_SYNC (runs daily; 14 runs in window since the 2026-11-18 learn run, was 12).
 4. "What uses table ZFAKE_TABLE?" → "I don't know a table called ZFAKE_TABLE in this system, and
    I won't guess."
 5. "What information isn't available for this system yet?" (was "What haven't you learned yet?",
@@ -146,7 +176,7 @@ Rules for each fix:
 6–9. SAP_BASIS version, what would lower ZUZK900008's risk, system monitoring, SM21 (the stated gap).
 10. SAP Note 3778530 (CVE-2026-76964), pasted (`tests/fixtures/note_3778530_excerpt.txt`, used exactly),
    + "Is this relevant to our system?" → first "Yes, this note applies to your system."; kernel 7.53
-   (release 753) patch 700 from the engine vs the fix in 1616 "according to the note"; recommend
+   patch 700 from the engine vs the fix in 1616 "according to the note"; recommend
    patch 1616 or higher (the note's workarounds in a few words). No headings, tables or CVSS; ≤ 130
    words; no invented patch levels.
 11. Identity ("What are you?", "How do you know all this about my system?") → the one line, no tool
@@ -157,6 +187,17 @@ Rules for each fix:
    AS Java-only note → "No, this one doesn't apply" (engine: ABAP, SAP_BASIS 751, S/4HANA);
    note that applies only with `icm/HTTP/support_http2` = TRUE → "I can't confirm this one yet",
    kernel 700 vs the note's 1210, check the parameter in RZ11.
+14. Runtime error names (ACM_UNEXPECTED_VALUE, DBSQL_TABLE_UNKNOWN: ALL CAPS with underscores, not
+   Z*/Y*, not asked as an object) → an ST22 short dump: the meaning and typical causes (SAP
+   expertise), this system's dump counts (since the 2026-11-18 learn run: 4034 dumps, 4–17 November,
+   288 or 289 a day; 42 job runs), numbered steps (ST22, SE11/SE14, SM37, STMS, Support Portal); the
+   missing error name per dump (G-10) once, at the end. Also "Show me ST22 details" / "Show me SM21
+   details": how to work through it as steps, connected with the dump counts.
+15. "What information is available for this system?" → dictionary with CDS views, code, code
+   relationships, transports, jobs, dump counts (from status). "DBSQL_TABLE_UNKNOWN keeps coming up.
+   Which table is missing?" → "which table was missing at runtime isn't recorded", ST22, then the
+   dictionary check offered. "Give me a short monitoring report, with sections." → labels OK, "Not
+   available", never "Gaps".
 
 Expected numbers come from Graphene; if Graphene's numbers change after a learn run, update
 the expectations from Graphene's own output, never by hand-guessing.
