@@ -40,8 +40,8 @@
     - dynamic
     - candidate
     grounding_flags_max: 0
-    tools_not: [find_object]
-    answer_not_matches: ['\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
+    tools_not: [find_object, operations]
+    answer_not_matches: ['\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b', '\bdumps?\b|\bST22\b']
   mock:
     calls:
     - tool: impact
@@ -101,86 +101,84 @@
         - {text: "Function modules ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA are RFC entry points that use ZS4_IOT_DATA.", results: [1]}
 
 - id: risk_zuzk900006
-  question: "Why is ZUZK900006 riskier than before?"
-  # Operator 2026-11-16: lead with the steps and Graphene's cause for each (0.3075 -> 0.3225: new
-  # affected job learned in L5; -> 0.345: impact-4, quoted changelog), then that nothing changed
-  # since the last assessment. Causes come from Graphene v12 changes_from_previous (G-5 resolved).
-  # Operator 2026-11-16: every history step carries its date (eval run left dates off the steps).
-  # Operator 2026-11-16: the app renders the distinct steps as a table straight from Graphene's history
-  # (date, score from -> to, cause); the model writes a 1-2 sentence summary only: current score and
-  # "rose in steps" first, never "nothing changed" before the end (the app's line under the table).
+  question: Why is ZUZK900006 riskier than before?
   facts:
-    - {tool: assess_transport, path: result.assessment.score, equals: 0.345}
-    - {tool: assess_transport, path: result.assessment.band, equals: moderate}
-    - {tool: assess_transport, path: result.assessment.reasons.2.text, equals: "reaches periodic job JOB:JOB-5192e9d4d2ab in 1 hop (runs daily, 14 runs in window)"}
-    - {tool: assess_transport, path: result.history, length: 23}
-    # v12 history (2026-11-16): per-step causes and comparability come from Graphene.
-    - {tool: assess_transport, path: result.history.0.score, equals: 0.3075}
-    - {tool: assess_transport, path: result.history.0.assessed_at, equals: "2026-11-10T12:58:39+00:00"}
-    - {tool: assess_transport, path: result.history.11.score, equals: 0.3225}
-    - {tool: assess_transport, path: result.history.11.comparable, equals: false}
-    - {tool: assess_transport, path: result.history.11.changes_from_previous.2, equals: {what: "new affected object", key: "JOB:JOB-5192e9d4d2ab", label: Job, via: RUNS, learned_in: L5, hop: 1, reach_from: "current assessment"}}
-    - {tool: assess_transport, path: result.history.12.score, equals: 0.345}
-    - {tool: assess_transport, path: result.history.12.comparable, equals: true}
-    - {tool: assess_transport, path: result.history.12.changes_from_previous.1.changelog.0, equals: "impact-4: a periodic job with runs in the learned window is medium criticality ('runs daily/weekly, N runs in window'); one-off jobs stay normal"}
-    - {tool: assess_transport, path: result.history.22.same_as_previous, equals: true}
-    - {tool: assess_transport, path: result.previous.score, equals: 0.345}
-    - {tool: assess_transport, path: result.changes_since_previous, length: 0}
+  - {tool: assess_transport, path: result.assessment.score, equals: 0.345}
+  - {tool: assess_transport, path: result.assessment.band, equals: moderate}
+  - {tool: assess_transport, path: result.assessment.reasons.2.text, equals: 'reaches periodic job JOB:JOB-5192e9d4d2ab in 1 hop (runs daily, 14 runs in window)'}
+  - {tool: assess_transport, path: result.history, length: 23}
+  - {tool: assess_transport, path: result.history.0.score, equals: 0.3075}
+  - {tool: assess_transport, path: result.history.0.assessed_at, equals: '2026-11-10T12:58:39+00:00'}
+  - {tool: assess_transport, path: result.history.11.score, equals: 0.3225}
+  - {tool: assess_transport, path: result.history.11.comparable, equals: false}
+  - tool: assess_transport
+    path: result.history.11.changes_from_previous.2
+    equals: {what: new affected object, key: 'JOB:JOB-5192e9d4d2ab', label: Job, via: RUNS, learned_in: L5, hop: 1, reach_from: current assessment}
+  - {tool: assess_transport, path: result.history.12.score, equals: 0.345}
+  - {tool: assess_transport, path: result.history.12.comparable, equals: true}
+  - {tool: assess_transport, path: result.history.12.changes_from_previous.1.changelog.0, equals: 'impact-4: a periodic job with runs in the learned window is medium criticality (''runs daily/weekly, N runs in window''); one-off jobs stay normal'}
+  - {tool: assess_transport, path: result.history.22.same_as_previous, equals: true}
+  - {tool: assess_transport, path: result.previous.score, equals: 0.345}
+  - {tool: assess_transport, path: result.changes_since_previous, length: 0}
   expect:
     tools: [assess_transport]
-    max_seconds: 12  # operator 2026-11-16: like Q1; others keep the 10 s target
-    answer_contains: ["0.345", "in steps", "ZGR_PRICE_SYNC", "RUNS", "daily"]
-    first_sentence_contains: ["0.345", "in steps"]
-    max_sentences: 2
-    # Operator 2026-11-16 (v3): paths only as Graphene states them (from -> relationship -> to). In
-    # Graphene, PROG:ZGR_PRICE_SYNC -> RUNS -> JOB and TABL:ZGR_DISC_RULES -> READS_TABLE ->
-    # PROG:ZGR_DISC_REPORT; both the program and the table are in the transport: nothing reaches
-    # ZGR_PRICE_SYNC from the table.
-    answer_not_matches:
-      - 'ZGR_DISC_RULES[^.]*(→|->|>)[^.]*ZGR_PRICE_SYNC'
-      - 'ZGR_DISC_RULES[^.→]*\b(reach\w*|affect\w*|lead\w* to)\b(?!\s+from\b)[^.→]*ZGR_PRICE_SYNC(?!\s*→)'
-      - 'ZGR_PRICE_SYNC[^.]*\b(is|are|gets?) (reached|affected)\b[^.]*ZGR_DISC_RULES'
-      - '\bsits? on\b'
-      - '\b(on|along) (its|their) paths\b'
+    max_seconds: 12
+    answer_contains: ['0.345', in steps, ZGR_PRICE_SYNC, RUNS, daily]
+    first_sentence_contains: ['0.345', in steps]
+    max_sentences: 3
+    answer_not_matches: ['ZGR_DISC_RULES[^.]*(→|->|>)[^.]*ZGR_PRICE_SYNC', 'ZGR_DISC_RULES[^.→]*\b(reach\w*|affect\w*|lead\w* to)\b(?!\s+from\b)[^.→]*ZGR_PRICE_SYNC(?!\s*→)', 'ZGR_PRICE_SYNC[^.]*\b(is|are|gets?) (reached|affected)\b[^.]*ZGR_DISC_RULES', '\bsits? on\b', \b(on|along) (its|their) paths\b]
     no_change_only_at_end: true
     max_words: 70
-    # the app's table, from Graphene's history (verbatim)
     history_steps:
-      - {at: "2026-11-12T12:53:47+00:00", from: 0.3075, to: 0.3225, older_engine: true, causes: ["new affected object JOB:JOB-5192e9d4d2ab via RUNS, learned in L5"]}
-      - {at: "2026-11-12T13:06:32+00:00", from: 0.3225, to: 0.345, older_engine: false, causes: ["engine change impact-4: a periodic job with runs in the learned window is medium criticality ('runs daily/weekly, N runs in window'); one-off jobs stay normal"]}
+    - at: '2026-11-12T12:53:47+00:00'
+      from: 0.3075
+      to: 0.3225
+      older_engine: true
+      causes: ['new affected object JOB:JOB-5192e9d4d2ab via RUNS, learned in L5']
+    - at: '2026-11-12T13:06:32+00:00'
+      from: 0.3225
+      to: 0.345
+      older_engine: false
+      causes: ['engine change impact-4: a periodic job with runs in the learned window is medium criticality (''runs daily/weekly, N runs in window''); one-off jobs stay normal']
     nothing_changed_since_last: true
     grounding_flags_max: 0
   mock:
     calls:
-      - {tool: assess_transport, args: {transport: ZUZK900006}}
+    - tool: assess_transport
+      args: {transport: ZUZK900006}
     answer:
-      answer: |-
-        ZUZK900006 now scores 0.345 (moderate, 66th percentile) and rose in steps. Its main current reasons: table definition TABL:ZGR_DISC_RULES is in the transport, and PROG:ZGR_PRICE_SYNC → RUNS → JOB:JOB-5192e9d4d2ab, a periodic job (runs daily, 14 runs in window).
+      answer: 'ZUZK900006 now scores 0.345 (moderate, 66th percentile) and rose in steps. Its main current reasons: table definition TABL:ZGR_DISC_RULES is in the transport, and PROG:ZGR_PRICE_SYNC → RUNS → JOB:JOB-5192e9d4d2ab, a periodic job (runs daily, 14 runs in window). Want me to show what would lower it?'
       system_facts:
-        - {text: "Transport ZUZK900006 scores 0.345: moderate, 66th percentile.", results: [1]}
-        - {text: "Program ZGR_PRICE_SYNC runs job JOB-5192e9d4d2ab daily (12 runs in window).", results: [1]}
+      - text: 'Transport ZUZK900006 scores 0.345: moderate, 66th percentile.'
+        results: [1]
+      - text: Program ZGR_PRICE_SYNC runs job JOB-5192e9d4d2ab daily (12 runs in window).
+        results: [1]
       history_for: ZUZK900006
 
 - id: not_found_zfake_table
-  question: "What uses table ZFAKE_TABLE?"
+  question: What uses table ZFAKE_TABLE?
   facts:
-    - {tool: find_object, path: result.found, equals: false}
-    - {tool: find_object, path: result.message, equals: "not found in the learned system"}
+  - {tool: find_object, path: result.found, equals: false}
+  - {tool: find_object, path: result.message, equals: not found in the learned system}
   expect:
-    tools: [[find_object, impact]]
-    # Operator 2026-11-17 voice: "I don't know a table called ZFAKE_TABLE in this system, and I won't guess."
-    answer_contains: [["don't know", "do not know"], "ZFAKE_TABLE", ["won't guess", "will not guess"]]
-    max_sentences: 2  # operator 2026-11-17: short and clear (eval 4bb6543: 6 sentences, 75 words)
+    tools:
+    - [find_object, impact]
+    answer_contains:
+    - [don't know, do not know]
+    - ZFAKE_TABLE
+    - [won't guess, will not guess]
+    max_sentences: 2
     max_words: 45
     grounding_flags_max: 0
   mock:
     calls:
-      - {tool: find_object, args: {name: ZFAKE_TABLE}}
+    - tool: find_object
+      args: {name: ZFAKE_TABLE}
     answer:
-      answer: |-
-        I don't know a table called ZFAKE_TABLE in this system, and I won't guess. If it was created recently, you can check it in transaction SE11.
+      answer: I don't know a table called ZFAKE_TABLE in this system, and I won't guess. If it's new, check it in SE11, or give me the exact name and I'll look it up.
       system_facts:
-        - {text: "No object called ZFAKE_TABLE in this system.", results: [1]}
+      - text: No object called ZFAKE_TABLE in this system.
+        results: [1]
 
 # Operator 2026-11-18: Q5 asks about the system, not the assistant (was "What haven't you learned yet?").
 - id: what_is_not_available
@@ -197,7 +195,7 @@
     - Interfaces
     - Runtime evidence
     - Understanding
-    - [don't have, not available, isn't available, aren't available]
+    - [aren't covered, not covered, isn't covered, aren't available, not available, not yet]
     max_words: 90
     answer_not_matches: [\b6 of 11\b, \bL\d+\b, learning plan, '\bstages?\b', graphene status, '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
     grounding_flags_max: 0
@@ -206,53 +204,48 @@
     - tool: status
       args: {}
     answer:
-      answer: 'I don''t have these areas for this system yet: Configuration, Access, Interfaces, Runtime evidence and Understanding.
-
-        - Changes made in SAP since the system data was last read aren''t tracked here.
-
-        - Business data, ABAP source, job variants, dump texts and job logs aren''t available here.'
+      answer: Configuration, Access, Interfaces, Runtime evidence and Understanding aren't covered for this system yet; business data, ABAP source, job variants, dump texts and job logs aren't available here either. Want me to show what is covered, area by area?
       system_facts:
       - text: Configuration, Access, Interfaces, Runtime evidence and Understanding are not available for this system yet.
         results: [1]
 
 - id: system_profile_sap_basis
-  question: "What is the component version of SAP_BASIS?"
-  # Operator 2026-11-16 (Graphene v14, handshake 1.33.0): system facts only from system_profile.
-  # SP level exactly as returned ("0000000000"), never "SP 0"; Implemented Notes "not learned yet".
-  # v15 (operator): quote Graphene's sp_level_note; support_package null = not learned (support_package_note).
+  question: What is the component version of SAP_BASIS?
   facts:
-    - {tool: system_profile, path: result.learned, equals: true}
-    - {tool: system_profile, path: result.release.sap_basis, equals: "751"}
-    - {tool: system_profile, path: result.components.items.0.component, equals: SAP_BASIS}
-    - {tool: system_profile, path: result.components.items.0.release, equals: "751"}
-    - {tool: system_profile, path: result.components.items.0.sp_level, equals: "0000000000"}
-    - {tool: system_profile, path: result.components.items.0.sp_level_note, equals: "SP 0000 (no support package), as shown in System → Status, operator check 2026-11-16; raw value 0000000000 (CVERS.EXTRELEASE)"}
-    - {tool: system_profile, path: result.components.items.0.support_package, equals: null}
-    - {tool: system_profile, path: result.components.items.0.support_package_note, equals: "not learned (the name isn't in CVERS)"}
-    - {tool: system_profile, path: limits, contains: "sp_level is CVERS.EXTRELEASE exactly as SAP stores it, in 10 or 4 digits; sp_level_note gives the SP level as System → Status shows it (4 digits)."}
-    - {tool: system_profile, path: result.l0.last_run, equals: "2026-11-05T14:26:30.307039+00:00"}
-    - {tool: system_profile, path: result.components.showing, equals: "showing 1 of 162"}
+  - {tool: system_profile, path: result.learned, equals: true}
+  - {tool: system_profile, path: result.release.sap_basis, equals: '751'}
+  - {tool: system_profile, path: result.components.items.0.component, equals: SAP_BASIS}
+  - {tool: system_profile, path: result.components.items.0.release, equals: '751'}
+  - {tool: system_profile, path: result.components.items.0.sp_level, equals: '0000000000'}
+  - {tool: system_profile, path: result.components.items.0.sp_level_note, equals: 'SP 0000 (no support package), as shown in System → Status, operator check 2026-11-16; raw value 0000000000 (CVERS.EXTRELEASE)'}
+  - {tool: system_profile, path: result.components.items.0.support_package, equals: null}
+  - {tool: system_profile, path: result.components.items.0.support_package_note, equals: not learned (the name isn't in CVERS)}
+  - {tool: system_profile, path: limits, contains: 'sp_level is CVERS.EXTRELEASE exactly as SAP stores it, in 10 or 4 digits; sp_level_note gives the SP level as System → Status shows it (4 digits).'}
+  - {tool: system_profile, path: result.l0.last_run, equals: '2026-11-05T14:26:30.307039+00:00'}
+  - {tool: system_profile, path: result.components.showing, equals: showing 1 of 162}
   expect:
     tools: [system_profile]
-    # Operator 2026-11-16 (browser review): plain language; lead with Graphene's note ("SP 0000 (no
-    # support package) … System → Status"); the raw 0000000000 only in the claims (evidence panel).
-    # eval 2026-11-17: "SP level is 0000 (no support package, as System → Status shows)" is the same note
-    # Operator 2026-11-18 (answer style): the direct answer, only what's relevant; 1-2 sentences.
-    answer_contains: ["SAP_BASIS", "751", ["SP 0000", "SP level 0000", "SP level is 0000"], "no support package"]
-    first_sentence_contains: ["751"]
+    answer_contains:
+    - SAP_BASIS
+    - '751'
+    - [SP 0000, SP level 0000, SP level is 0000]
+    - no support package
+    first_sentence_contains: ['751']
     max_words: 60
-    prose_not_contains: ["0000000000"]
-    facts_contain: ["0000000000"]  # the raw value only in system_facts (log, ?debug=1)
-    answer_not_matches: ['\bSP\s*(level\s*)?0\b', 'support package\s*0\b', '7\.51 sp']
+    prose_not_contains: ['0000000000']
+    facts_contain: ['0000000000']
+    answer_not_matches: ['\bSP\s*(level\s*)?0\b', support package\s*0\b, 7\.51 sp]
     grounding_flags_max: 0
   mock:
     calls:
-      - {tool: system_profile, args: {components: [SAP_BASIS]}}  # only what the question needs (v18 filters)
+    - tool: system_profile
+      args:
+        components: [SAP_BASIS]
     answer:
-      answer: |-
-        SAP_BASIS is at release 751, SP 0000 (no support package, as System → Status shows).
+      answer: SAP_BASIS is at release 751, SP 0000 (no support package, as System → Status shows). Want me to check a note against it?
       system_facts:
-        - {text: "SAP_BASIS release 751, SP level 0000000000 as SAP stores it in CVERS; System → Status shows it as SP 0000 (no support package).", results: [1]}
+      - text: SAP_BASIS release 751, SP level 0000000000 as SAP stores it in CVERS; System → Status shows it as SP 0000 (no support package).
+        results: [1]
 
 - id: lowerers_zuzk900008
   question: "What would lower the risk of ZUZK900008?"
@@ -386,7 +379,7 @@
       args:
         sections: [kernel]
     answer:
-      answer: Your system runs kernel 7.53 at patch level 700.
+      answer: Your system runs kernel 7.53 at patch level 700. Want me to check a note against it?
       system_facts:
       - text: Kernel 7.53 (release 753) at patch level 700.
         results: [1]
@@ -394,29 +387,29 @@
 
 # Operator 2026-11-18: an SAP Note number is recognised, never looked up as an object or transport.
 - id: note_number_only
-  question: "Is SAP Note 3778530 relevant to our system?"
+  question: Is SAP Note 3778530 relevant to our system?
   expect:
     no_tools: true
-    answer_contains: ["That looks like SAP Note 3778530.", "I can't open SAP Notes directly.", "Paste its text here"]
-    max_sentences: 3
+    answer_contains: [That looks like SAP Note 3778530., Paste its text here]
+    max_sentences: 2
     max_words: 35
   mock:
     calls: []
     answer:
-      answer: "That looks like SAP Note 3778530. I can't open SAP Notes directly. Paste its text here and I'll check it against your system."
+      answer: That looks like SAP Note 3778530. Paste its text here and I'll check it against your system.
       system_facts: []
 
 - id: note_number_bare
-  question: "3778530"
+  question: '3778530'
   expect:
     no_tools: true
-    answer_contains: ["That looks like SAP Note 3778530.", "I can't open SAP Notes directly.", "Paste its text here"]
-    max_sentences: 3
+    answer_contains: [That looks like SAP Note 3778530., Paste its text here]
+    max_sentences: 2
     max_words: 35
   mock:
     calls: []
     answer:
-      answer: "That looks like SAP Note 3778530. I can't open SAP Notes directly. Paste its text here and I'll check it against your system."
+      answer: That looks like SAP Note 3778530. Paste its text here and I'll check it against your system.
       system_facts: []
 
 # Operator 2026-11-18: two SYNTHETIC notes (not real SAP Notes; see tests/fixtures/README.md).
@@ -460,7 +453,7 @@
   expect:
     tools: [system_profile]
     first_sentence_contains:
-    - [can't confirm, cannot confirm, can't tell, cannot tell, depends, can't say, not sure yet, might apply, may apply]
+    - [depends, possibly, may apply, might apply, whether]
     answer_contains:
     - '700'
     - '1210'
@@ -475,10 +468,15 @@
       args:
         sections: [kernel]
     answer:
-      answer: 'I can''t confirm this one yet: it turns on a setting I don''t have for your system. Your system runs kernel 7.53 at patch level 700, below the fix in patch 1210 according to the note, but the note only applies if HTTP/2 support is enabled in the ICM.
+      answer: 'It depends on one setting in your system: whether HTTP/2 is enabled in the ICM. Your system runs kernel 7.53 at patch level 700, below the fix in patch 1210 according to the note.
 
 
-        Check `icm/HTTP/support_http2` in RZ11. If it''s TRUE, plan a kernel update to patch 1210 or higher, or (per the note) set it to FALSE and restart the ICM; if it''s FALSE, nothing to do.'
+        - Check `icm/HTTP/support_http2` in RZ11; if it''s FALSE, nothing to do.
+
+        - If it''s TRUE, plan a kernel update to patch 1210 or higher, or (according to the note) set it to FALSE and restart the ICM.
+
+
+        Tell me the value and I''ll give you the exact next step.'
       system_facts:
       - text: Kernel 7.53 (release 753) at patch level 700.
         results: [1]
@@ -526,7 +524,7 @@
         4. Search the SAP Support Portal for ACM_UNEXPECTED_VALUE together with the CDS view name.
 
 
-        Which runtime error each dump had isn''t recorded here, so ST22 is the place to count them.'
+        ST22 shows which of them, if any, are this error. Paste a dump and I''ll analyse it.'
       system_facts:
       - text: 4034 short dumps between 2026-11-04 and 2026-11-17; error names per dump aren't recorded.
         results: [1]
@@ -569,7 +567,7 @@
         4. In STMS, check whether the table''s transport was imported along with the program''s.
 
 
-        Which runtime error each dump had isn''t recorded here; once you have the table name, I can check it in the dictionary and show what uses it.'
+        ST22 shows which of them, if any, are this error; once you have the table name, I can check it in the dictionary and show what uses it.'
       system_facts:
       - text: 4034 short dumps between 2026-11-04 and 2026-11-17; error names per dump aren't recorded.
         results: [1]
@@ -638,7 +636,7 @@
         3. In STMS, check whether the table''s transport was imported along with the program''s.
 
 
-        This error typically follows an incomplete transport or an inactive table. This system had 4,034 short dumps in total between 4 November and 17 November; which table each dump hit isn''t recorded here, but once you have the name, I can check it in the dictionary.'
+        This error typically follows an incomplete transport or an inactive table. This system had 4,034 short dumps in total between 4 November and 17 November; the dump in ST22 names the table, and once you have it, I can check it in the dictionary and show what uses it.'
       system_facts:
       - text: 4034 short dumps between 2026-11-04 and 2026-11-17; the table per dump isn't recorded.
         results: [1]
@@ -720,7 +718,7 @@
         2. With so few jobs and no workload aggregates, the standard housekeeping jobs usually aren''t scheduled: schedule them in SM36 → Standard Jobs (including SAP_COLLECTOR_FOR_PERFMONITOR).
 
 
-        The system log and the program per dump aren''t recorded here; check them in SM21 and ST22.'
+        ST22 shows the program for each dump and SM21 the system log; paste a dump and I''ll analyse it.'
       system_facts:
       - text: 4034 short dumps, 288 or 289 a day; 42 background job runs, 0 cancelled, 2 distinct jobs; 0 alerts; 2026-11-04 to 2026-11-17.
         results: [1]
@@ -765,7 +763,7 @@
         4. Search the runtime error name and program in the SAP Support Portal.
 
 
-        This system had 4,034 short dumps in total between 4 November and 17 November, 288 or 289 every day, so start with the error that repeats daily. Which runtime error each dump had isn''t recorded here.'
+        This system had 4,034 short dumps in total between 4 November and 17 November, 288 or 289 every day, so start with the error that repeats daily. Paste one of the dumps and I''ll analyse it.'
       system_facts:
       - text: 4034 short dumps between 2026-11-04 and 2026-11-17; 288 or 289 every day.
         results: [1]
@@ -799,7 +797,7 @@
         3. Double-click an entry for its details and message ID, and search that message ID in the SAP Support Portal.
 
 
-        This system had 4,034 short dumps in total between 4 November and 17 November, so it''s worth matching SM21 entries with the dump times in ST22. The system log itself isn''t recorded here.'
+        This system had 4,034 short dumps in total between 4 November and 17 November, so it''s worth matching SM21 entries with the dump times in ST22. Paste the entries you find and I''ll analyse them.'
       system_facts:
       - text: The system log (SM21) isn't available for this system.
         results: [1]
@@ -832,6 +830,138 @@
     answer:
       answer: "unused"
       system_facts: []
+
+# Operator 2026-11-18 (browser review of v3): connect facts only where the engine shows a link. Nothing in
+# Graphene links the dumps to ZS4_IOT_DATA (dumps are counted per day): say so and show how to check.
+- id: dumps_object_no_link
+  question: Are our short dumps caused by ZS4_IOT_DATA?
+  facts:
+  - {tool: operations, path: result.dumps.total, equals: 4034}
+  expect:
+    tools: [operations]
+    first_sentence_not_matches: ['^\W*(?:Yes|Probably|Likely)\b']
+    answer_contains:
+    - ST22
+    - [nothing, no link, doesn't connect, doesn't link, don't connect, isn't linked, not linked, no evidence]
+    answer_not_matches: ['ZS4_IOT_DATA[^.]*\b(?:is|are) (?:causing|behind|the (?:cause|source))\b', '\b(?:caused|triggered) by ZS4_IOT_DATA\b(?![^.]*\?)']
+    max_words: 170
+    grounding_flags_max: 0
+  mock:
+    calls:
+    - tool: operations
+      args: {}
+    answer:
+      answer: 'Nothing in this system''s data connects the short dumps to ZS4_IOT_DATA: there are 4,034 short dumps in total between 4 November and 17 November, counted per day.
+
+
+        1. In ST22, open a few dumps and check whether the error analysis names the table or a program that reads it.
+
+        2. If they point at the table, check its fields in SE11 against the programs that read it.
+
+
+        Paste one of the dumps and I''ll tell you whether it involves ZS4_IOT_DATA.'
+      system_facts:
+      - text: 4034 short dumps between 2026-11-04 and 2026-11-17, counted per day.
+        results: [1]
+      history_for: ''
+
+# Operator 2026-11-18 (browser review of v3): never describe the lookups; give the SAP way (SE80/TADIR) and
+# offer to look up any name.
+- id: list_custom_programs
+  question: Can you list our custom programs?
+  expect:
+    answer_contains:
+    - [SE80, TADIR]
+    max_words: 120
+    answer_not_matches: ['\b(?:look ?ups? (?:work|only)|by name or key|listing by (?:object )?type|can(?:no|[''’])t list|cannot list)\b']
+  mock:
+    calls: []
+    answer:
+      answer: 'Your custom programs are the Z* and Y* entries in the object directory: in SE16 on table TADIR, set object type PROG and object name Z* (then Y*), or browse your packages in SE80.
+
+
+        Name any program and I''ll show you what it uses and what depends on it.'
+      system_facts: []
+      history_for: ''
+
+# Operator 2026-11-18 (browser review of v3): a short follow-up is about the last subject: what it is, briefly,
+# never the previous answer again. The eval runs `previous` first as the chat context; make test runs the
+# follow-up alone.
+- id: followup_what_is_this
+  previous: What breaks if I change ZS4_IOT_DATA?
+  question: what is this?
+  facts:
+  - {tool: find_object, path: result.objects.0.description, equals: S4HANA IOT Data of cross scenario}
+  expect:
+    answer_contains: [ZS4_IOT_DATA, table]
+    max_words: 80
+    answer_not_matches: [ZCDS_IOT_DETAILS|Z_C_IOT_KPI|ZCL_ZS4_IOT_PROJ_DPC_EXT, '\b9 (?:affected )?objects\b']
+  mock:
+    calls:
+    - tool: find_object
+      args: {name: ZS4_IOT_DATA}
+    answer:
+      answer: ZS4_IOT_DATA is a custom, client-dependent table ("S4HANA IOT Data of cross scenario") with 14 fields. Want me to show its fields or who reads it?
+      system_facts:
+      - text: 'ZS4_IOT_DATA: custom transparent table, client-dependent, 14 fields, description "S4HANA IOT Data of cross scenario".'
+        results: [1]
+      history_for: ''
+
+# Operator 2026-11-18 (browser review of v3): for pseudonymised users point only to SE09/SE10 Owner, no SU01.
+- id: transport_owner_pseudonym
+  question: Who created transport ZUZK900008?
+  facts:
+  - {tool: find_object, path: result.objects.0.owner, equals: U-08451dd4126d}
+  expect:
+    tools: [find_object]
+    answer_contains:
+    - U-08451dd4126d
+    - [SE09, SE10]
+    answer_not_matches: [\bSU01\b]
+    max_words: 80
+    grounding_flags_max: 0
+  mock:
+    calls:
+    - tool: find_object
+      args: {name: ZUZK900008}
+    answer:
+      answer: Transport ZUZK900008 belongs to user U-08451dd4126d (users appear as pseudonyms here); the Owner field in SE09 or SE10 shows the real name. Want me to assess its risk?
+      system_facts:
+      - text: Transport ZUZK900008 is owned by U-08451dd4126d.
+        results: [1]
+      history_for: ''
+
+# Operator 2026-11-18 (principle): do the task first, then turn the missing piece into an action ('Paste the
+# code and I'll review it'); never a refusal sentence. The eval runs `previous` first.
+- id: code_review_followup
+  previous: What is ZS4_IOT_INSERT_DATA?
+  question: can you check its code?
+  expect:
+    answer_contains:
+    - [Paste, paste]
+    - [SE37, SE80]
+    max_words: 170
+    answer_not_matches: ['\b(?:source|code) (?:isn[''’]t|is not|aren[''’]t) (?:available|accessible|visible)\b']
+  mock:
+    calls:
+    - tool: find_object
+      args: {name: ZS4_IOT_INSERT_DATA}
+    answer:
+      answer: 'ZS4_IOT_INSERT_DATA is an RFC-enabled function module, so the review should start where outside callers can hurt you:
+
+
+        1. Authority checks before the insert (S_RFC and your own objects).
+
+        2. Input validation and duplicate handling before writing to ZS4_IOT_DATA.
+
+        3. No COMMIT WORK inside the module if callers bundle it in a LUW.
+
+
+        Paste the code from SE37 and I''ll review it line by line.'
+      system_facts:
+      - text: ZS4_IOT_INSERT_DATA is an RFC-enabled function module that writes ZS4_IOT_DATA.
+        results: [1]
+      history_for: ''
 
 # Negative control (make test only): a mocked answer with an invented number and object
 # must be flagged by the grounding check, not hidden.

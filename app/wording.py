@@ -16,6 +16,13 @@ INTERNAL_RE = re.compile(r"\b(?:find_object|assess_transport|system_profile|MCP|
 # Operator 2026-11-18: dates in words only; "Not available", never a "Gaps" label.
 NUMERIC_DATE_RE = re.compile(r"(?<![\w.-])(?:\d{4}-\d{2}-\d{2}|\d{4}\.\d{2}\.\d{2}|\d{1,2}\.\d{1,2}\.\d{4})(?![\w-])")
 # Operator 2026-11-18: no "never read" wording anywhere; say what isn't available instead.
+# Operator 2026-11-18: never describe the lookups themselves.
+TOOL_TALK_RE = re.compile(r"\b(?:look ?ups? (?:work|only|are limited)|by name or key|(?:no |without a )?listing by (?:object )?type"
+                          r"|can(?:no|['’])t list|cannot list|only (?:look up|search) by name)\b", re.I)
+# Operator 2026-11-18 (principle 2 and 5): no refusal sentence, never what is "recorded" or "permitted".
+REFUSAL_RE = re.compile(r"\bI (?:can['’]t|cannot|can not|am not able to|['’]m not able to|am unable to|['’]m unable to) "
+                        r"(?:open|see|access|read|list|show|view|check|review|get)\b"
+                        r"|\b(?:isn['’]t|aren['’]t|is not|are not|not|never) (?:recorded|permitted)\b", re.I)
 NEVER_READ_RE = re.compile(r"\bnever (?:read|accessed)\b|\b(?:isn['’]t|aren['’]t|is not|are not) read\b", re.I)
 GAPS_LABEL_RE = re.compile(r"(?mi)^[\W_]*(?:main\s+)?gaps?\b[^.\n]*:")
 # A reply that only promises to look something up (browser testing 2026-11-17).
@@ -36,6 +43,8 @@ def problems(text: str) -> list[str]:
     out += [f"numeric date: {m.group(0)}" for m in NUMERIC_DATE_RE.finditer(text)]
     out += [f"label: {m.group(0).strip()}" for m in GAPS_LABEL_RE.finditer(text)]
     out += [f"wording: {m.group(0)}" for m in NEVER_READ_RE.finditer(text)]
+    out += [f"wording: {m.group(0)}" for m in TOOL_TALK_RE.finditer(text)]
+    out += [f"wording: {m.group(0)}" for m in REFUSAL_RE.finditer(text)]
     out += [f"field name / JSON word: {w}" for w in developer_words(_strip_code(text))]
     return out
 

@@ -120,7 +120,7 @@ def test_eval_runner_stops_at_the_cost_cap(monkeypatch, capsys):
 
     calls = []
 
-    async def fake_answer(question, g, client):
+    async def fake_answer(question, g, client, ctx=None):
         calls.append(question)
         return {"answer": "x", "system_facts": [], "tool_trace": [], "grounding": {"ok": True, "flags": []},
                 "coverage": [], "freshness": {}, "limits": [], "history": None, "new_results": [],

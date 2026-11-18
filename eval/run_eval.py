@@ -117,6 +117,15 @@ FIX_RE = re.compile(r"\b(?:schedul\w*|activat\w*|configur\w*|enabl\w*|Standard J
 TX_RE = re.compile(r"\b(?:[A-Z]{2,4}\d{2}[A-Z]?|PFCG|STMS|SMICM|SMQ[12])\b")
 
 
+# Operator 2026-11-18 (principle 1 and 4), checked on every answer: the first sentence is never a
+# refusal or limitation, and one of the last two sentences is an offer of what to do next.
+FIRST_REFUSAL_RE = re.compile(r"^\W*(?:I can['’]t|I cannot|I can not|I don['’]t have|I do not have|I['’]m (?:not able|unable)"
+                              r"|I am (?:not able|unable)|Unfortunately|Sorry)\b"
+                              r"|\b(?:isn['’]t|aren['’]t|is not|are not|not) (?:permitted|recorded|available)\b", re.I)
+OFFER_RE = re.compile(r"\b(?:I can|I['’]ll|I will|Want me to|Shall I|Should I|Do you want me|Would you like me|Paste|Send me"
+                      r"|Share|Give me|Tell me|what would you like)\b", re.I)
+
+
 def gap_sentences(prose: str) -> list[str]:
     out = []
     for line in prose.splitlines():
@@ -190,6 +199,15 @@ def check(c: dict, out: dict, shown: str, secs: float) -> tuple[list[str], list[
         if not sentences or not any(str(o).lower() in sentences[0].lower() for o in opts):
             problems.append(f"first sentence lacks {opts!r}")
     # operator 2026-11-18 (proactive expert): help first, numbered steps, a gap at most once
+    if sentences and FIRST_REFUSAL_RE.search(sentences[0]):
+        problems.append(f"first sentence is a refusal or limitation: {sentences[0][:80]!r}")
+    tail = [x for x in re.split(r"(?<=[.!?:])\s+|\n+", prose.strip()) if x.strip()][-2:]
+    if not any(OFFER_RE.search(x) for x in tail):
+        problems.append("no offer of what to do next at the end")
+    # operator 2026-11-18: missing details are a closing line, never a numbered step
+    for line in prose.splitlines():
+        if re.match(r"^\s*\d+[.)]\s", line) and GAP_RE.search(line):
+            problems.append(f"missing detail inside a numbered step: {line.strip()[:70]!r}")
     for rx in exp.get("first_sentence_not_matches", []):
         if sentences and re.search(rx, sentences[0], re.I):
             problems.append(f"first sentence matches {rx!r}: {sentences[0][:80]!r}")
@@ -260,9 +278,23 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
                   + ", ".join(x["id"] for x in left))
             failures += len(left)
             break
+        ctx, pre_cost = None, 0.0
+        if c.get("previous"):  # operator 2026-11-18: follow-ups ("what is this?") need the chat before them
+            try:
+                out0 = await agent.answer_with_timeout(c["previous"], g, client)
+            except agent.AnswerError as e:
+                out0 = None
+                pre_cost = dollars(e.usage)
+            if out0 is not None:
+                shown0 = present.finalize(out0)
+                pre_cost = dollars(out0["usage"])
+                ctx = agent.ChatContext(history=[{"role": "user", "content": c["previous"]},
+                                                 {"role": "assistant", "content": shown0}],
+                                        results=[st for (_, _, st) in out0["new_results"]],
+                                        user_texts=[c["previous"]])
         t0 = time.time()
         try:
-            out = await agent.answer_with_timeout(c["question"], g, client)
+            out = await agent.answer_with_timeout(c["question"], g, client, ctx=ctx)
         except agent.AnswerError as e:
             cost = dollars(e.usage)
             total_cost += cost
@@ -276,7 +308,7 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
         shown = present.finalize(out)  # what the user sees (silent grounding applied)
         secs = time.time() - t0
         problems, notes = check(c, out, shown, secs)
-        cost = dollars(out["usage"])
+        cost = dollars(out["usage"]) + pre_cost
         total_cost += cost
         worst = max(worst, cost)
         failures += bool(problems)

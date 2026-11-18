@@ -227,14 +227,17 @@ def test_request_shape_to_claude(client, fake_claude):
     # operator 2026-11-18 (answer style): no fixed template or standard headings
     assert "No fixed template and no standard headings" in text and "### " not in text
     # operator 2026-11-18 (proactive expert): help first, gaps once near the end, numbered steps
-    assert "Lead with help, not gaps" in text and "Never open with \"I don't" in text
-    assert "at most once, briefly, near the end" in text and "numbered, practical steps" in text
+    assert "Lead with help, not gaps" in text
+    # operator 2026-11-18, the most important principle
+    assert "gets their task done and improves their accuracy" in text and "Never a refusal sentence" in text
+    assert "End with one short, useful offer" in text and "Paste the code (from SE37/SE38/SE80) and I'll review it." in text
+    assert "ONE short closing action sentence" in text and "numbered, practical steps" in text
     assert "Connect the dots" in text and "use it freely and generously" in text
     assert "Name a specific SAP Note or KBA number only" in text
     assert "only from general SAP knowledge you are sure of" not in text and "offer no guess" not in text
-    assert "you can check it in SM21" in text and "as of 5 November" in text
+    assert "The system log is in SM21" in text and "as of 5 November" in text
     assert "SAP expertise: use it freely" in text and "never as a fact about this system" in text
-    assert "say so naturally and where to check it" in text  # an unknown system fact
+    assert "give the place to get it as an action" in text  # an unknown system fact (operator 2026-11-18)
     assert 'write "kernel 7.53"' in text and "never both forms" in text and "SAP_BASIS 751, never 7.51" in text
     # operator 2026-11-18: exact derivations with source numbers, totals not one error type, cautions
     assert "one every 5 minutes" in text and "Never present a derived number without its" in text
@@ -246,7 +249,8 @@ def test_request_shape_to_claude(client, fake_claude):
     assert "gets no priority or urgency line" in text
     assert "(e.g. workload statistics → the SM36 standard jobs step)" in text
     assert "ST22 shows which of them, if any, are this error" in text
-    assert '"No, this one doesn\'t apply."' in text and '"I can\'t confirm this one yet."' in text
+    assert '"No, this one doesn\'t apply."' in text and '"It depends on one setting in your system' in text
+    assert "I can't confirm this one yet" not in text and "I can't open SAP" not in text
     assert "no symptom description; the note's" in text and "according to the note" in text
     assert "ask only for what the question needs" in text  # v18 filters
     assert "I don't know a table called ZFAKE_TABLE in this system, and I won't guess." in text
