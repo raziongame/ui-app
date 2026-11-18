@@ -91,3 +91,14 @@ def test_escaped_newlines_become_line_breaks():
     assert f("Yes.\\n\\n- Update the kernel.") == "Yes.\n\n- Update the kernel."
     assert f("Use `a\\nb` here.") == "Use `a\\nb` here."
     assert f("No escapes.\nFine.") == "No escapes.\nFine."
+
+
+def test_numeric_dates_and_gaps_labels_are_wording_problems():
+    """Operator 2026-11-18: dates in words only; "Not available", never a "Gaps" label."""
+    from app.wording import problems
+    for bad in ("4305 dumps from 2026-10-29 to 2026-11-11.", "Released on 2026.11.10.", "Since 29.10.2026.",
+                "Gaps:\n- SM21", "**Gaps:** SM21", "Main gaps: SM21"):
+        assert problems(bad), bad
+    for ok in ("4305 dumps from 29 October to 11 November.", "**Not available:** the system log (check SM21).",
+               "The gaps are small.", "SAP_BASIS 751, kernel 7.53 (release 753)."):
+        assert problems(ok) == [], ok

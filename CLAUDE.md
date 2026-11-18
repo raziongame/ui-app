@@ -87,6 +87,12 @@ recommendation, if any. Simple questions: 1–2 sentences; a pasted SAP Note: a 
 few bullets at most, no CVSS, tables or long descriptions unless asked. A missing fact that changes
 the answer: one line, what to check and where. Golden expectations check content (verdict first, key
 facts, recommendation) and a max length per question, never a layout.
+**Never undersell what's known** (operator 2026-11-18): before "I don't have X", check what is
+available (status: Dictionary with CDS views, Code inventory, Code relationships, Change history with
+transports, Operations with jobs and dump counts; find_object for objects) and name exactly what is
+missing ("which table was missing at runtime isn't recorded"), never a whole available area.
+**Dates in words** ("29 October to 11 November"), never 2026-10-29. Requested reports may use short
+labels; what is missing is "Not available", never "Gaps" (`app/wording.py` flags both).
 SAP Note numbers (6–7 digits, "note N") are never looked up: "That looks like SAP Note N. I can't open
 SAP Notes directly. Paste its text here and I'll check it against your system."
 
@@ -161,6 +167,11 @@ Rules for each fix:
    Z*/Y*, not asked as an object) → an ST22 short dump: operations only (4305 dumps, counted per day),
    error names per dump not available (G-10), filter in ST22; the meaning only from sure general
    knowledge, otherwise one "not sure" line, no guess.
+15. "What information is available for this system?" → dictionary with CDS views, code, code
+   relationships, transports, jobs, dump counts (from status). "DBSQL_TABLE_UNKNOWN keeps coming up.
+   Which table is missing?" → "which table was missing at runtime isn't recorded", ST22, then the
+   dictionary check offered. "Give me a short monitoring report, with sections." → labels OK, "Not
+   available", never "Gaps".
 
 Expected numbers come from Graphene; if Graphene's numbers change after a learn run, update
 the expectations from Graphene's own output, never by hand-guessing.

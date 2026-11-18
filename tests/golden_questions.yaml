@@ -455,9 +455,9 @@
     tools_not: [find_object, impact]
     # the meaning isn't certain from general SAP knowledge: one "not sure" line, no guess (eval 144434:
     # "I believe this error comes from the assertion and check framework")
-    answer_contains: ["ST22", "4305", "dump", ["not available", "aren't available", "isn't available", "don't have", "not the error name", "only have counts", "only have daily counts"],
+    answer_contains: ["ST22", "4305", "dump", ["not available", "aren't available", "isn't available", "don't have", "not the error name", "only have counts", "only have daily counts", "isn't recorded", "not recorded", "aren't recorded"],
                       ["not sure", "not certain", "unsure", "can't say what"]]
-    answer_not_matches: ["\\bI don['’]t know (?:a|an|the) (?:table|object|class|program)", '(?m)^\s*#{1,6}\s', "\\babout \\d",
+    answer_not_matches: ["\\bI don['’]t know (?:a|an|the) (?:table|object|class|program)", '(?m)^\s*#{1,6}\s', "\\babout \\d", "\\bI don['’]t have (?:the |any |your |this system's )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)",
                          '\bI (?:believe|think|suspect)\b', '\b(?:probably|likely|presumably)\b', '\bassertion\b']
     max_words: 110
     grounding_flags_max: 0
@@ -478,8 +478,8 @@
   expect:
     tools: [operations]
     tools_not: [find_object, impact]
-    answer_contains: ["ST22", "4305", "dump", "table", ["not available", "aren't available", "isn't available", "don't have", "not the error name", "only have counts", "only have daily counts"]]
-    answer_not_matches: ["\\bI don['’]t know (?:a|an|the) (?:table|object|class|program)", '(?m)^\s*#{1,6}\s', "\\babout \\d"]
+    answer_contains: ["ST22", "4305", "dump", "table", ["not available", "aren't available", "isn't available", "don't have", "not the error name", "only have counts", "only have daily counts", "isn't recorded", "not recorded", "aren't recorded"]]
+    answer_not_matches: ["\\bI don['’]t know (?:a|an|the) (?:table|object|class|program)", '(?m)^\s*#{1,6}\s', "\\babout \\d", "\\bI don['’]t have (?:the |any |your |this system's )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)"]
     max_words: 110
     grounding_flags_max: 0
   mock:
@@ -490,6 +490,83 @@
         DBSQL_TABLE_UNKNOWN is an ABAP short dump. In general it means a program accessed a table that exists in the ABAP Dictionary but not in the database, often after an incomplete transport or activation. This system had 4305 short dumps between 29 October and 11 November, but the error names per dump aren't available, so I can't say how many were this one. In ST22, filter by DBSQL_TABLE_UNKNOWN to see the program and table each dump names.
       system_facts:
         - {text: "4305 short dumps between 2026-10-29 and 2026-11-11; error names per dump aren't available.", results: [1]}
+      history_for: ""
+
+# Operator 2026-11-18 (browser review): never undersell what is known. Available per status (1.37.0):
+# Identity, Dictionary (custom, referenced, cds), Code inventory, Code relationships, Change history,
+# Operations. Say precisely what is missing, never a whole available area; offer what is available.
+- id: available_information
+  question: "What information is available for this system?"
+  facts:
+    - {tool: status, path: result.stages.1.name, equals: Dictionary}
+    - {tool: status, path: result.stages.1.status, equals: done}
+    - {tool: status, path: result.stages.2.name, equals: Code inventory}
+    - {tool: status, path: result.stages.3.name, equals: Code relationships}
+    - {tool: status, path: result.stages.4.name, equals: Change history}
+  expect:
+    tools: [status]
+    answer_contains: ["dictionary", "CDS", "code", "transport", "job", "dump"]
+    answer_not_matches: ["\\bI don['’]t have (?:the |any |your |this system's )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)", '\b6 of 11\b', '\bL\d+\b', '\bstages?\b']
+    max_words: 120
+    grounding_flags_max: 0
+  mock:
+    calls:
+      - {tool: status, args: {}}
+    answer:
+      answer: |-
+        For this system there is the system identity and versions, the ABAP Dictionary (custom and referenced tables plus CDS views), the custom code inventory, the code relationships between objects, the change history with its transports, and operations: background jobs and short dump counts per day. Configuration, access, interfaces, runtime evidence and understanding aren't available yet.
+      system_facts:
+        - {text: "Identity, Dictionary (custom, referenced, CDS), Code inventory, Code relationships, Change history and Operations are done; Configuration, Access, Interfaces, Runtime evidence and Understanding are not started.", results: [1]}
+      history_for: ""
+
+- id: runtime_error_which_table_is_missing
+  question: "DBSQL_TABLE_UNKNOWN keeps coming up. Which table is missing?"
+  facts:
+    - {tool: operations, path: result.dumps.total, equals: 4305}
+  expect:
+    tools: [operations]
+    tools_not: [impact]
+    answer_contains: ["ST22", ["isn't recorded", "not recorded", "aren't recorded", "isn't available", "not available"], ["dictionary", "look it up", "check it"]]
+    answer_not_matches: ["\\bI don['’]t have (?:the |any |your |this system's )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)", '(?m)^\s*#{1,6}\s']
+    max_words: 110
+    grounding_flags_max: 0
+  mock:
+    calls:
+      - {tool: operations, args: {}}
+    answer:
+      answer: |-
+        Which table was missing at runtime isn't recorded: there are only short dump counts per day (4305 between 29 October and 11 November), not the error name or table of each dump. The dump in ST22 names the table; filter by DBSQL_TABLE_UNKNOWN. Once you have the name, I can check it in the dictionary and show what uses it.
+      system_facts:
+        - {text: "4305 short dumps between 2026-10-29 and 2026-11-11, counted per day; error names per dump aren't recorded.", results: [1]}
+      history_for: ""
+
+# Explicitly requested report: short labels are fine; what is missing is "Not available", never "Gaps".
+- id: monitoring_report
+  question: "Give me a short monitoring report, with sections."
+  facts:
+    - {tool: operations, path: result.jobs.runs, equals: 41}
+  expect:
+    tools: [operations]
+    answer_contains: ["41", "4305", "Not available"]
+    answer_not_matches: ['(?mi)^[\W_]*(?:main\s+)?gaps?\b[^.\n]*:', "\\babout \\d"]
+    max_words: 150
+    grounding_flags_max: 0
+  mock:
+    calls:
+      - {tool: operations, args: {}}
+    answer:
+      answer: |-
+        **Window:** 29 October to 11 November.
+
+        **Jobs:** 41 background job runs, 0 cancelled.
+
+        **Short dumps:** 4305, counted per day.
+
+        **Alerts:** 0 (CCMS is not configured).
+
+        **Not available:** the system log (check SM21), which program each dump hit (check ST22), and workload statistics.
+      system_facts:
+        - {text: "41 background job runs, 0 cancelled; 4305 short dumps; 0 alerts; window 2026-10-29 to 2026-11-11.", results: [1]}
       history_for: ""
 
 # Negative control (make test only): a mocked answer with an invented number and object
