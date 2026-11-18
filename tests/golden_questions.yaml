@@ -163,19 +163,21 @@
   expect:
     tools:
     - [find_object, impact]
+    # operator 2026-11-18: a confident fact, no "I won't guess" / "I don't know"; never an invented object
     answer_contains:
-    - [don't know, do not know]
     - ZFAKE_TABLE
-    - [won't guess, will not guess]
-    max_sentences: 2
-    max_words: 45
+    - ["no table called", "isn't a table called", "there's no", "there is no", "doesn't exist", "does not exist"]
+    - SE11
+    answer_not_matches: ["won['’]t guess|will not guess", "\\bI don['’]t know\\b"]
+    max_sentences: 3
+    max_words: 50
     grounding_flags_max: 0
   mock:
     calls:
     - tool: find_object
       args: {name: ZFAKE_TABLE}
     answer:
-      answer: I don't know a table called ZFAKE_TABLE in this system, and I won't guess. If it's new, check it in SE11, or give me the exact name and I'll look it up.
+      answer: "There's no table called ZFAKE_TABLE in this system. Check the spelling; if it's new, it may not be activated yet (SE11 shows that). Want me to look up a similar name?"
       system_facts:
       - text: No object called ZFAKE_TABLE in this system.
         results: [1]
@@ -1058,7 +1060,7 @@
       - {tool: find_object, args: {name: ZFAKE_TABLE}}
       - {tool: status, args: {}}
     answer:
-      answer: "I don't know a table called ZFAKE_TABLE in this system, and I won't guess."
+      answer: "There's no table called ZFAKE_TABLE in this system. Check the spelling; if it's new, it may not be activated yet (SE11 shows that). Want me to look up a similar name?"
       system_facts:
         - {text: "ZFAKE_TABLE is not found in this system.", results: [1]}
 

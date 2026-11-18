@@ -188,7 +188,7 @@ def test_follow_up_uses_the_chats_earlier_results(client, fake_claude):
     assert [m["role"] for m in msgs] == ["user", "assistant", "user", "assistant"]
     # a new call in the follow-up continues the chat's numbering
     mock3 = {"calls": [{"tool": "find_object", "args": {"name": "ZFAKE_TABLE"}}],
-             "answer": {"answer": "I don't know a table called ZFAKE_TABLE in this system, and I won't guess.",
+             "answer": {"answer": "There's no table called ZFAKE_TABLE in this system. Check the spelling; if it's new, it may not be activated yet (SE11 shows that). Want me to look up a similar name?",
                         "system_facts": [{"text": "No object ZFAKE_TABLE in this system.", "results": [2]}], "history_for": ""}}
     out3, *_ = _run(client, fake_claude, mock3, "And ZFAKE_TABLE?", chat_id=cid)
     assert out3["tool_trace"][0]["n"] == 2 and out3["system_facts"][0]["evidence_ids"] == ["call:2"]
@@ -253,7 +253,7 @@ def test_request_shape_to_claude(client, fake_claude):
     assert "I can't confirm this one yet" not in text and "I can't open SAP" not in text
     assert "no symptom description; the note's" in text and "according to the note" in text
     assert "ask only for what the question needs" in text  # v18 filters
-    assert "I don't know a table called ZFAKE_TABLE in this system, and I won't guess." in text
+    assert "There's no table called ZFAKE_TABLE in this system." in text and 'No "I won\'t guess"' in text
     assert '(e.g. "SP 0")' in text and "goes only in \"system_facts\", never in the answer" in text
     assert "set \"history_for\"" in text and "don't say that nothing changed" in text
     assert "relationship → to" in text and "Never summarise" in text

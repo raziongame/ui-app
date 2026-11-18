@@ -36,7 +36,9 @@ meets WCAG AA in light and dark, `tests/test_ui.py`). No other skins, no `/direc
    about THIS system must appear in a Graphene result from this chat, or in the user's own messages
    (names and numbers from a pasted note or log may be repeated, attributed to it). General SAP
    knowledge is allowed, phrased as general knowledge, never as a fact about this system. Unknown
-   objects: "I don't know a table called ZFAKE_TABLE in this system, and I won't guess." A system
+   objects, as a confident fact: "There's no table called ZFAKE_TABLE in this system. Check the
+   spelling; if it's new, it may not be activated yet (SE11 shows that). Want me to look up a similar
+   name?" (never invent an object; a similar name only if the engine lists it). A system
    fact that isn't known: say so naturally and where to check it ("I don't have the system log for
    this system; you can check it in SM21"). Never round a returned number; plain exact arithmetic on
    engine numbers is allowed with the source numbers in the same sentence ("288 a day is one every 5
@@ -168,8 +170,9 @@ Rules for each fix:
 2. "Why is ZUZK900008 high risk?" → 0.470, high, 88th percentile, its top reasons.
 3. "Why is ZUZK900006 riskier than before?" → 0.345, the daily job reached through
    ZGR_PRICE_SYNC (runs daily; 14 runs in window since the 2026-11-18 learn run, was 12).
-4. "What uses table ZFAKE_TABLE?" → "I don't know a table called ZFAKE_TABLE in this system, and
-   I won't guess."
+4. "What uses table ZFAKE_TABLE?" → "There's no table called ZFAKE_TABLE in this system. Check the
+   spelling; if it's new, it may not be activated yet (SE11 shows that). Want me to look up a similar
+   name?" (operator 2026-11-18: a confident fact, no "I won't guess")
 5. "What information isn't available for this system yet?" (was "What haven't you learned yet?",
    changed 2026-11-18) → "I don't have Configuration, Access, … for this system yet" (from status) +
    what is never read; no stage counts or numbers.
