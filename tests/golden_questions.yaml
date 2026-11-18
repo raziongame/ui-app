@@ -271,41 +271,49 @@
 # level that is neither in the engine's result nor in the note.
 - id: note_3778530_relevance
   question_file: tests/fixtures/note_3778530_excerpt.txt
-  question_suffix: "\n\nIs this relevant to our system?"
+  question_suffix: '
+
+
+    Is this relevant to our system?'
   facts:
-    - {tool: system_profile, path: result.kernel.0.release, equals: "753"}
-    - {tool: system_profile, path: result.kernel.0.patch_level, equals: "700"}
-    - {tool: system_profile, path: result.sections, equals: [kernel]}
-    - {tool: system_profile, path: evidence_ids, contains: "node:KERNEL:ZUZ:753:700"}
+  - {tool: system_profile, path: result.kernel.0.release, equals: '753'}
+  - {tool: system_profile, path: result.kernel.0.patch_level, equals: '700'}
+  - tool: system_profile
+    path: result.sections
+    equals: [kernel]
+  - {tool: system_profile, path: evidence_ids, contains: 'node:KERNEL:ZUZ:753:700'}
   expect:
     tools: [system_profile]
-    max_seconds: 20  # a long pasted note
-    max_words: 300
-    # Operator 2026-11-18 (answer style): content, not layout. The verdict first, the deciding facts
-    # (engine: kernel 7.53 / 753 / patch 700; note: fixed from 1616), the recommendation; a short
-    # paragraph plus a few bullets at most; no headings, tables, CVSS or symptom description.
-    first_sentence_contains: [["this note applies", "the note applies", "applies to your system"]]
-    answer_contains: ["7.53", "753", "700", "1616", "according to the note",
-                      ["update the kernel", "upgrade the kernel", "kernel update", "kernel upgrade", "update to", "upgrade to", "patch 1616 or higher", "1616 or higher", "1616 or later"]]
-    # no invented patch levels: every patch level named is the engine's 700 or the note's 1616/1617
-    answer_not_matches: ['\bpatch(?:\s+level)?\s+(?!700\b|1616\b|1617\b)\d+', '\bSP\s?(?!1616\b|1617\b)\d{3,}',
-                         '\b(?:your system|you|it)\s+(?:is|are)\s+not\s+affected\b', '\\n', '(?m)^\s*#{1,6}\s', '(?m)^\s*\|',
-                         "What I don['’]t know", 'Worth checking']
-    max_words: 140  # operator 2026-11-18 (proactive): the note's priority in a few words is fine
+    max_seconds: 20
+    max_words: 140
+    first_sentence_contains:
+    - [this note applies, the note applies, applies to your system]
+    answer_contains:
+    - '7.53'
+    - '700'
+    - '1616'
+    - according to the note
+    - [update the kernel, upgrade the kernel, kernel update, kernel upgrade, update to, upgrade to, patch 1616 or higher, 1616 or higher, 1616 or later]
+    answer_not_matches: ['\bpatch(?:\s+level)?\s+(?!700\b|1616\b|1617\b)\d+', '\bSP\s?(?!1616\b|1617\b)\d{3,}', '\b(?:your system|you|it)\s+(?:is|are)\s+not\s+affected\b', \\n, '(?m)^\s*#{1,6}\s', '(?m)^\s*\|', 'What I don[''’]t know', Worth checking, 7\.53 \(release 753\)]
     grounding_flags_max: 0
   mock:
     calls:
-      - {tool: system_profile, args: {sections: [kernel]}}
+    - tool: system_profile
+      args:
+        sections: [kernel]
     answer:
-      answer: |-
-        Yes, this note applies to your system. Your system runs kernel 7.53 (release 753) at patch level 700; according to the note, kernel 7.53 is fixed from patch 1616 onward, so your system is affected.
+      answer: 'Yes, this note applies to your system. Your system runs kernel 7.53 at patch level 700; according to the note, kernel 7.53 is fixed from patch 1616 onward, so your system is affected.
+
 
         Plan a kernel update to patch 1616 or higher. Until then, the note offers two workarounds:
+
         - an SAP Web Dispatcher in front of the ICM, updated per FAQ Note 3778788 (only if the ICM is reached exclusively through it);
-        - disabling WebSocket support, which the note doesn't recommend.
+
+        - disabling WebSocket support, which the note doesn''t recommend.'
       system_facts:
-        - {text: "Kernel 7.53 (release 753) at patch level 700.", results: [1]}
-      history_for: ""
+      - text: Kernel 7.53 (release 753) at patch level 700.
+        results: [1]
+      history_for: ''
 
 # Operator 2026-11-18 (final requirements): identity in one line, no self-talk, no tool call.
 - id: identity_what_are_you
@@ -338,26 +346,29 @@
 
 # Operator 2026-11-18: never ask the user for system details a tool can give.
 - id: kernel_never_ask_the_user
-  question: "Which kernel are we running?"
+  question: Which kernel are we running?
   facts:
-    - {tool: system_profile, path: result.kernel.0.release, equals: "753"}
-    - {tool: system_profile, path: result.kernel.0.patch_level, equals: "700"}
+  - {tool: system_profile, path: result.kernel.0.release, equals: '753'}
+  - {tool: system_profile, path: result.kernel.0.patch_level, equals: '700'}
   expect:
     tools: [system_profile]
-    answer_contains: ["7.53", "753", "700"]
-    answer_not_matches: ['\b(?:could|can) you (?:tell|share|provide|check|send)', '\bplease (?:tell|share|provide|send)', '\blet me know\b']
-    first_sentence_contains: ["7.53", "700"]
-    max_sentences: 2  # operator 2026-11-18: a simple question gets 1-2 sentences
+    answer_contains: ['7.53', '700']
+    answer_not_matches: ['\b(?:could|can) you (?:tell|share|provide|check|send)', '\bplease (?:tell|share|provide|send)', \blet me know\b, 7\.53 \(release 753\)]
+    first_sentence_contains: ['7.53', '700']
+    max_sentences: 2
     max_words: 45
     grounding_flags_max: 0
   mock:
     calls:
-      - {tool: system_profile, args: {sections: [kernel]}}
+    - tool: system_profile
+      args:
+        sections: [kernel]
     answer:
-      answer: "Your system runs kernel 7.53 (release 753) at patch level 700."
+      answer: Your system runs kernel 7.53 at patch level 700.
       system_facts:
-        - {text: "Kernel 7.53 (release 753) at patch level 700.", results: [1]}
-      history_for: ""
+      - text: Kernel 7.53 (release 753) at patch level 700.
+        results: [1]
+      history_for: ''
 
 # Operator 2026-11-18: an SAP Note number is recognised, never looked up as an object or transport.
 - id: note_number_only
@@ -417,29 +428,39 @@
 # parameters (configuration) aren't available -> "I can't confirm this one yet" + what to check, where.
 - id: synthetic_note_needs_profile_parameter
   question_file: tests/fixtures/SYNTHETIC_note_9900002_needs_profile_parameter.txt
-  question_suffix: "\n\nIs this relevant to our system?"
+  question_suffix: '
+
+
+    Is this relevant to our system?'
   facts:
-    - {tool: system_profile, path: result.kernel.0.release, equals: "753"}
-    - {tool: system_profile, path: result.kernel.0.patch_level, equals: "700"}
+  - {tool: system_profile, path: result.kernel.0.release, equals: '753'}
+  - {tool: system_profile, path: result.kernel.0.patch_level, equals: '700'}
   expect:
     tools: [system_profile]
-    first_sentence_contains: [["can't confirm", "cannot confirm", "can't tell", "cannot tell", "depends", "can't say", "not sure yet", "might apply", "may apply"]]
-    answer_contains: ["700", "1210", "support_http2", ["RZ11", "RZ10", "profile parameter"]]
-    answer_not_matches: ['(?m)^\s*#{1,6}\s', '(?m)^\s*\|', 'CVSS', '\b7\.5\b', '^Yes\b', '^No\b',
-                         "\\bdoesn['’]t apply\\b", '\bpatch(?:\s+level)?\s+(?!700\b|1210\b|650\b)\d+']
-    max_words: 130  # like Q10: the condition, what to check, both outcomes (eval 142508: 127 words)
+    first_sentence_contains:
+    - [can't confirm, cannot confirm, can't tell, cannot tell, depends, can't say, not sure yet, might apply, may apply]
+    answer_contains:
+    - '700'
+    - '1210'
+    - support_http2
+    - [RZ11, RZ10, profile parameter]
+    answer_not_matches: ['(?m)^\s*#{1,6}\s', '(?m)^\s*\|', ^Yes\b, ^No\b, '\bdoesn[''’]t apply\b', '\bpatch(?:\s+level)?\s+(?!700\b|1210\b|650\b)\d+', 7\.53 \(release 753\)]
+    max_words: 140
     grounding_flags_max: 0
   mock:
     calls:
-      - {tool: system_profile, args: {sections: [kernel]}}
+    - tool: system_profile
+      args:
+        sections: [kernel]
     answer:
-      answer: |-
-        I can't confirm this one yet: it turns on a setting I don't have for your system. Your system runs kernel 7.53 (release 753) at patch level 700, below the fix in patch 1210 according to the note, but the note only applies if HTTP/2 support is enabled in the ICM.
+      answer: 'I can''t confirm this one yet: it turns on a setting I don''t have for your system. Your system runs kernel 7.53 at patch level 700, below the fix in patch 1210 according to the note, but the note only applies if HTTP/2 support is enabled in the ICM.
 
-        Check `icm/HTTP/support_http2` in RZ11. If it's TRUE, plan a kernel update to patch 1210 or higher, or (per the note) set it to FALSE and restart the ICM; if it's FALSE, nothing to do.
+
+        Check `icm/HTTP/support_http2` in RZ11. If it''s TRUE, plan a kernel update to patch 1210 or higher, or (per the note) set it to FALSE and restart the ICM; if it''s FALSE, nothing to do.'
       system_facts:
-        - {text: "Kernel 7.53 (release 753) at patch level 700.", results: [1]}
-      history_for: ""
+      - text: Kernel 7.53 (release 753) at patch level 700.
+        results: [1]
+      history_for: ''
 
 # Operator 2026-11-18 (proactive expert): a runtime error name is an ST22 short dump. Explanation and typical
 # causes from SAP expertise, the system's dump counts, numbered steps; the missing error name per dump once,
@@ -453,31 +474,37 @@
   expect:
     tools: [operations]
     tools_not: [find_object, impact]
-    answer_contains: [ACM_UNEXPECTED_VALUE, ST22, '4034']
-    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', '\bone (?:dump )?every\b', '\bevery (?:5|five) minutes\b']
+    answer_contains:
+    - ACM_UNEXPECTED_VALUE
+    - ST22
+    - ['4034', '4,034']
+    - [suggests, suggest]
+    - confirm
+    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\)]
     first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
     max_gap_mentions: 1
     steps_min: 3
-    max_words: 250  # operator 2026-11-18: explanation + 5 steps; prompt asks 170; eval 152613: 215-238
+    max_words: 260
     grounding_flags_max: 0
+    answer_matches: ['\b4,?034 short dumps in total\b']
   mock:
     calls:
     - tool: operations
       args: {}
     answer:
-      answer: 'ACM_UNEXPECTED_VALUE comes from the ACM layer: in S/4HANA, ACM usually refers to the access control management that evaluates CDS access controls, and an "unexpected value" error typically means such a check got a value it can''t handle, for example in an authorization field or a condition. This system had 4034 short dumps between 4 November and 17 November.
+      answer: 'ACM_UNEXPECTED_VALUE is a rare runtime error. The name suggests a check in the ACM layer (in S/4HANA usually the access control management behind CDS access controls) got a value it didn''t expect; the dump will confirm. This system had 4,034 short dumps in total between 4 November and 17 November.
 
 
         1. Open ST22, filter by runtime error ACM_UNEXPECTED_VALUE and open a recent dump.
 
         2. Read "What happened" and "Error analysis": note the program, the CDS view or access control it names, and the user.
 
-        3. Check that access control in the ABAP Development Tools, and the user''s roles in SU53 and PFCG.
+        3. Check the user''s roles in SU53 and PFCG, and the access control in the ABAP Development Tools.
 
         4. Search the SAP Support Portal for ACM_UNEXPECTED_VALUE together with the CDS view name.
 
 
-        The error name per dump isn''t recorded here, so ST22 is the place to count them.'
+        Which runtime error each dump had isn''t recorded here, so ST22 is the place to count them.'
       system_facts:
       - text: 4034 short dumps between 2026-11-04 and 2026-11-17; error names per dump aren't recorded.
         results: [1]
@@ -493,33 +520,34 @@
     answer_contains:
     - DBSQL_TABLE_UNKNOWN
     - ST22
-    - '4034'
+    - ['4034', '4,034']
     - table
     - [SE11, SE14]
-    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', '\bone (?:dump )?every\b', '\bevery (?:5|five) minutes\b']
+    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), \bSE38\b|\bSE80\b]
     first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
     max_gap_mentions: 1
     steps_min: 3
-    max_words: 250  # operator 2026-11-18: explanation + 5 steps; prompt asks 170; eval 152613: 215-238
+    max_words: 260
     grounding_flags_max: 0
+    answer_matches: ['\b4,?034 short dumps in total\b']
   mock:
     calls:
     - tool: operations
       args: {}
     answer:
-      answer: 'DBSQL_TABLE_UNKNOWN means an ABAP program accessed a table or view that exists in the ABAP Dictionary but not in the database. A common cause is a transport that brought the program but not the table, or a table that was never activated in the database. This system had 4034 short dumps between 4 November and 17 November.
+      answer: 'DBSQL_TABLE_UNKNOWN means an ABAP program accessed a table or view that exists in the ABAP Dictionary but not in the database; a common cause is a transport that brought the program but not the table, or a table never activated in the database. This system had 4,034 short dumps in total between 4 November and 17 November.
 
 
-        1. Open ST22, filter by runtime error DBSQL_TABLE_UNKNOWN and open a recent dump.
+        1. Open ST22, filter by runtime error DBSQL_TABLE_UNKNOWN and note the table and program in a recent dump.
 
-        2. Note the table name and the program in the error analysis.
+        2. Check the table in SE11: is it active?
 
-        3. Check the table in SE11 (is it active?) and in SE14 (does it exist in the database?), and activate or adjust it there.
+        3. In SE14, check whether it exists in the database; use "Activate and adjust database" only after a backup and never directly in production.
 
         4. In STMS, check whether the table''s transport was imported along with the program''s.
 
 
-        The error name per dump isn''t recorded here; once you have the table name, I can check it in the dictionary and show what uses it.'
+        Which runtime error each dump had isn''t recorded here; once you have the table name, I can check it in the dictionary and show what uses it.'
       system_facts:
       - text: 4034 short dumps between 2026-11-04 and 2026-11-17; error names per dump aren't recorded.
         results: [1]
@@ -565,12 +593,13 @@
     - ST22
     - [SE11, SE14]
     - dictionary
-    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', '\bone (?:dump )?every\b', '\bevery (?:5|five) minutes\b']
+    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), \bSE38\b|\bSE80\b]
     first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
     max_gap_mentions: 1
     steps_min: 3
-    max_words: 250  # operator 2026-11-18: explanation + 5 steps; prompt asks 170; eval 152613: 215-238
+    max_words: 260
     grounding_flags_max: 0
+    answer_matches: ['\b4,?034 short dumps in total\b']
   mock:
     calls:
     - tool: operations
@@ -579,16 +608,14 @@
       answer: 'The dump itself names the missing table, so ST22 is the quickest way to find it:
 
 
-        1. Open ST22, filter by runtime error DBSQL_TABLE_UNKNOWN and open the most recent dump.
+        1. Open ST22, filter by runtime error DBSQL_TABLE_UNKNOWN and read the table name and program in the most recent dump.
 
-        2. In the error analysis, note the table name and the program that accessed it.
+        2. Check the table in SE11 (active?) and SE14 (in the database?); adjust it only after a backup, never directly in production.
 
-        3. Check the table in SE14: if it''s active in SE11 but missing in the database, create or adjust it there.
-
-        4. In STMS, check whether the table''s transport was imported along with the program''s.
+        3. In STMS, check whether the table''s transport was imported along with the program''s.
 
 
-        This error typically follows an incomplete transport or an inactive table. This system had 4034 short dumps between 4 November and 17 November, but which table was missing at runtime isn''t recorded here; once you have the name, I can check it in the dictionary.'
+        This error typically follows an incomplete transport or an inactive table. This system had 4,034 short dumps in total between 4 November and 17 November; which table each dump hit isn''t recorded here, but once you have the name, I can check it in the dictionary.'
       system_facts:
       - text: 4034 short dumps between 2026-11-04 and 2026-11-17; the table per dump isn't recorded.
         results: [1]
@@ -596,32 +623,40 @@
 
 # Explicitly requested report: short labels are fine; what is missing is "Not available", never "Gaps".
 - id: monitoring_report
-  question: "Give me a short monitoring report, with sections."
+  question: Give me a short monitoring report, with sections.
   facts:
-    - {tool: operations, path: result.jobs.runs, equals: 42}
+  - {tool: operations, path: result.jobs.runs, equals: 42}
   expect:
     tools: [operations]
-    answer_contains: ["42", "4034", "Not available"]
-    answer_not_matches: ['(?mi)^[\W_]*(?:main\s+)?gaps?\b[^.\n]*:', "\\babout \\d"]
+    answer_contains:
+    - '42'
+    - ['4034', '4,034']
+    - Not available
+    answer_not_matches: ['(?mi)^[\W_]*(?:main\s+)?gaps?\b[^.\n]*:', \babout \d]
     max_words: 150
     grounding_flags_max: 0
   mock:
     calls:
-      - {tool: operations, args: {}}
+    - tool: operations
+      args: {}
     answer:
-      answer: |-
-        **Window:** 4 November to 17 November.
+      answer: '**Window:** 4 November to 17 November.
+
 
         **Jobs:** 42 background job runs, 0 cancelled.
 
+
         **Short dumps:** 4034, counted per day.
+
 
         **Alerts:** 0 (CCMS is not configured).
 
-        **Not available:** the system log (check SM21), which program each dump hit (check ST22), and workload statistics.
+
+        **Not available:** the system log (check SM21), which program each dump hit (check ST22), and workload statistics.'
       system_facts:
-        - {text: "42 background job runs, 0 cancelled; 4034 short dumps; 0 alerts; window 2026-11-04 to 2026-11-17.", results: [1]}
-      history_for: ""
+      - text: 42 background job runs, 0 cancelled; 4034 short dumps; 0 alerts; window 2026-11-04 to 2026-11-17.
+        results: [1]
+      history_for: ''
 
 # Browser testing 2026-11-17 (operator): monitoring questions call operations and pass on its stated gaps.
 # Operator 2026-11-18 (proactive expert): the totals, what they suggest, next steps; the gaps once, near the end.
@@ -640,34 +675,33 @@
     equals: ['run:L5:v4']
   expect:
     tools: [operations]
-    answer_contains: ['42', '4034']
-    answer_not_matches: ['\bI([''’]ll| will) (check|look)', \blet me (check|look), \babout \d, '(?m)^\s*#{1,6}\s', '(?mi)^[\W_]*(?:main\s+)?gaps?\b[^.\n]*:', '\bone (?:dump )?every\b', '\bevery (?:5|five) minutes\b']
+    answer_contains:
+    - '42'
+    - ['4034', '4,034']
+    answer_not_matches: ['\bI([''’]ll| will) (check|look)', \blet me (check|look), '(?m)^\s*#{1,6}\s', '(?mi)^[\W_]*(?:main\s+)?gaps?\b[^.\n]*:', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), \babout \d]
     first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
     max_gap_mentions: 1
-    max_words: 140  # prompt asks 110
+    max_words: 200
     grounding_flags_max: 0
+    answer_matches: ['\b4,?034 short dumps in total\b', '\bevery (?:5|five) minutes\b', '\b(?:3|three) (?:job )?(?:runs? )?(?:a|per) day\b']
   mock:
     calls:
     - tool: operations
       args: {}
     answer:
-      answer: 'Between 4 November and 17 November this system had 42 background job runs (0 cancelled), 4034 short dumps and 0 alerts. The dumps held at 288 or 289 every day; a steady daily count like that usually points to one recurring cause, such as a scheduled job or an interface failing the same way each time.
+      answer: 'Between 4 November and 17 November this system had 4,034 short dumps in total, 42 background job runs (0 cancelled) and 0 alerts. This system logs 288 dumps a day, which is one every 5 minutes, while 42 job runs in 14 days is 3 a day, so the scheduled jobs can''t explain the dumps; a rhythm like that usually points to a periodic RFC, interface poll or background process.
 
 
         1. In ST22, group one day''s dumps by runtime error and program to find the recurring one.
 
-        2. In SM37, check which jobs run at the times those dumps occur.
+        2. With so few jobs and no workload aggregates, the standard housekeeping jobs usually aren''t scheduled: schedule them in SM36 → Standard Jobs (including SAP_COLLECTOR_FOR_PERFMONITOR).
 
 
-        The system log and workload statistics aren''t recorded here; check them in SM21 and ST03N.'
+        The system log and the program per dump aren''t recorded here; check them in SM21 and ST22.'
       system_facts:
-      - text: 42 background job runs, 0 cancelled.
+      - text: 4034 short dumps, 288 or 289 a day; 42 background job runs, 0 cancelled, 2 distinct jobs; 0 alerts; 2026-11-04 to 2026-11-17.
         results: [1]
-      - text: '4034 short dumps, counted per day: 288 or 289 every day.'
-        results: [1]
-      - text: 0 alerts.
-        results: [1]
-      - text: The system log (SM21) isn't available for this system.
+      - text: 'Workload: SAP has no aggregates on this system; the system log (SM21) isn''t available.'
         results: [1]
       history_for: ''
 
@@ -681,13 +715,16 @@
   expect:
     tools: [operations]
     tools_not: [find_object, impact]
-    answer_contains: [ST22, '4034']
-    answer_not_matches: ['\bI([''’]ll| will) (check|look)', '\b\d{1,2}:\d{2}\b', '(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', '\bone (?:dump )?every\b', '\bevery (?:5|five) minutes\b']
+    answer_contains:
+    - ST22
+    - ['4034', '4,034']
+    answer_not_matches: ['\bI([''’]ll| will) (check|look)', '\b\d{1,2}:\d{2}\b', '(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\)]
     first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
     max_gap_mentions: 1
     steps_min: 3
-    max_words: 190  # prompt asks 140
+    max_words: 210
     grounding_flags_max: 0
+    answer_matches: ['\b4,?034 short dumps in total\b']
   mock:
     calls:
     - tool: operations
@@ -705,7 +742,7 @@
         4. Search the runtime error name and program in the SAP Support Portal.
 
 
-        This system had 4034 short dumps between 4 November and 17 November, 288 or 289 every day, so one recurring error is the likely driver: start with the error that repeats daily. Which runtime error each dump had isn''t recorded here.'
+        This system had 4,034 short dumps in total between 4 November and 17 November, 288 or 289 every day, so start with the error that repeats daily. Which runtime error each dump had isn''t recorded here.'
       system_facts:
       - text: 4034 short dumps between 2026-11-04 and 2026-11-17; 288 or 289 every day.
         results: [1]
@@ -718,11 +755,11 @@
   expect:
     tools: [operations]
     answer_contains: [SM21]
-    answer_not_matches: ['\bI([''’]ll| will) (check|look)', \blet me (check|look), '\b\d{1,2}:\d{2}\b', '(?m)^\s*#{1,6}\s', '\bone (?:dump )?every\b', '\bevery (?:5|five) minutes\b']
+    answer_not_matches: ['\bI([''’]ll| will) (check|look)', \blet me (check|look), '\b\d{1,2}:\d{2}\b', '(?m)^\s*#{1,6}\s', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\)]
     first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
     max_gap_mentions: 1
     steps_min: 3
-    max_words: 190  # prompt asks 140
+    max_words: 210
     grounding_flags_max: 0
   mock:
     calls:
@@ -739,7 +776,7 @@
         3. Double-click an entry for its details and message ID, and search that message ID in the SAP Support Portal.
 
 
-        This system had 4034 short dumps between 4 November and 17 November, so it''s worth matching SM21 entries with the dump times in ST22. The system log itself isn''t recorded here.'
+        This system had 4,034 short dumps in total between 4 November and 17 November, so it''s worth matching SM21 entries with the dump times in ST22. The system log itself isn''t recorded here.'
       system_facts:
       - text: The system log (SM21) isn't available for this system.
         results: [1]

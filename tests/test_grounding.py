@@ -102,3 +102,26 @@ def test_numeric_dates_and_gaps_labels_are_wording_problems():
     for ok in ("4305 dumps from 29 October to 11 November.", "**Not available:** the system log (check SM21).",
                "The gaps are small.", "SAP_BASIS 751, kernel 7.53 (release 753)."):
         assert problems(ok) == [], ok
+
+
+
+def test_exact_derivations_with_their_source_numbers_are_backed():
+    """Operator 2026-11-18: plain arithmetic on engine numbers, the source number in the same sentence."""
+    r = [{"result": {"jobs": {"runs": 42}, "dumps": {"total": 4034, "per_day": {"2026-11-04": 288}},
+                     "run": {"days": ["d"] * 14}}}]
+    ok = ["This system had 4,034 short dumps in total.",
+          "This system logs 288 dumps a day, which is one every 5 minutes.",
+          "This system had 42 job runs in 14 days, so 3 a day.",
+          "This system logs 288 dumps a day, 12 an hour."]
+    for t in ok:
+        c = grounding.check_system(t, [], r, [], [], set())
+        assert c["ok"], (t, c["flags"])
+    derived = grounding.check_system(ok[1], [], r, [], [], set())["derived"]
+    assert [d["token"] for d in derived] == ["5"]  # logged for ?debug=1
+    bad = {"This system had 4034 short dumps, 17 of them today.": "17",      # not derivable
+           "This system: one every 5 minutes.": "5",                          # no source number alongside
+           "This system logs 288 dumps a day, one every 4 minutes.": "4",     # wrong arithmetic
+           "This system had 4,035 short dumps in total.": "4,035"}
+    for t, tok in bad.items():
+        c = grounding.check_system(t, [], r, [], [], set())
+        assert tok in [f["token"] for f in c["flags"]], (t, c)

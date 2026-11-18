@@ -38,9 +38,11 @@ meets WCAG AA in light and dark, `tests/test_ui.py`). No other skins, no `/direc
    knowledge is allowed, phrased as general knowledge, never as a fact about this system. Unknown
    objects: "I don't know a table called ZFAKE_TABLE in this system, and I won't guess." A system
    fact that isn't known: say so naturally and where to check it ("I don't have the system log for
-   this system; you can check it in SM21"). Never recompute or round a number. Kernel:
-   "kernel 7.53 (release 753)" (dotted form as people read it, release as the engine returns it);
-   every other release as returned (SAP_BASIS 751, never 7.51). A note vs this system: show both
+   this system; you can check it in SM21"). Never round a returned number; plain exact arithmetic on
+   engine numbers is allowed with the source numbers in the same sentence ("288 a day is one every 5
+   minutes"; grounding backs a ± × ÷ of that sentence's numbers or a time constant, logged as
+   `derived`). Kernel: "kernel 7.53" (dotted form; the engine's release 753 backs it; never "7.53
+   (release 753)", operator 2026-11-18); every other release as returned (SAP_BASIS 751, never 7.51). A note vs this system: show both
    values ("your kernel … patch 700; according to the note, the fix is in patch 1616") and say
    "according to the note".
 4. **Say what isn't known, when it matters.** Pass on Graphene's `limits`, `coverage` and `freshness`
@@ -80,7 +82,13 @@ knows: one line, "I'm here to help with your SAP system; what would you like to 
 on. `app/wording.py` enforces this in the silent check (rewrite once, then hold back) and in the eval.
 
 **Proactive SAP expert (operator 2026-11-18, latest):** two layers. Facts about THIS system: strictly
-from the engine, unchanged (never computed: no derived rates such as "one every 5 minutes"). SAP
+from the engine; exact arithmetic on them is encouraged when it connects the dots, with the source
+numbers alongside ("42 job runs in 14 days is 3 a day, so the jobs can't explain 288 dumps a day").
+Dumps: "4,034 short dumps in total", never implying one error type until the engine records error
+names. Risky transactions (SE14 adjust, SM12, SM13, table edits) get a one-line caution. Clear SAP
+practice turns a gap into a recommendation (no workload aggregates + few jobs → SM36 → Standard Jobs,
+SAP_COLLECTOR_FOR_PERFMONITOR). Steps never repeat each other; each fact once. Well-known errors get a
+confident explanation; rare ones "The name suggests …; the dump will confirm." SAP
 expertise (what errors mean, typical causes, troubleshooting, transactions, Support Portal search
 terms, best practice): used freely; "typically", "usually", "a common cause is" are fine; specific
 SAP Note numbers only when certain, else search terms. Lead with help, never open with a gap; all
@@ -161,7 +169,7 @@ Rules for each fix:
 6–9. SAP_BASIS version, what would lower ZUZK900008's risk, system monitoring, SM21 (the stated gap).
 10. SAP Note 3778530 (CVE-2026-76964), pasted (`tests/fixtures/note_3778530_excerpt.txt`, used exactly),
    + "Is this relevant to our system?" → first "Yes, this note applies to your system."; kernel 7.53
-   (release 753) patch 700 from the engine vs the fix in 1616 "according to the note"; recommend
+   patch 700 from the engine vs the fix in 1616 "according to the note"; recommend
    patch 1616 or higher (the note's workarounds in a few words). No headings, tables or CVSS; ≤ 130
    words; no invented patch levels.
 11. Identity ("What are you?", "How do you know all this about my system?") → the one line, no tool

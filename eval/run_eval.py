@@ -29,7 +29,8 @@ from app import agent, contract, config, present, wording  # noqa: E402
 
 # A sentence that states a missing system detail (operator 2026-11-18: at most once, never first).
 GAP_RE = re.compile(r"\b(?:I don['’]t have|I do not have|isn['’]t recorded|aren['’]t recorded|not recorded"
-                    r"|isn['’]t available|aren['’]t available|not available|I can['’]t (?:say|tell|see|show))\b", re.I)
+                    r"|isn['’]t available|aren['’]t available|not available|I can['’]t (?:say|tell|see|show)"
+                    r"|isn['’]t either|aren['’]t either|neither|(?:isn['’]t|aren['’]t) (?:being )?collected)\b", re.I)
 from app.mcp_client import GrapheneMCP  # noqa: E402
 
 # Claude Sonnet 5.5, $ per million tokens (Anthropic first-party pricing).
@@ -198,6 +199,9 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
             problems.append(f"history table shown for {hist.get('transport')} (not a history question)")
         if exp.get("max_words") and len(prose.split()) > exp["max_words"]:
             problems.append(f"answer has {len(prose.split())} words > {exp['max_words']}")
+        for rx in exp.get("answer_matches", []):  # operator 2026-11-18: content that must be there
+            if not re.search(rx, prose, re.I):
+                problems.append(f"answer doesn't match {rx!r}")
         for rx in exp.get("answer_not_matches", []):
             if re.search(rx, prose, re.I):
                 problems.append(f"answer matches {rx!r}")

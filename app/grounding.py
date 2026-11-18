@@ -19,7 +19,8 @@ NAME_RE = re.compile(
     r"(?![A-Za-z0-9_])"
 )
 PSEUDO_RE = re.compile(r"(?<![A-Za-z0-9])(?:JOB|U)-[0-9a-f]{4,}(?![0-9a-f])")
-NUM_RE = re.compile(r"(?<![A-Za-z0-9_.:/-])-?\d+(?:\.\d+)?(?![0-9])")
+# "4,034" (thousands separators) is one number (operator 2026-11-18: "4,034 short dumps in total").
+NUM_RE = re.compile(r"(?<![A-Za-z0-9_.:/-])-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?![0-9])")
 # Dates and times are checked as whole tokens: 2026-11-12, 2026-11-12 13:06, 13:06, 13:06:32,
 # 2026-11-12T14:44:40+00:00 (fraction and UTC offset belong to the token, never a separate "00:00").
 DATETIME_RE = re.compile(r"(?<![\d-])(\d{4}-\d{2}-\d{2})"
@@ -59,7 +60,7 @@ def _walk(obj: Any) -> Iterable[Any]:
 
 
 def _norm_num(s: str | float | int) -> str:
-    f = float(s)
+    f = float(s.replace(",", "")) if isinstance(s, str) else float(s)
     return repr(f) if f != int(f) else str(int(f))
 
 
@@ -172,6 +173,30 @@ SYSTEM_MARKER_RE = re.compile(
     r"|\bthis system\b|\byou(?:'re| are)\s+(?:on|running)\b|\byou run\b|\bas of\b", re.I)
 
 
+# Operator 2026-11-18: plain arithmetic on engine numbers is allowed when the source number is stated
+# alongside ("288 a day is one every 5 minutes", "42 job runs in 14 days is 3 a day"). A number that
+# isn't in the results is backed if it is a + b, a - b, a × b, a ÷ b (or a ÷ b × 100) of numbers in the
+# SAME sentence that are backed, or of one of them and a time constant; at least one operand must be
+# a backed number of that sentence; the result must match to the precision written.
+TIME_CONSTANTS = (7.0, 24.0, 60.0, 1440.0)
+
+
+def _derivable(tok: str, operands: list[float]) -> bool:
+    v = float(tok.replace(",", ""))
+    dec = len(tok.split(".", 1)[1]) if "." in tok else 0
+    pool = [(x, True) for x in operands] + [(c, False) for c in TIME_CONSTANTS]
+    for a, a_src in pool:
+        for b, b_src in pool:
+            if not (a_src or b_src):
+                continue
+            outs = [a + b, a - b, a * b]
+            if b:
+                outs += [a / b, a / b * 100]
+            if any(abs(round(o, dec) - v) < 1e-9 for o in outs):
+                return True
+    return False
+
+
 def kernel_display_forms(results: list[dict[str, Any]]) -> set[str]:
     """Operator 2026-11-17: "kernel 7.53 (release 753)". The engine returns the kernel release as
     "753"; its dotted form 7.53 (as people read it) is backed by it. Kernel releases only: a SAP_BASIS
@@ -201,6 +226,7 @@ def check_system(answer: str, facts: list[str], results: list[dict[str, Any]], u
     for f in kernel_display_forms(results):
         nums.add(_norm_num(f))
     flags: list[dict[str, str]] = []
+    derived: list[dict[str, str]] = []  # plain arithmetic on backed numbers (logged, ?debug=1)
     checked = 0
 
     def check_numbers_dates(text: str, where: str) -> str:
@@ -214,10 +240,17 @@ def check_system(answer: str, facts: list[str], results: list[dict[str, Any]], u
             stripped = rx.sub(" ", stripped)
         for n in sorted(set(_names_in(text)), key=len, reverse=True):
             stripped = stripped.replace(n, " ")  # digits inside names are not numbers
-        for m in NUM_RE.finditer(stripped):
+        toks = [m.group(0) for m in NUM_RE.finditer(stripped)]
+        backed = [float(t.replace(",", "")) for t in toks if _norm_num(t) in nums]
+        for t in toks:
             checked += 1
-            if _norm_num(m.group(0)) not in nums:
-                flags.append({"token": m.group(0), "kind": "number", "where": where})
+            if _norm_num(t) in nums:
+                continue
+            others = [x for x in backed if x != float(t.replace(",", ""))]
+            if _derivable(t, others):
+                derived.append({"token": t, "where": where})
+                continue
+            flags.append({"token": t, "kind": "number", "where": where})
         return stripped
 
     def check_names(text: str, where: str, rx: re.Pattern) -> None:
@@ -246,4 +279,4 @@ def check_system(answer: str, facts: list[str], results: list[dict[str, Any]], u
         if key not in seen:
             seen.add(key)
             uniq.append(fl)
-    return {"ok": not uniq, "checked": checked, "flags": uniq}
+    return {"ok": not uniq, "checked": checked, "flags": uniq, "derived": derived}

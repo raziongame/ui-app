@@ -59,7 +59,7 @@ class FakeMessages:
         notes = sum(1 for m in msgs if m["role"] == "system" and "without calling a tool" in m["content"])
         if done == 0 and notes < script.get("promise_turns", 0):
             return Message.model_validate({**base, "stop_reason": "end_turn", "content": [
-                {"type": "text", "text": json.dumps({"answer": "I'll check the system log for you.",
+                {"type": "text", "text": json.dumps({"answer": script.get("promise_text", "I'll check the system log for you."),
                                                      "system_facts": [], "history_for": ""})}]})
         # "skip_call_turns": N = the first N turns answer without any call (eval 2026-11-18, ACM); the app
         # answers a runtime error name with one note (RUNTIME_NOTE).

@@ -158,9 +158,9 @@ def test_names_and_numbers_from_the_users_text_may_be_repeated(client, fake_clau
 
 
 def test_kernel_dotted_form_is_backed_by_the_engines_release(client, fake_claude):
-    """Operator 2026-11-17: "kernel 7.53 (release 753)" even with no note pasted."""
+    """Operator 2026-11-18: "kernel 7.53" (the engine's release 753 backs it; never both forms)."""
     mock = {"calls": [{"tool": "system_profile", "args": {"sections": ["kernel"]}}],
-            "answer": {"answer": "Your kernel is 7.53 (release 753) at patch 700.",
+            "answer": {"answer": "Your kernel is 7.53 at patch 700.",
                        "system_facts": [{"text": "Kernel 7.53 (release 753), patch 700.", "results": [1]}], "history_for": ""}}
     out, *_ = _run(client, fake_claude, mock, "Which kernel do we run?")
     assert out["presentation"]["outcome"] == "passed", out["grounding"]
@@ -235,7 +235,12 @@ def test_request_shape_to_claude(client, fake_claude):
     assert "you can check it in SM21" in text and "as of 5 November" in text
     assert "SAP expertise: use it freely" in text and "never as a fact about this system" in text
     assert "say so naturally and where to check it" in text  # an unknown system fact
-    assert 'write "kernel 7.53 (release 753)"' in text and "SAP_BASIS 751, never 7.51" in text
+    assert 'write "kernel 7.53"' in text and "never both forms" in text and "SAP_BASIS 751, never 7.51" in text
+    # operator 2026-11-18: exact derivations with source numbers, totals not one error type, cautions
+    assert "one every 5 minutes" in text and "Never present a derived number without its" in text
+    assert '"4,034 short dumps in total"' in text and "Risky transactions get a one-line caution" in text
+    assert "SAP_COLLECTOR_FOR_PERFMONITOR" in text and "the dump will confirm" in text
+    assert "no step that" in text and "State each fact once" in text
     assert '"No, this one doesn\'t apply."' in text and '"I can\'t confirm this one yet."' in text
     assert "no symptom description; the note's" in text and "according to the note" in text
     assert "ask only for what the question needs" in text  # v18 filters
@@ -453,3 +458,16 @@ def test_runtime_error_without_a_call_gets_one_nudge(client, fake_claude):
     general = {"calls": [], "skip_call_turns": 5, "answer": {"answer": "unused", "system_facts": [], "history_for": ""}}
     out2, _, _, _ = _run(client, fake_claude, general, "What does BAPI_USER_GET_DETAIL return?")
     assert out2 is not None and out2["tool_trace"] == [] and out2["usage"]["runtime_error_nudges"] == 1
+
+
+def test_reply_that_stops_at_a_lead_in_is_not_shown(client, fake_claude):
+    """eval 2026-11-18 (SM21): "SM21 shows the log entry by entry; this is how to work through it:" with no
+    call and nothing after the colon is dropped and asked again, like a promise."""
+    from app import agent
+    assert "this is how to work through it:" not in agent.SYSTEM_PROMPT
+    case = next(c for c in GOLDEN if c["id"] == "sm21_details")
+    mock = {**case["mock"], "promise_turns": 1,
+            "promise_text": "SM21 shows the log entry by entry; this is how to work through it:"}
+    out, _, _, reqs = _run(client, fake_claude, mock, case["question"])
+    assert out is not None and [t["tool"] for t in out["tool_trace"]] == ["operations"]
+    assert out["usage"].get("no_call_retries") == 1 and not out["answer"].rstrip().endswith(":")
