@@ -457,7 +457,7 @@
     - '1210'
     - support_http2
     - [RZ11, RZ10, profile parameter]
-    answer_not_matches: ['(?m)^\s*#{1,6}\s', '(?m)^\s*\|', ^Yes\b, ^No\b, '\bdoesn[''’]t apply\b', '\bpatch(?:\s+level)?\s+(?!700\b|1210\b|650\b)\d+', 7\.53 \(release 753\)]
+    answer_not_matches: ['(?m)^\s*#{1,6}\s', '(?m)^\s*\|', ^Yes\b, ^No\b, '\bdoesn[''’]t apply\b', '\bpatch(?:\s+level)?\s+(?!700\b|1210\b|650\b)\d+', 7\.53 \(release 753\), '\b(?:CVSS|priority|urgent|urgency)\b']
     max_words: 140
     grounding_flags_max: 0
   mock:

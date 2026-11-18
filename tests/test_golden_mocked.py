@@ -242,6 +242,9 @@ def test_request_shape_to_claude(client, fake_claude):
     assert "SAP_COLLECTOR_FOR_PERFMONITOR" in text and "the dump will confirm" in text
     assert "no step that" in text and "State each fact once" in text
     assert "below always win over connecting the dots" in text
+    assert '"older method" line (the table already marks it)' in text
+    assert "gets no priority or urgency line" in text
+    assert "(e.g. workload statistics → the SM36 standard jobs step)" in text
     assert "ST22 shows which of them, if any, are this error" in text
     assert '"No, this one doesn\'t apply."' in text and '"I can\'t confirm this one yet."' in text
     assert "no symptom description; the note's" in text and "according to the note" in text

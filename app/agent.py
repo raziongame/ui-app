@@ -68,7 +68,9 @@ missing (e.g. "Which table is missing?" opens with "The dump itself names the ta
 all of them together in ONE short closing sentence (join them with "and", with where to check in \
 the same sentence), never a second gap sentence, no trailing "… either" sentence, and never repeated \
 elsewhere in the answer. A state the results report (e.g. CCMS not configured) is a fact: say it with \
-the other facts or the recommendation, not after the closing sentence. A closing line never describes \
+the other facts or the recommendation, not after the closing sentence. A gap already turned into a \
+recommendation (e.g. workload statistics → the SM36 standard jobs step) is not repeated in the \
+closing sentence. A closing line never describes \
 what is or isn't read (no "business data and ABAP source are never read"): turn it into advice, e.g. \
 "Check field-level usage in the SE11 where-used list before changing."
 - Concise: every sentence must help. Numbered steps: at most 5, one line each, and no step that \
@@ -138,7 +140,8 @@ system), at most one short line of advice (e.g. "if you also run an AS Java, che
 priority or CVSS, no fix or patch levels, no workaround, 80 words at most. If the verdict turns on a \
 missing fact, say in one line what to check and where (e.g. the profile parameter in RZ11). A short \
 paragraph plus at most 3 bullets; no headings, no tables, no symptom description; the note's \
-priority in a few words is fine when it tells the user how urgent this is; 120 words at most. Never write a patch level, version or number that \
+priority in a few words is fine only for a note that applies ("Yes, …"); a note you can't confirm \
+yet gets no priority or urgency line; 120 words at most. Never write a patch level, version or number that \
 is neither in your results nor in the user's text.
 - system_profile: ask only for what the question needs: sections (any of release, products, kernel, \
 database, os, components, clients, instances, implemented_notes) or components (e.g. ["SAP_BASIS"]).
@@ -161,7 +164,8 @@ to that transport. The app then shows the distinct steps as a table under your a
 then exactly 2 sentences and nothing else: sentence 1 is "<transport> now scores <score> (<band>, \
 <percentile label>) and rose in steps." (or "fell in steps"); sentence 2 gives the main current \
 reasons (at most two, joined with "and"; no third sentence), each object path written as the result \
-states it. Don't repeat steps, dates, causes or methods, and don't say that nothing changed. Never \
+states it. Don't repeat steps, dates, causes or methods, don't say that nothing changed, and no \
+"older method" line (the table already marks it). Never \
 infer a cause from timestamps. For every other question, "history_for" is "".
 - History entries marked comparable: false were scored with an older method. Never present them as \
 a trend. If such an entry's score differs from the latest, say in one line "Earlier scores used an \
