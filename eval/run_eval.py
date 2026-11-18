@@ -26,6 +26,10 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from app import agent, contract, config, present, wording  # noqa: E402
+
+# A sentence that states a missing system detail (operator 2026-11-18: at most once, never first).
+GAP_RE = re.compile(r"\b(?:I don['’]t have|I do not have|isn['’]t recorded|aren['’]t recorded|not recorded"
+                    r"|isn['’]t available|aren['’]t available|not available|I can['’]t (?:say|tell|see|show))\b", re.I)
 from app.mcp_client import GrapheneMCP  # noqa: E402
 
 # Claude Sonnet 5.5, $ per million tokens (Anthropic first-party pricing).
@@ -167,6 +171,16 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
             opts = item if isinstance(item, list) else [item]
             if not sentences or not any(str(o).lower() in sentences[0].lower() for o in opts):
                 problems.append(f"first sentence lacks {opts!r}")
+        # operator 2026-11-18 (proactive expert): help first, numbered steps, a gap at most once
+        for rx in exp.get("first_sentence_not_matches", []):
+            if sentences and re.search(rx, sentences[0], re.I):
+                problems.append(f"first sentence matches {rx!r}: {sentences[0][:80]!r}")
+        steps = len(re.findall(r"(?m)^\s*\d+[.)]\s", prose))
+        if exp.get("steps_min") and steps < exp["steps_min"]:
+            problems.append(f"{steps} numbered steps < {exp['steps_min']}")
+        gaps = [x for x in sentences if GAP_RE.search(x)]
+        if "max_gap_mentions" in exp and len(gaps) > exp["max_gap_mentions"]:
+            problems.append(f"gap mentioned in {len(gaps)} sentences > {exp['max_gap_mentions']}: {[g[:50] for g in gaps]}")
         if exp.get("max_sentences") and len(sentences) > exp["max_sentences"]:
             problems.append(f"answer has {len(sentences)} sentences > {exp['max_sentences']}")
         if exp.get("no_change_only_at_end"):

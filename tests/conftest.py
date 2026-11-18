@@ -61,6 +61,13 @@ class FakeMessages:
             return Message.model_validate({**base, "stop_reason": "end_turn", "content": [
                 {"type": "text", "text": json.dumps({"answer": "I'll check the system log for you.",
                                                      "system_facts": [], "history_for": ""})}]})
+        # "skip_call_turns": N = the first N turns answer without any call (eval 2026-11-18, ACM); the app
+        # answers a runtime error name with one note (RUNTIME_NOTE).
+        rt_notes = sum(1 for m in msgs if m["role"] == "system" and "looks like an ABAP runtime error" in m["content"])
+        if done == 0 and rt_notes < script.get("skip_call_turns", 0):
+            return Message.model_validate({**base, "stop_reason": "end_turn", "content": [
+                {"type": "text", "text": json.dumps({"answer": "That is an ABAP runtime error; it shows up in ST22.",
+                                                     "system_facts": [], "history_for": ""})}]})
         if done < len(calls) and kw.get("tool_choice", {}).get("type") != "none":
             turn = calls[done] if isinstance(calls[done], list) else [calls[done]]  # list = one turn
             return Message.model_validate({**base, "stop_reason": "tool_use", "content": [

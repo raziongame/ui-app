@@ -201,7 +201,8 @@ def build(answer: dict[str, Any], trace: list[dict[str, Any]], results: list[dic
 # words stay in the evidence panel (claims, tool trace). Object names are upper case, so a lower-case
 # snake_case word is a Graphene field name.
 FIELD_NAME_RE = re.compile(r"(?<![A-Za-z0-9_:/.-])[a-z]+(?:_[a-z0-9]+)+(?![A-Za-z0-9_])")
-JSON_WORD_RE = re.compile(r"\b(?:null|true|false|None|True|False)\b")
+# lower case only: "None." / "True" are English at a sentence start (eval 2026-11-18: "**Alerts** None.")
+JSON_WORD_RE = re.compile(r"\b(?:null|true|false)\b")
 
 
 def developer_words(text: str) -> list[str]:

@@ -99,7 +99,7 @@
   facts:
     - {tool: assess_transport, path: result.assessment.score, equals: 0.345}
     - {tool: assess_transport, path: result.assessment.band, equals: moderate}
-    - {tool: assess_transport, path: result.assessment.reasons.2.text, equals: "reaches periodic job JOB:JOB-5192e9d4d2ab in 1 hop (runs daily, 12 runs in window)"}
+    - {tool: assess_transport, path: result.assessment.reasons.2.text, equals: "reaches periodic job JOB:JOB-5192e9d4d2ab in 1 hop (runs daily, 14 runs in window)"}
     - {tool: assess_transport, path: result.history, length: 23}
     # v12 history (2026-11-16): per-step causes and comparability come from Graphene.
     - {tool: assess_transport, path: result.history.0.score, equals: 0.3075}
@@ -142,7 +142,7 @@
       - {tool: assess_transport, args: {transport: ZUZK900006}}
     answer:
       answer: |-
-        ZUZK900006 now scores 0.345 (moderate, 66th percentile) and rose in steps. Its main current reasons: table definition TABL:ZGR_DISC_RULES is in the transport, and PROG:ZGR_PRICE_SYNC → RUNS → JOB:JOB-5192e9d4d2ab, a periodic job (runs daily, 12 runs in window).
+        ZUZK900006 now scores 0.345 (moderate, 66th percentile) and rose in steps. Its main current reasons: table definition TABL:ZGR_DISC_RULES is in the transport, and PROG:ZGR_PRICE_SYNC → RUNS → JOB:JOB-5192e9d4d2ab, a periodic job (runs daily, 14 runs in window).
       system_facts:
         - {text: "Transport ZUZK900006 scores 0.345: moderate, 66th percentile.", results: [1]}
         - {text: "Program ZGR_PRICE_SYNC runs job JOB-5192e9d4d2ab daily (12 runs in window).", results: [1]}
@@ -289,9 +289,9 @@
                       ["update the kernel", "upgrade the kernel", "kernel update", "kernel upgrade", "update to", "upgrade to", "patch 1616 or higher", "1616 or higher", "1616 or later"]]
     # no invented patch levels: every patch level named is the engine's 700 or the note's 1616/1617
     answer_not_matches: ['\bpatch(?:\s+level)?\s+(?!700\b|1616\b|1617\b)\d+', '\bSP\s?(?!1616\b|1617\b)\d{3,}',
-                         '\b(?:your system|you|it)\s+(?:is|are)\s+not\s+affected\b', '\\n', '(?m)^\s*#{1,6}\s', '(?m)^\s*\|', 'CVSS', '\b10\.0\b', 'HotNews',
+                         '\b(?:your system|you|it)\s+(?:is|are)\s+not\s+affected\b', '\\n', '(?m)^\s*#{1,6}\s', '(?m)^\s*\|',
                          "What I don['’]t know", 'Worth checking']
-    max_words: 130
+    max_words: 140  # operator 2026-11-18 (proactive): the note's priority in a few words is fine
     grounding_flags_max: 0
   mock:
     calls:
@@ -441,56 +441,89 @@
         - {text: "Kernel 7.53 (release 753) at patch level 700.", results: [1]}
       history_for: ""
 
-# Operator 2026-11-18: an ALL-CAPS runtime error name is an ST22 short dump, not an object. Facts from
-# Graphene operations (1.37.0): 4305 dumps, counted per day; which program each dump hit is not learned;
-# dump texts are never read, so error names per dump aren't available (G-10).
+# Operator 2026-11-18 (proactive expert): a runtime error name is an ST22 short dump. Explanation and typical
+# causes from SAP expertise, the system's dump counts, numbered steps; the missing error name per dump once,
+# near the end (G-10). Facts from Graphene operations (1.37.0): 4034 dumps, counted per day.
 - id: runtime_error_acm_unexpected_value
-  question: "What is ACM_UNEXPECTED_VALUE?"
+  question: What is ACM_UNEXPECTED_VALUE?
   facts:
-    - {tool: operations, path: result.dumps.total, equals: 4305}
-    - {tool: operations, path: result.dumps.per_day, length: 14}
-    - {tool: operations, path: limits, contains: "Dumps are counted per day; which program each dump hit is not learned yet."}
+  - {tool: operations, path: result.dumps.total, equals: 4034}
+  - {tool: operations, path: result.dumps.per_day, length: 14}
+  - {tool: operations, path: limits, contains: Dumps are counted per day; which program each dump hit is not learned yet.}
   expect:
     tools: [operations]
     tools_not: [find_object, impact]
-    # the meaning isn't certain from general SAP knowledge: one "not sure" line, no guess (eval 144434:
-    # "I believe this error comes from the assertion and check framework")
-    answer_contains: ["ST22", "4305", "dump", ["not available", "aren't available", "isn't available", "don't have", "not the error name", "only have counts", "only have daily counts", "isn't recorded", "not recorded", "aren't recorded"],
-                      ["not sure", "not certain", "unsure", "can't say what"]]
-    answer_not_matches: ["\\bI don['’]t know (?:a|an|the) (?:table|object|class|program)", '(?m)^\s*#{1,6}\s', "\\babout \\d", "\\bI don['’]t have (?:the |any |your |this system's )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)",
-                         '\bI (?:believe|think|suspect)\b', '\b(?:probably|likely|presumably)\b', '\bassertion\b']
-    max_words: 110
+    answer_contains: [ACM_UNEXPECTED_VALUE, ST22, '4034']
+    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', '\bone (?:dump )?every\b', '\bevery (?:5|five) minutes\b']
+    first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
+    max_gap_mentions: 1
+    steps_min: 3
+    max_words: 250  # operator 2026-11-18: explanation + 5 steps; prompt asks 170; eval 152613: 215-238
     grounding_flags_max: 0
   mock:
     calls:
-      - {tool: operations, args: {}}
+    - tool: operations
+      args: {}
     answer:
-      answer: |-
-        That looks like an ABAP runtime error, so it would show up as a short dump in ST22. This system had 4305 short dumps between 29 October and 11 November, but the error names per dump aren't available, so I can't say how often ACM_UNEXPECTED_VALUE occurred. In ST22, filter by that runtime error name to find its dumps. I'm not sure what this specific error means, so check the dump's long text there.
+      answer: 'ACM_UNEXPECTED_VALUE comes from the ACM layer: in S/4HANA, ACM usually refers to the access control management that evaluates CDS access controls, and an "unexpected value" error typically means such a check got a value it can''t handle, for example in an authorization field or a condition. This system had 4034 short dumps between 4 November and 17 November.
+
+
+        1. Open ST22, filter by runtime error ACM_UNEXPECTED_VALUE and open a recent dump.
+
+        2. Read "What happened" and "Error analysis": note the program, the CDS view or access control it names, and the user.
+
+        3. Check that access control in the ABAP Development Tools, and the user''s roles in SU53 and PFCG.
+
+        4. Search the SAP Support Portal for ACM_UNEXPECTED_VALUE together with the CDS view name.
+
+
+        The error name per dump isn''t recorded here, so ST22 is the place to count them.'
       system_facts:
-        - {text: "4305 short dumps between 2026-10-29 and 2026-11-11, counted per day; error names per dump aren't available.", results: [1]}
-      history_for: ""
+      - text: 4034 short dumps between 2026-11-04 and 2026-11-17; error names per dump aren't recorded.
+        results: [1]
+      history_for: ''
 
 - id: runtime_error_dbsql_table_unknown
-  question: "We keep getting DBSQL_TABLE_UNKNOWN. What's going on?"
+  question: We keep getting DBSQL_TABLE_UNKNOWN. What's going on?
   facts:
-    - {tool: operations, path: result.dumps.total, equals: 4305}
+  - {tool: operations, path: result.dumps.total, equals: 4034}
   expect:
     tools: [operations]
     tools_not: [find_object, impact]
-    answer_contains: ["ST22", "4305", "dump", "table", ["not available", "aren't available", "isn't available", "don't have", "not the error name", "only have counts", "only have daily counts", "isn't recorded", "not recorded", "aren't recorded"]]
-    answer_not_matches: ["\\bI don['’]t know (?:a|an|the) (?:table|object|class|program)", '(?m)^\s*#{1,6}\s', "\\babout \\d", "\\bI don['’]t have (?:the |any |your |this system's )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)"]
-    max_words: 110
+    answer_contains:
+    - DBSQL_TABLE_UNKNOWN
+    - ST22
+    - '4034'
+    - table
+    - [SE11, SE14]
+    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', '\bone (?:dump )?every\b', '\bevery (?:5|five) minutes\b']
+    first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
+    max_gap_mentions: 1
+    steps_min: 3
+    max_words: 250  # operator 2026-11-18: explanation + 5 steps; prompt asks 170; eval 152613: 215-238
     grounding_flags_max: 0
   mock:
     calls:
-      - {tool: operations, args: {}}
+    - tool: operations
+      args: {}
     answer:
-      answer: |-
-        DBSQL_TABLE_UNKNOWN is an ABAP short dump. In general it means a program accessed a table that exists in the ABAP Dictionary but not in the database, often after an incomplete transport or activation. This system had 4305 short dumps between 29 October and 11 November, but the error names per dump aren't available, so I can't say how many were this one. In ST22, filter by DBSQL_TABLE_UNKNOWN to see the program and table each dump names.
+      answer: 'DBSQL_TABLE_UNKNOWN means an ABAP program accessed a table or view that exists in the ABAP Dictionary but not in the database. A common cause is a transport that brought the program but not the table, or a table that was never activated in the database. This system had 4034 short dumps between 4 November and 17 November.
+
+
+        1. Open ST22, filter by runtime error DBSQL_TABLE_UNKNOWN and open a recent dump.
+
+        2. Note the table name and the program in the error analysis.
+
+        3. Check the table in SE11 (is it active?) and in SE14 (does it exist in the database?), and activate or adjust it there.
+
+        4. In STMS, check whether the table''s transport was imported along with the program''s.
+
+
+        The error name per dump isn''t recorded here; once you have the table name, I can check it in the dictionary and show what uses it.'
       system_facts:
-        - {text: "4305 short dumps between 2026-10-29 and 2026-11-11; error names per dump aren't available.", results: [1]}
-      history_for: ""
+      - text: 4034 short dumps between 2026-11-04 and 2026-11-17; error names per dump aren't recorded.
+        results: [1]
+      history_for: ''
 
 # Operator 2026-11-18 (browser review): never undersell what is known. Available per status (1.37.0):
 # Identity, Dictionary (custom, referenced, cds), Code inventory, Code relationships, Change history,
@@ -519,35 +552,56 @@
         - {text: "Identity, Dictionary (custom, referenced, CDS), Code inventory, Code relationships, Change history and Operations are done; Configuration, Access, Interfaces, Runtime evidence and Understanding are not started.", results: [1]}
       history_for: ""
 
+# Operator 2026-11-18 (browser review): never undersell what is known; lead with help (the dump names the
+# table), numbered steps, the missing detail once near the end, the dictionary check offered.
 - id: runtime_error_which_table_is_missing
-  question: "DBSQL_TABLE_UNKNOWN keeps coming up. Which table is missing?"
+  question: DBSQL_TABLE_UNKNOWN keeps coming up. Which table is missing?
   facts:
-    - {tool: operations, path: result.dumps.total, equals: 4305}
+  - {tool: operations, path: result.dumps.total, equals: 4034}
   expect:
     tools: [operations]
     tools_not: [impact]
-    answer_contains: ["ST22", ["isn't recorded", "not recorded", "aren't recorded", "isn't available", "not available"], ["dictionary", "look it up", "check it"]]
-    answer_not_matches: ["\\bI don['’]t have (?:the |any |your |this system's )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)", '(?m)^\s*#{1,6}\s']
-    max_words: 110
+    answer_contains:
+    - ST22
+    - [SE11, SE14]
+    - dictionary
+    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', '\bone (?:dump )?every\b', '\bevery (?:5|five) minutes\b']
+    first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
+    max_gap_mentions: 1
+    steps_min: 3
+    max_words: 250  # operator 2026-11-18: explanation + 5 steps; prompt asks 170; eval 152613: 215-238
     grounding_flags_max: 0
   mock:
     calls:
-      - {tool: operations, args: {}}
+    - tool: operations
+      args: {}
     answer:
-      answer: |-
-        Which table was missing at runtime isn't recorded: there are only short dump counts per day (4305 between 29 October and 11 November), not the error name or table of each dump. The dump in ST22 names the table; filter by DBSQL_TABLE_UNKNOWN. Once you have the name, I can check it in the dictionary and show what uses it.
+      answer: 'The dump itself names the missing table, so ST22 is the quickest way to find it:
+
+
+        1. Open ST22, filter by runtime error DBSQL_TABLE_UNKNOWN and open the most recent dump.
+
+        2. In the error analysis, note the table name and the program that accessed it.
+
+        3. Check the table in SE14: if it''s active in SE11 but missing in the database, create or adjust it there.
+
+        4. In STMS, check whether the table''s transport was imported along with the program''s.
+
+
+        This error typically follows an incomplete transport or an inactive table. This system had 4034 short dumps between 4 November and 17 November, but which table was missing at runtime isn''t recorded here; once you have the name, I can check it in the dictionary.'
       system_facts:
-        - {text: "4305 short dumps between 2026-10-29 and 2026-11-11, counted per day; error names per dump aren't recorded.", results: [1]}
-      history_for: ""
+      - text: 4034 short dumps between 2026-11-04 and 2026-11-17; the table per dump isn't recorded.
+        results: [1]
+      history_for: ''
 
 # Explicitly requested report: short labels are fine; what is missing is "Not available", never "Gaps".
 - id: monitoring_report
   question: "Give me a short monitoring report, with sections."
   facts:
-    - {tool: operations, path: result.jobs.runs, equals: 41}
+    - {tool: operations, path: result.jobs.runs, equals: 42}
   expect:
     tools: [operations]
-    answer_contains: ["41", "4305", "Not available"]
+    answer_contains: ["42", "4034", "Not available"]
     answer_not_matches: ['(?mi)^[\W_]*(?:main\s+)?gaps?\b[^.\n]*:', "\\babout \\d"]
     max_words: 150
     grounding_flags_max: 0
@@ -556,77 +610,142 @@
       - {tool: operations, args: {}}
     answer:
       answer: |-
-        **Window:** 29 October to 11 November.
+        **Window:** 4 November to 17 November.
 
-        **Jobs:** 41 background job runs, 0 cancelled.
+        **Jobs:** 42 background job runs, 0 cancelled.
 
-        **Short dumps:** 4305, counted per day.
+        **Short dumps:** 4034, counted per day.
 
         **Alerts:** 0 (CCMS is not configured).
 
         **Not available:** the system log (check SM21), which program each dump hit (check ST22), and workload statistics.
       system_facts:
-        - {text: "41 background job runs, 0 cancelled; 4305 short dumps; 0 alerts; window 2026-10-29 to 2026-11-11.", results: [1]}
+        - {text: "42 background job runs, 0 cancelled; 4034 short dumps; 0 alerts; window 2026-11-04 to 2026-11-17.", results: [1]}
       history_for: ""
 
-# Negative control (make test only): a mocked answer with an invented number and object
-# must be flagged by the grounding check, not hidden.
-# Browser testing 2026-11-17 (operator): "system monitoring?" and "please list sm21 details" got
-# "I'll check / I'll look it up", 0 Graphene calls, then nothing. Monitoring questions call operations
-# and pass on its stated gaps. Facts from Graphene operations (L5 v3, handshake 1.35.0, 2026-11-17).
+# Browser testing 2026-11-17 (operator): monitoring questions call operations and pass on its stated gaps.
+# Operator 2026-11-18 (proactive expert): the totals, what they suggest, next steps; the gaps once, near the end.
 - id: monitoring_overview
-  question: "What does system monitoring show?"
+  question: What does system monitoring show?
   facts:
-    - {tool: operations, path: result.learned, equals: true}
-    - {tool: operations, path: result.jobs.runs, equals: 41}
-    - {tool: operations, path: result.jobs.cancelled, equals: 0}
-    - {tool: operations, path: result.dumps.total, equals: 4305}
-    - {tool: operations, path: result.alerts.total, equals: 0}
-    - {tool: operations, path: result.facts, contains: "CCMS: not configured"}
-    - {tool: operations, path: limits, contains: "The system log (SM21) is not learned: a stated L5 gap."}
-    - {tool: operations, path: evidence_ids, equals: ["run:L5:v3"]}
+  - {tool: operations, path: result.learned, equals: true}
+  - {tool: operations, path: result.jobs.runs, equals: 42}
+  - {tool: operations, path: result.jobs.cancelled, equals: 0}
+  - {tool: operations, path: result.dumps.total, equals: 4034}
+  - {tool: operations, path: result.alerts.total, equals: 0}
+  - {tool: operations, path: result.facts, contains: 'CCMS: not configured'}
+  - {tool: operations, path: limits, contains: 'The system log (SM21) is not learned: a stated L5 gap.'}
+  - tool: operations
+    path: evidence_ids
+    equals: ['run:L5:v4']
   expect:
     tools: [operations]
-    answer_contains: ["41", "4305", ["SM21", "system log", "CCMS", "workload"]]
-    # eval 2026-11-17 (76cfc6f): 112 words with a per-day breakdown and "about 288 a day"
-    answer_not_matches: ["\\bI(['’]ll| will) (check|look)", "\\blet me (check|look)", "\\babout \\d", "\\bpeak", '(?m)^\s*#{1,6}\s',
-                         '(?mi)^\W*(?:main\s+)?gaps?\b[^.\n]*:', '(?m)^\s*[-*]\s']  # operator 2026-11-18: no "Gaps:" label, no bullets
-    max_words: 100
+    answer_contains: ['42', '4034']
+    answer_not_matches: ['\bI([''’]ll| will) (check|look)', \blet me (check|look), \babout \d, '(?m)^\s*#{1,6}\s', '(?mi)^[\W_]*(?:main\s+)?gaps?\b[^.\n]*:', '\bone (?:dump )?every\b', '\bevery (?:5|five) minutes\b']
+    first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
+    max_gap_mentions: 1
+    max_words: 140  # prompt asks 110
     grounding_flags_max: 0
   mock:
     calls:
-      - {tool: operations, args: {}}
+    - tool: operations
+      args: {}
     answer:
-      answer: |-
-        In the monitored window, this system had 41 background job runs (0 cancelled), 4305 short dumps and 0 alerts. I don't have the system log or which program each dump hit; you can check them in SM21 and ST22. CCMS is not configured, and SAP keeps no workload aggregates on this system.
+      answer: 'Between 4 November and 17 November this system had 42 background job runs (0 cancelled), 4034 short dumps and 0 alerts. The dumps held at 288 or 289 every day; a steady daily count like that usually points to one recurring cause, such as a scheduled job or an interface failing the same way each time.
+
+
+        1. In ST22, group one day''s dumps by runtime error and program to find the recurring one.
+
+        2. In SM37, check which jobs run at the times those dumps occur.
+
+
+        The system log and workload statistics aren''t recorded here; check them in SM21 and ST03N.'
       system_facts:
-        - {text: "41 background job runs, 0 cancelled.", results: [1]}
-        - {text: "4305 short dumps, counted per day.", results: [1]}
-        - {text: "0 alerts.", results: [1]}
-        - {text: "The system log (SM21) isn't available for this system.", results: [1]}
+      - text: 42 background job runs, 0 cancelled.
+        results: [1]
+      - text: '4034 short dumps, counted per day: 288 or 289 every day.'
+        results: [1]
+      - text: 0 alerts.
+        results: [1]
+      - text: The system log (SM21) isn't available for this system.
+        results: [1]
+      history_for: ''
+
+# Operator 2026-11-18 (proactive expert): ST22 details: how to work through the dumps (numbered steps),
+# connected with this system's dump counts; which runtime error each dump had isn't recorded (G-10), once.
+- id: st22_details
+  question: Show me ST22 details
+  facts:
+  - {tool: operations, path: result.dumps.total, equals: 4034}
+  - {tool: operations, path: result.dumps.per_day.2026-11-04, equals: 288}
+  expect:
+    tools: [operations]
+    tools_not: [find_object, impact]
+    answer_contains: [ST22, '4034']
+    answer_not_matches: ['\bI([''’]ll| will) (check|look)', '\b\d{1,2}:\d{2}\b', '(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', '\bone (?:dump )?every\b', '\bevery (?:5|five) minutes\b']
+    first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
+    max_gap_mentions: 1
+    steps_min: 3
+    max_words: 190  # prompt asks 140
+    grounding_flags_max: 0
+  mock:
+    calls:
+    - tool: operations
+      args: {}
+    answer:
+      answer: 'ST22 lists each short dump with its runtime error, program and user; this is how to work through them:
+
+
+        1. Open ST22 and choose the date range.
+
+        2. Group the list by runtime error and program to see which errors repeat.
+
+        3. Open a dump and read "What happened", "Error analysis" and the source code extract for the cause.
+
+        4. Search the runtime error name and program in the SAP Support Portal.
+
+
+        This system had 4034 short dumps between 4 November and 17 November, 288 or 289 every day, so one recurring error is the likely driver: start with the error that repeats daily. Which runtime error each dump had isn''t recorded here.'
+      system_facts:
+      - text: 4034 short dumps between 2026-11-04 and 2026-11-17; 288 or 289 every day.
+        results: [1]
+      history_for: ''
 
 - id: sm21_details
-  question: "Show me SM21 details"
+  question: Show me SM21 details
   facts:
-    - {tool: operations, path: limits, contains: "The system log (SM21) is not learned: a stated L5 gap."}
+  - {tool: operations, path: limits, contains: 'The system log (SM21) is not learned: a stated L5 gap.'}
   expect:
     tools: [operations]
-    answer_contains: ["SM21", ["don't have", "isn't available", "not available"]]
-    # the stated gap, no invented entries: no promise, no log lines (times, message ids)
-    answer_not_matches: ["\\bI(['’]ll| will) (check|look)", "\\blet me (check|look)", "\\b\\d{1,2}:\\d{2}\\b"]
-    first_sentence_contains: [["SM21", "system log"], ["don't have", "isn't available", "not available"]]
-    max_words: 80
+    answer_contains: [SM21]
+    answer_not_matches: ['\bI([''’]ll| will) (check|look)', \blet me (check|look), '\b\d{1,2}:\d{2}\b', '(?m)^\s*#{1,6}\s', '\bone (?:dump )?every\b', '\bevery (?:5|five) minutes\b']
+    first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
+    max_gap_mentions: 1
+    steps_min: 3
+    max_words: 190  # prompt asks 140
     grounding_flags_max: 0
   mock:
     calls:
-      - {tool: operations, args: {}}
+    - tool: operations
+      args: {}
     answer:
-      answer: |-
-        I don't have the system log for this system; you can check its entries in SM21.
-        From monitoring there are counts only: 41 job runs, 4305 short dumps and 0 alerts.
+      answer: 'SM21 shows the system log entry by entry; this is how to work through it:
+
+
+        1. Open SM21 and set the time range and the application server.
+
+        2. Filter by problem class (errors and warnings first), then by user or transaction if you are chasing one case.
+
+        3. Double-click an entry for its details and message ID, and search that message ID in the SAP Support Portal.
+
+
+        This system had 4034 short dumps between 4 November and 17 November, so it''s worth matching SM21 entries with the dump times in ST22. The system log itself isn''t recorded here.'
       system_facts:
-        - {text: "The system log (SM21) isn't available for this system.", results: [1]}
-        - {text: "41 background job runs, 4305 short dumps, 0 alerts.", results: [1]}
+      - text: The system log (SM21) isn't available for this system.
+        results: [1]
+      - text: 4034 short dumps between 2026-11-04 and 2026-11-17.
+        results: [1]
+      history_for: ''
 
 # Regression (make test only), browser testing 2026-11-17: a reply that only promises to look it up,
 # with no Graphene call, is never shown. claude-sonnet-5-5 rejects tool_choice "any" (400), so the app
@@ -654,6 +773,8 @@
       answer: "unused"
       system_facts: []
 
+# Negative control (make test only): a mocked answer with an invented number and object
+# must be flagged by the grounding check, not hidden.
 - id: grounding_flags_invented_facts
   question: "What breaks if I change ZS4_IOT_DATA?"
   test_only: true

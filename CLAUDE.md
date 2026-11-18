@@ -79,6 +79,15 @@ model", "engine", "Graphene's tools", tool or field names, JSON words. Asked wha
 knows: one line, "I'm here to help with your SAP system; what would you like to check?", then carry
 on. `app/wording.py` enforces this in the silent check (rewrite once, then hold back) and in the eval.
 
+**Proactive SAP expert (operator 2026-11-18, latest):** two layers. Facts about THIS system: strictly
+from the engine, unchanged (never computed: no derived rates such as "one every 5 minutes"). SAP
+expertise (what errors mean, typical causes, troubleshooting, transactions, Support Portal search
+terms, best practice): used freely; "typically", "usually", "a common cause is" are fine; specific
+SAP Note numbers only when certain, else search terms. Lead with help, never open with a gap; all
+missing system details in ONE short sentence near the end. Connect the dots (release, dump counts,
+jobs, impact) when it helps. Troubleshooting gets numbered steps (≤ 5, one sentence each). An
+ALL-CAPS runtime error name with no call in the reply gets one app note to call operations.
+
 **Answer style (operator 2026-11-18, replaces any fixed format):** a senior SAP consultant talking to
 a colleague: short, natural, only what's relevant to this question. No fixed template, no standard
 headings. The direct answer first ("Yes, this note applies to your system." / "No, this one doesn't
@@ -143,7 +152,7 @@ Rules for each fix:
    1 dynamic call (candidate).
 2. "Why is ZUZK900008 high risk?" → 0.470, high, 88th percentile, its top reasons.
 3. "Why is ZUZK900006 riskier than before?" → 0.345, the daily job reached through
-   ZGR_PRICE_SYNC (runs daily, 12 runs in window).
+   ZGR_PRICE_SYNC (runs daily; 14 runs in window since the 2026-11-18 learn run, was 12).
 4. "What uses table ZFAKE_TABLE?" → "I don't know a table called ZFAKE_TABLE in this system, and
    I won't guess."
 5. "What information isn't available for this system yet?" (was "What haven't you learned yet?",
@@ -164,9 +173,11 @@ Rules for each fix:
    note that applies only with `icm/HTTP/support_http2` = TRUE → "I can't confirm this one yet",
    kernel 700 vs the note's 1210, check the parameter in RZ11.
 14. Runtime error names (ACM_UNEXPECTED_VALUE, DBSQL_TABLE_UNKNOWN: ALL CAPS with underscores, not
-   Z*/Y*, not asked as an object) → an ST22 short dump: operations only (4305 dumps, counted per day),
-   error names per dump not available (G-10), filter in ST22; the meaning only from sure general
-   knowledge, otherwise one "not sure" line, no guess.
+   Z*/Y*, not asked as an object) → an ST22 short dump: the meaning and typical causes (SAP
+   expertise), this system's dump counts (since the 2026-11-18 learn run: 4034 dumps, 4–17 November,
+   288 or 289 a day; 42 job runs), numbered steps (ST22, SE11/SE14, SM37, STMS, Support Portal); the
+   missing error name per dump (G-10) once, at the end. Also "Show me ST22 details" / "Show me SM21
+   details": how to work through it as steps, connected with the dump counts.
 15. "What information is available for this system?" → dictionary with CDS views, code, code
    relationships, transports, jobs, dump counts (from status). "DBSQL_TABLE_UNKNOWN keeps coming up.
    Which table is missing?" → "which table was missing at runtime isn't recorded", ST22, then the
