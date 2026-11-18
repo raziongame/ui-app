@@ -202,6 +202,12 @@ def _derivable(tok: str, operands: list[float]) -> bool:
     return False
 
 
+# Operator 2026-11-18: SAP's own namespaces are general SAP knowledge (e.g. the Gateway error log
+# /IWFND/ERROR_LOG), not objects of this system; customer namespaces stay checked.
+SAP_NAMESPACE_RE = re.compile(r"^/(?:IWFND|IWBEP|IWCOR|IWNGW|UI2|UI5|UIF|SAP[A-Z0-9_]*|BOBF|SDF|SSF|BDL|SCWM|SCMTMS"
+                              r"|SCDL|AIF|ASU|BEV1|DMF|PLMB|SCMB|SPE|NWBC|S4PPM|SMB|SRMSMC|OPT|XNFE|BI0|BA1|FTI)/")
+
+
 def kernel_display_forms(results: list[dict[str, Any]]) -> set[str]:
     """Operator 2026-11-17: "kernel 7.53 (release 753)". The engine returns the kernel release as
     "753"; its dotted form 7.53 (as people read it) is backed by it. Kernel releases only: a SAP_BASIS
@@ -263,6 +269,8 @@ def check_system(answer: str, facts: list[str], results: list[dict[str, Any]], u
         for m in rx.finditer(text):
             n = m.group(0)
             bare = n.split(":", 1)[1] if ":" in n else n
+            if SAP_NAMESPACE_RE.match(bare):
+                continue
             checked += 1
             if n not in names and bare not in names:
                 flags.append({"token": n, "kind": "name", "where": where})

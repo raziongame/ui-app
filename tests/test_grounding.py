@@ -230,3 +230,25 @@ def test_soft_length_limits():
     p, n = [], []
     m.soft_limit(3, 2, "sentences", p, n)
     assert p == ["answer has 3 sentences > 2"]  # 50% over
+
+
+
+def test_sap_namespaces_are_general_knowledge():
+    """Operator 2026-11-18: /IWFND/ERROR_LOG is SAP's Gateway error log, not an object of this system."""
+    r = [{"result": {"x": 1}}]
+    assert grounding.check_system("Check /IWFND/ERROR_LOG and /UI2/FLP in your system.", [], r, [], [], set())["ok"]
+    assert not grounding.check_system("Your system has /ACME/ORDERS.", [], r, [], [], set())["ok"]
+
+
+def test_latency_soft_once_blocking_twice_or_above_15s():
+    m = _run_eval_module()
+    case = {"expect": {}}
+    out = {"presentation": {"outcome": "passed"}, "tool_trace": [], "answer": "Want me to check it?",
+           "system_facts": [], "history": None}
+    p, n = m.check(case, out, "Want me to check it?", 13.2)
+    assert not any(x.startswith("slow") for x in p) and any(x.startswith("warning: slow") for x in n)
+    p, n = m.check(case, out, "Want me to check it?", 15.4)
+    assert "slow: 15.4 s > 10.0 s" in p
+    one = {"id": "a", "ok": True, "problems": [], "notes": ["warning: slow 13.2 s > 10.0 s (up to 15 s)"]}
+    assert m.tag_verdict([one, {"id": "b", "ok": True, "problems": [], "notes": []}]).startswith("TAG OK")
+    assert m.tag_verdict([one, dict(one, id="c")]).startswith("NO TAG: 2 cases over their time limit")

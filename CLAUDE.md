@@ -175,9 +175,11 @@ Rules for each fix:
    only above that. Facts, grounding, applies verdicts, priority/urgency and the offer rule stay strict.
    **Tag rule (operator 2026-11-18):** tag when the full eval passes, or when at most **3** cases fail
    and every failure is style only (length or sentence/gap count). Zero tolerance for anything else:
-   facts, grounding, applies/doesn't-apply verdicts, priority/urgency (and tools, content, latency):
+   facts, grounding, applies/doesn't-apply verdicts, priority/urgency (and tools, content):
    any of those → stop and show the operator. Failed cases may be re-run and the combined latest
    answers re-scored; the runner prints the verdict ("TAG OK per rule" / "NO TAG").
+   **Latency (operator 2026-11-18):** one case over its time limit (10 s, or the case's own) but up to
+   15 s is a soft warning; above 15 s, or 2+ cases over their limit in one run, blocks the tag.
 5. Small commits on a branch, merge when the operator approves (after a look in the browser), tag
    `graphene-ui-vN` (earlier: `partner-demo-vN`, `whitelabel-v1`).
 

@@ -155,6 +155,10 @@ def is_style(problem: str) -> bool:
 
 
 def tag_verdict(results: list[dict]) -> str:
+    slow = [r["id"] for r in results if any(str(n).startswith("warning: slow") for n in r.get("notes") or [])]
+    slow += [r["id"] for r in results if any(p.startswith("slow:") for p in r.get("problems") or [])]
+    if len(slow) >= 2:
+        return f"NO TAG: {len(slow)} cases over their time limit in one run: {slow}"
     failed = [r for r in results if not r.get("ok")]
     substance = [r["id"] for r in failed if r.get("error") or any(not is_style(p) for p in r.get("problems", []))]
     style = [r["id"] for r in failed if r["id"] not in substance]
@@ -168,6 +172,7 @@ def tag_verdict(results: list[dict]) -> str:
 # Operator 2026-11-18: length and sentence-count limits are soft: up to 20% over is a warning (a note),
 # only above that a failure. Facts, grounding, verdicts, priority and the offer rule stay strict.
 SOFT_TOLERANCE = 0.20
+LATENCY_SOFT_MAX_S = 15.0
 
 
 def soft_limit(value: int, limit: int | None, what: str, problems: list[str], notes: list[str]) -> None:
@@ -260,8 +265,14 @@ def check(c: dict, out: dict, shown: str, secs: float) -> tuple[list[str], list[
     for rx in exp.get("answer_not_matches", []):
         if re.search(rx, prose, re.I):
             problems.append(f"answer matches {rx!r}")
-    if secs > exp.get("max_seconds", TARGET_S):
-        problems.append(f"slow: {secs:.1f} s > {exp.get('max_seconds', TARGET_S)} s")
+    # operator 2026-11-18: one case up to 15 s is a soft warning; above 15 s fails; 2+ slow cases in one
+    # run block a tag (tag_verdict)
+    limit_s = exp.get("max_seconds", TARGET_S)
+    if secs > limit_s:
+        if secs <= LATENCY_SOFT_MAX_S:
+            notes.append(f"warning: slow {secs:.1f} s > {limit_s} s (up to {LATENCY_SOFT_MAX_S:g} s)")
+        else:
+            problems.append(f"slow: {secs:.1f} s > {limit_s} s")
     if [t["tool"] for t in out["tool_trace"]].count("status") > 1:
         problems.append("status called more than once")
     return problems, notes
@@ -279,8 +290,8 @@ def rescore(path: str) -> int:
             results.append(r)
             print(f"{r['id'][:42]:42} {'FAIL' if not r.get('ok') else 'PASS':>6} {'-':>6}  (no answer saved / not a golden case)")
             continue
-        problems, _ = check(c, r, r["shown"], r.get("seconds", 0.0))
-        results.append({**r, "ok": not problems, "problems": problems})
+        problems, notes = check(c, r, r["shown"], r.get("seconds", 0.0))
+        results.append({**r, "ok": not problems, "problems": problems, "notes": notes})
         print(f"{r['id'][:42]:42} {'PASS' if r.get('ok') else 'FAIL':>6} {'PASS' if not problems else 'FAIL':>6}  "
               + "; ".join(problems))
     print(f"\n{sum(1 for x in results if x.get('ok'))}/{len(results)} pass now · {tag_verdict(results)}")
