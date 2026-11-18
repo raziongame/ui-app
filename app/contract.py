@@ -116,42 +116,78 @@ def history_steps(results: list[dict[str, Any]], transport: str) -> dict[str, An
     return None
 
 
-def build(answer: dict[str, Any], trace: list[dict[str, Any]], results: list[dict[str, Any] | None]) -> dict[str, Any]:
+def _id_mentions(ev_id: str, names: set[str]) -> int:
+    return sum(1 for n in names if re.search(r"(?<![A-Za-z0-9_])" + re.escape(n) + r"(?![A-Za-z0-9_])", ev_id))
+
+
+def fill_evidence(claim: dict[str, Any], results: list[dict[str, Any] | None]) -> dict[str, Any]:
+    """Operator 2026-11-17: the model cites results by number ("results": [1]); the app fills in the
+    real evidence ids from those results, never typed by the model. Per cited result: the ids that
+    name the most objects of the claim (node ids preferred when only one object matches); if none
+    names a claim object, "call:N". A number that is not a result of this question stays as
+    "result N" and is flagged by the grounding check."""
+    if "evidence_ids" in claim and "results" not in claim:  # already filled (re-built contract)
+        return claim
+    names: set[str] = set()
+    for n in grounding._names_in(claim.get("text", "")):
+        names.add(n)
+        if ":" in n:
+            names.add(n.split(":", 1)[1])
+    # numbers matter for facts without object names (e.g. node:KERNEL:ZUZ:753:700)
+    names |= {m.group(0) for m in grounding.NUM_RE.finditer(claim.get("text", "")) if len(m.group(0)) >= 2}
+    ids: list[str] = []
+    for num in claim.get("results") or []:
+        if not isinstance(num, int) or not (1 <= num <= len(results)) or not isinstance(results[num - 1], dict):
+            ids.append(f"result {num}")
+            continue
+        pool: set[str] = set()
+        collect_evidence(results[num - 1], pool)
+        scored = [(_id_mentions(e, names), e) for e in sorted(pool)] if names else []
+        best = max((s for s, _ in scored), default=0)
+        picked = [e for s, e in scored if s == best and best > 0]
+        if best == 1 and any(e.startswith("node:") for e in picked):
+            picked = [e for e in picked if e.startswith("node:")]
+        ids += picked or [f"call:{num}"]
+    return {"text": claim.get("text", ""), "results": claim.get("results") or [],
+            "evidence_ids": list(dict.fromkeys(ids))}
+
+
+def build(answer: dict[str, Any], trace: list[dict[str, Any]], results: list[dict[str, Any] | None],
+          first_n: int = 1, user_texts: list[str] | None = None) -> dict[str, Any]:
+    """The internal answer contract. results: every engine result of this chat, numbered from 1
+    ("result N"); this message's own calls start at first_n. user_texts: the user's own messages in
+    this chat (names and numbers from them may be repeated)."""
     ok_results = [r for r in results if isinstance(r, dict)]
+    valid_evidence: set[str] = {f"call:{i}" for i in range(1, len(results) + 1)}
+    for r in ok_results:
+        collect_evidence(r, valid_evidence)
 
     coverage: list[dict[str, Any]] = []
     seen_cov: set[str] = set()
     freshness: dict[str, Any] = {}
     limits: list[str] = []
-    valid_evidence: set[str] = set()
-    for i, (t, r) in enumerate(zip(trace, results), start=1):
-        valid_evidence.add(f"call:{i}")
+    for t, r in zip(trace, results[first_n - 1:]):
         if not isinstance(r, dict):
             continue
-        collect_evidence(r, valid_evidence)
         cov = r.get("coverage")
         if cov:
             key = json.dumps(cov, sort_keys=True)
             if key not in seen_cov:
                 seen_cov.add(key)
-                coverage.append({"from_call": i, "tool": t["tool"], **cov})
+                coverage.append({"from_result": t["n"], "tool": t["tool"], **cov})
         for stage, f in (r.get("freshness") or {}).items():
             freshness.setdefault(stage, f)
         for lim in r.get("limits") or []:
             if lim not in limits:
                 limits.append(lim)
 
-    claims = answer.get("claims") or []
-    texts = {"answer": answer.get("answer", "")}
-    evidence_used = []
-    for n, c in enumerate(claims, start=1):
-        texts[f"claim {n}"] = c.get("text", "")
-        evidence_used += [(f"claim {n}", e) for e in c.get("evidence_ids", [])]
-    g = grounding.check(texts, ok_results, evidence_used, valid_evidence)
-
+    facts = [fill_evidence(c, results) for c in answer.get("system_facts") or []]
+    evidence_used = [(f"system fact {n}", e) for n, c in enumerate(facts, start=1) for e in c["evidence_ids"]]
+    g = grounding.check_system(answer.get("answer", ""), [c["text"] for c in facts], ok_results,
+                               user_texts or [], evidence_used, valid_evidence)
     return {
         "answer": answer.get("answer", ""),
-        "claims": claims,
+        "system_facts": facts,
         "tool_trace": trace,
         "coverage": coverage,
         "freshness": freshness,

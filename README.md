@@ -1,10 +1,10 @@
-# SAP Assistant · white-label demo on the Graphene engine
+# Graphene by NiraamAI · SAP assistant
 
-Built by the Graphene team to show how a customer-facing AI application runs on Graphene. The UI
-is white-label: **Cloudbox · SAP Assistant** on `/` (never names Graphene) and **Graphene by
-NiraamAI** on `/direct`, from `brands.yaml`. It takes a question, lets Claude call Graphene's MCP
-tools, and answers in the first person, with a collapsed "How do I know?" for the sources. Every
-SAP fact comes from Graphene; answers not backed by the facts are replaced by "I'm not certain…".
+A chat app (built by the Graphene team) that runs on the Graphene engine over MCP: a full SAP expert
+assistant that has learned one SAP system. It answers questions about that system (facts only from
+Graphene's tools), general SAP questions (as general knowledge), and questions about pasted SAP Notes,
+errors and logs. Chats are stored per browser on the server. Statements about the system are checked
+silently; unbacked ones are rewritten or held back. `?debug=1` shows sources, grounding and the trace.
 
 ## Run
 
@@ -14,7 +14,8 @@ make test         # mocked Claude, real Graphene MCP — no API spend
 make run          # http://127.0.0.1:8080 (localhost only)
 make latency      # Graphene tool latency on one warm MCP session
 make eval-estimate  # token count + cost estimate for the golden questions (free)
-make eval         # golden questions in both skins against the real Claude API (costs money)
+make eval-cases CASES="id ..."  # while fixing: only the affected golden questions, cap $1 per run
+make eval         # every golden question (costs ~$0.55): only before a tag
 ```
 
 ## Service (systemd user unit)
@@ -48,20 +49,21 @@ From the operator laptop: `ssh -p 2222 -L 8080:127.0.0.1:8080 grpadm@127.0.0.1`,
 
 - `app/mcp_client.py` — spawns `graphene-mcp` **once** at app start (stdio), keeps that session for all
   questions, watches the process and respawns only if it dies (one retry for a call cut off by that).
-- `app/server.py` — readiness: until Graphene's own `status` says Neo4j and Postgres are up, questions
-  get "Graphene isn't ready yet" and the app retries with backoff (it never connects to those itself).
-- `app/agent.py` — per question: a fresh conversation with `claude-sonnet-5-5` (adaptive thinking,
-  effort medium), Graphene's own tool schemas, max 8 tool calls, every call timed; the final answer
-  is JSON (`answer`, `claims[].evidence_ids`) via structured output.
+- `app/server.py` — readiness: until Graphene's own `status` says Neo4j and Postgres are up, messages
+  get "I'm still connecting to your SAP system" and the app retries with backoff (it never connects to those itself).
+- `app/agent.py` — per message: the chat's earlier turns as context, `claude-sonnet-5-5` (adaptive
+  thinking, effort low), Graphene's own tool schemas, max 8 tool calls, every call timed; one silent
+  rewrite if a statement about this system isn't backed; the final answer
+  is JSON (`answer` in markdown, `system_facts[]` citing results by number) via structured output.
 - `app/contract.py` — adds `tool_trace`, and `coverage` / `freshness` / `limits` copied verbatim from
   Graphene's results.
-- `app/grounding.py` — flags any object name, pseudonym, number or evidence id in the answer that is
-  not in this question's tool results; the skins then show the fallback answer (reasons in the log).
-- `app/present.py` — what a skin shows: plain answer, "How do I know?" sources, learned areas; silent
-  safety (unbacked names/numbers, "trained", tool names, JSON words, the product name in the partner
-  skin → the fallback answer). `app/brand.py` + `brands.yaml` — skins, colours, wording rules.
-- `app/static/index.html` — one self-contained template for both skins (no CDNs), dark/light,
-  neutral progress lines. Logos go in `static/brand/` (only names listed in `brands.yaml` are served).
+- `app/grounding.py` — checks the statements about this system against the chat's results and the
+  user's own messages (general SAP knowledge is not checked).
+- `app/present.py` — the markdown the user sees (plus the app's history table), holding back what is
+  still unbacked after the one rewrite; the debug record. `app/wording.py` — wording rules.
+- `app/store.py` — chats per browser in SQLite (`data/chats.sqlite3`), with each chat's engine results.
+- `app/static/index.html` — the chat page (no CDNs, inline markdown renderer), dark/light. The logo is
+  `static/brand/logo.png`.
 
 Logs (`logs/app.jsonl`) hold questions, tool calls, timings and token usage — never the key.
 Problems: app issues are fixed here (`TEST_LOG.md`); wrong or missing facts go to `GRAPHENE_ISSUES.md`.

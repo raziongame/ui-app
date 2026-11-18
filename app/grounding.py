@@ -1,6 +1,7 @@
-"""Grounding check: every object/transport name and number in an answer must
-appear in this question's Graphene tool results. Anything else is flagged
-(the skins then show the fallback answer; the flags go to the log), never corrected.
+"""Grounding check (operator 2026-11-17: full SAP assistant). General SAP knowledge is allowed;
+only statements about THIS system are checked. Their names, numbers and dates must appear in this
+chat's engine results or in the user's own messages. Anything else is flagged; the agent then
+rewrites the answer once, and what is still unbacked is held back. Flags go to the log only.
 """
 
 from __future__ import annotations
@@ -24,6 +25,21 @@ NUM_RE = re.compile(r"(?<![A-Za-z0-9_.:/-])-?\d+(?:\.\d+)?(?![0-9])")
 DATETIME_RE = re.compile(r"(?<![\d-])(\d{4}-\d{2}-\d{2})"
                          r"(?:[T ](\d{2}:\d{2})(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?(?!\d|:\d)")
 TIME_RE = re.compile(r"(?<![\d:])\d{2}:\d{2}(?::\d{2})?(?!\d|:\d)")  # "13:06: text" is a time
+# Operator 2026-11-18: a date in words ("kernel details as of 5 November") is checked as a whole date.
+MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
+          "October", "November", "December"]
+_MON = r"(?:" + "|".join(sorted(MONTHS, key=len, reverse=True)) + "|" + "|".join(m[:3] + r"\.?" for m in MONTHS) + ")"
+NATURAL_DATE_RE = re.compile(rf"(?<![\w-])(?:\d{{1,2}}\s+{_MON}(?:,?\s+\d{{4}})?|{_MON}\s+\d{{1,2}}(?:,?\s+\d{{4}})?)(?![\w-])")
+
+
+def _natural_forms(d: str) -> set[str]:
+    y, m, day = d.split("-")
+    full = MONTHS[int(m) - 1]
+    out: set[str] = set()
+    for mon in {full, full[:3], full[:3] + "."}:
+        dd = str(int(day))
+        out |= {f"{dd} {mon}", f"{dd} {mon} {y}", f"{mon} {dd}", f"{mon} {dd}, {y}", f"{mon} {dd} {y}"}
+    return out
 
 # Words that look like names but are ordinary vocabulary in answers.
 IGNORE_NAMES: set[str] = set()
@@ -56,9 +72,13 @@ def _names_in(text: str) -> list[str]:
 def _datetime_forms(s: str) -> set[str]:
     """Every way an answer may quote a timestamp Graphene returned (date, time, date + time)."""
     out: set[str] = set()
+    # dates in words and times as a result writes them (e.g. a kernel build date "Sep  1 2020 21:43:19")
+    out |= {re.sub(r"\s+", " ", m.group(0)) for m in NATURAL_DATE_RE.finditer(s)}
+    out |= {m.group(0) for m in TIME_RE.finditer(s)}
     for m in DATETIME_RE.finditer(s):
         d, hm, sec, frac, tz = m.group(1), m.group(2), m.group(3) or "", m.group(4) or "", m.group(5) or ""
         out.add(d)
+        out |= _natural_forms(d)
         if hm:
             out |= {hm, hm + sec, f"{d} {hm}", f"{d} {hm}{sec}", f"{d}T{hm}{sec}", m.group(0)}
             if tz:
@@ -104,9 +124,9 @@ def check(texts: dict[str, str], results: list[dict[str, Any]], evidence_used: l
     checked_names = checked_nums = 0
     for where, text in texts.items():
         stripped = text
-        for rx in (DATETIME_RE, TIME_RE):
+        for rx in (DATETIME_RE, NATURAL_DATE_RE, TIME_RE):
             for m in list(rx.finditer(stripped)):
-                tok = m.group(0)
+                tok = re.sub(r"\s+", " ", m.group(0))
                 checked_nums += 1
                 if tok not in dates:
                     flags.append({"token": tok, "kind": "date", "where": where,
@@ -137,3 +157,93 @@ def check(texts: dict[str, str], results: list[dict[str, Any]], evidence_used: l
         "checked_numbers": checked_nums,
         "flags": flags,
     }
+
+
+# ---- system facts (operator 2026-11-17) --------------------------------------------------------
+# Names that only exist in one system: customer objects (Z*, Y*, /NAMESPACE/), transports (<SID>K<6
+# digits>) and pseudonyms. An answer that names one must be backed even outside a declared system fact.
+# Z/Y names need a digit or underscore (so "YES" in a table is not an object) unless typed (PROG:ZPRICE).
+SYSTEM_NAME_RE = re.compile(
+    r"(?<![A-Za-z0-9_/])(?:[A-Z]{2,5}:[ZY][A-Z0-9_]{2,}|(?=[ZY][A-Z]*[_0-9])[ZY][A-Z0-9_]{2,}"
+    r"|/[A-Z0-9_]+/[A-Z0-9_]+|[A-Z0-9]{3}K\d{6})(?![A-Za-z0-9_])")
+# Sentences that speak about this system: their numbers and dates must be backed too.
+SYSTEM_MARKER_RE = re.compile(
+    r"\b(?:your|our)\s+(?:SAP\s+)?(?:system|kernel|landscape|release|version|patch|database|server|instance)s?\b"
+    r"|\bthis system\b|\byou(?:'re| are)\s+(?:on|running)\b|\byou run\b|\bas of\b", re.I)
+
+
+def kernel_display_forms(results: list[dict[str, Any]]) -> set[str]:
+    """Operator 2026-11-17: "kernel 7.53 (release 753)". The engine returns the kernel release as
+    "753"; its dotted form 7.53 (as people read it) is backed by it. Kernel releases only: a SAP_BASIS
+    release stays as returned (751, never 7.51)."""
+    out: set[str] = set()
+    for r in results:
+        res = (r or {}).get("result") or {}
+        for k in res.get("kernel") or [] if isinstance(res.get("kernel"), list) else []:
+            rel = str((k or {}).get("release", ""))
+            if re.fullmatch(r"\d{3}", rel):
+                out.add(f"{rel[0]}.{rel[1:]}")
+    return out
+
+
+def _sentences(text: str) -> list[str]:
+    parts: list[str] = []
+    for line in text.splitlines():
+        parts += [p for p in re.split(r"(?<=[.!?])\s+|\s*\|\s*", line) if p.strip()]
+    return parts
+
+
+def check_system(answer: str, facts: list[str], results: list[dict[str, Any]], user_texts: list[str],
+                 evidence_used: list[tuple[str, str]], valid_evidence: set[str]) -> dict[str, Any]:
+    """Check what an answer says about this system. facts: the declared system facts (checked in
+    full); the answer text: system-only names everywhere, numbers/dates in sentences about this system."""
+    names, nums, dates = build_index(results + [{"user": t} for t in user_texts])
+    for f in kernel_display_forms(results):
+        nums.add(_norm_num(f))
+    flags: list[dict[str, str]] = []
+    checked = 0
+
+    def check_numbers_dates(text: str, where: str) -> str:
+        nonlocal checked
+        stripped = text
+        for rx in (DATETIME_RE, NATURAL_DATE_RE, TIME_RE):
+            for m in list(rx.finditer(stripped)):
+                checked += 1
+                if re.sub(r"\s+", " ", m.group(0)) not in dates:
+                    flags.append({"token": m.group(0), "kind": "date", "where": where})
+            stripped = rx.sub(" ", stripped)
+        for n in sorted(set(_names_in(text)), key=len, reverse=True):
+            stripped = stripped.replace(n, " ")  # digits inside names are not numbers
+        for m in NUM_RE.finditer(stripped):
+            checked += 1
+            if _norm_num(m.group(0)) not in nums:
+                flags.append({"token": m.group(0), "kind": "number", "where": where})
+        return stripped
+
+    def check_names(text: str, where: str, rx: re.Pattern) -> None:
+        nonlocal checked
+        for m in rx.finditer(text):
+            n = m.group(0)
+            bare = n.split(":", 1)[1] if ":" in n else n
+            checked += 1
+            if n not in names and bare not in names:
+                flags.append({"token": n, "kind": "name", "where": where})
+
+    for i, f in enumerate(facts, start=1):
+        where = f"system fact {i}"
+        check_names(f, where, SYSTEM_NAME_RE)
+        check_numbers_dates(f, where)
+    check_names(answer, "answer", SYSTEM_NAME_RE)
+    for sent in _sentences(answer):
+        if SYSTEM_MARKER_RE.search(sent):
+            check_numbers_dates(sent, "answer")
+    for where, ev in evidence_used:
+        if ev not in valid_evidence:
+            flags.append({"token": ev, "kind": "evidence", "where": where})
+    seen, uniq = set(), []
+    for fl in flags:
+        key = (fl["token"], fl["kind"], fl["where"])
+        if key not in seen:
+            seen.add(key)
+            uniq.append(fl)
+    return {"ok": not uniq, "checked": checked, "flags": uniq}

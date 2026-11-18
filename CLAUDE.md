@@ -1,30 +1,30 @@
-# SAP Assistant: white-label demo app on the Graphene engine
+# Graphene by NiraamAI: SAP assistant on the Graphene engine
 
-Internally (repo, docs, commits) this is still a **demo application built by the Graphene team** on
-top of the Graphene engine, reached **only through its MCP server**, with every boundary below. It is
-not Graphene itself.
+Internally (repo, docs, commits) this is a **demo application built by the Graphene team** on top of
+the Graphene engine, reached **only through its MCP server**, with every boundary below.
 
-**The UI is white-label** (operator 2026-11-17, investor demo): two skins from `brands.yaml`, the
-same engine behind both:
-
-| Skin | Path | Name | Product name "Graphene" |
-|---|---|---|---|
-| partner | `/` | Cloudbox · SAP Assistant (text logo, warm graphite/amber theme) | **never**, anywhere: page, title, answers, sources, progress, errors |
-| direct | `/direct` | Graphene, "by NiraamAI" (logo `static/brand/logo.png`, navy/ocean/teal/cyan) | it is the product name |
-
-Neither skin says "sample partner app" or "demo by the Graphene team", or shows MCP, tool names,
-field names, ids or JSON words (e.g. sp_level, null, true/false, call:1). The browser gets only
-neutral progress lines and the checked answer (`app/present.py`); the full internal contract stays
-in the server and the log. Colours: text meets WCAG AA in both modes (`tests/test_brand.py`).
+**One brand** (operator 2026-11-17, final requirements 2026-11-18): **Graphene by NiraamAI**, served on `/` (NiraamAI logo
+`static/brand/logo.png`; colours navy #003858, ocean blue #2A82B4, teal #1298B0, cyan #4AC2E0; text
+meets WCAG AA in light and dark, `tests/test_ui.py`). No other skins, no `/direct`.
 
 ## What this app is (and is not)
 
-- **Is:** a small web app with a chat UI. It takes a user's question, lets Claude call
-  Graphene's tools, and explains the answer in plain language, in the skin's first-person voice,
-  with a collapsed "How do I know?" link for the sources.
-- **Is not:** a source of facts. Every SAP fact (objects, relationships, risk scores, counts,
-  transports, jobs, dumps) comes from Graphene. This app never computes, changes or
-  guesses a fact.
+- **Is:** a full SAP expert assistant in a chat UI that looks and feels like ChatGPT: left sidebar
+  (logo + "Graphene", "New chat", chat history, Delete chat), the conversation (user messages as
+  right-side bubbles, answers as markdown with headings, lists and tables), a multi-line input at the
+  bottom (Enter sends, Shift+Enter is a new line, pastes up to 200,000 characters). The empty chat
+  shows only "How can I help with your SAP system?". It answers questions about the learned system,
+  general SAP questions, and questions about text the user pastes (SAP Notes, errors, logs). It already
+  knows the system through the engine's tools and **never asks the user for a system detail a tool can
+  give** (versions, kernel, components, objects, transports, jobs, …).
+- **Not in scope:** web search, file uploads (later).
+- **Is not:** a source of facts about the system. Every fact about THIS system (versions, kernel,
+  components, objects, relationships, transports, jobs, dumps, risk, counts, dates) comes from
+  Graphene's tools. This app never computes, changes or guesses such a fact.
+- **Not in the UI:** suggestion chips, a "What I've learned" sidebar, a status dot, "How do I know?",
+  grounding badges, timings, tool names, field names, ids, JSON words. Sources, grounding results
+  and the trace stay in the server log and the `?debug=1` view (for us only). While an answer runs,
+  one neutral grey line ("Checking your system…", "Looking up ZS4_IOT_DATA…") that disappears.
 
 ## Hard boundaries (non-negotiable)
 
@@ -32,14 +32,21 @@ in the server and the log. Colours: text meets WCAG AA in both modes (`tests/tes
    `/home/grpadm/graphene/.venv/bin/graphene-mcp`. Never import Graphene code, never read its
    files, never connect to Neo4j, Postgres or SAP, never edit `~/graphene`.
 2. **No SAP access of any kind.** This app has no SAP credentials and calls nothing in SAP.
-3. **Facts only from tool results.** Every object name, transport, number and date in an answer
-   must appear in a Graphene tool result from this question. Unknown objects, in the voice:
-   "I don't know a table called ZFAKE_TABLE in this system, and I won't guess." Never recompute
-   or round a number differently.
+3. **Facts about this system only from tool results.** Every name, number and date in a statement
+   about THIS system must appear in a Graphene result from this chat, or in the user's own messages
+   (names and numbers from a pasted note or log may be repeated, attributed to it). General SAP
+   knowledge is allowed, phrased as general knowledge, never as a fact about this system. Unknown
+   objects: "I don't know a table called ZFAKE_TABLE in this system, and I won't guess." A system
+   fact that isn't known: say so naturally and where to check it ("I don't have the system log for
+   this system; you can check it in SM21"). Never recompute or round a number. Kernel:
+   "kernel 7.53 (release 753)" (dotted form as people read it, release as the engine returns it);
+   every other release as returned (SAP_BASIS 751, never 7.51). A note vs this system: show both
+   values ("your kernel … patch 700; according to the note, the fix is in patch 1616") and say
+   "according to the note".
 4. **Say what isn't known.** Pass on Graphene's `limits`, `coverage` and `freshness` in the voice
-   (e.g. "I haven't learned the system log (SM21) yet"; dynamic calls are candidates, not facts).
-   "Next on my learning plan" / "learning next" only for stages Graphene's status lists as not
-   started; a stated gap inside a learned stage is just "I haven't learned … yet".
+   ("I don't have … for this system; you can check it in …"; dynamic calls are candidates, not facts),
+   under a **"Worth checking"** heading when there is one (never "What I don't know"). A date for the
+   system data only when it matters ("kernel details as of 5 November; confirm in System → Status").
 5. **Secrets:** `ANTHROPIC_API_KEY` lives only in this repo's `.env` (gitignored, chmod 600).
    Commit `.env.example` with a placeholder only. Never print, log or send the key to the
    browser. Never paste secrets into chat.
@@ -51,36 +58,42 @@ in the server and the log. Colours: text meets WCAG AA in both modes (`tests/tes
 - Python 3.12 venv (uv), FastAPI on **127.0.0.1:8080** (localhost only), `anthropic` SDK,
   `mcp` Python SDK (stdio client).
 - Model: `claude-sonnet-5-5`. Max 8 tool calls per question, with timeouts.
-- UI: one self-contained HTML template (`app/static/index.html`, inline CSS/JS, no CDNs, no external
-  calls) rendered per skin from `brands.yaml`; the template itself names no product. Single-column
-  chat, big input at the bottom, suggestion chips only on an empty chat, "What I've learned" sidebar
-  (from Graphene's `status`: ✓ per learned area, the rest "learning next", "last learned … ago"; no
-  metrics the engine didn't give), status dot "Connected to <SID>". Dark and light mode. Readable on
-  a projector at 1920×1080.
+- UI: one self-contained page (`app/static/index.html`, inline CSS/JS and a small markdown renderer
+  that escapes everything first; no CDNs, no external calls). Dark and light mode.
+- Chats are stored on the server per browser (random id in an HttpOnly cookie), in SQLite
+  (`data/chats.sqlite3`, gitignored), kept until the user deletes them. Earlier turns go to the model
+  as context; engine results are stored per chat and keep their numbers, so follow-ups may cite them.
+- Graphene 1.37.0 (handshake, 2026-11-18). `system_profile`: only the sections or components a
+  question needs (v18 filters).
 - Runs as the systemd user service `sap-assistant` (README "Service").
 - Reached from the operator's laptop with
   `ssh -p 2222 -L 8080:127.0.0.1:8080 grpadm@127.0.0.1`, then http://localhost:8080.
 
-## Voice (both skins)
+## Voice (operator 2026-11-18, final)
 
-First person, natural, confident, short and clear: "I've learned", "I know this system", "I haven't
-learned … yet". Never "trained", "training", "fine-tuned", "trained model" or "our own AI model".
+Natural and confident, short and clear, about the user's system ("Your system runs …", "I don't
+have … for this system; you can check it in …"). **Never talks about itself or how it knows:** no
+"I've learned", "learned", "learning run", "as I learned it", "my (kernel) data", "trained", "AI
+model", "engine", "Graphene's tools", tool or field names, JSON words. Asked what it is or how it
+knows: one line, "I'm here to help with your SAP system; what would you like to check?", then carry
+on. `app/wording.py` enforces this in the silent check (rewrite once, then hold back) and in the eval.
 
-## Answer contract (internal: server and log; what every answer carries)
+## Answer contract (internal: server, log, `?debug=1`)
 
-`answer` (plain language), `claims[]` each with `evidence_ids`, `tool_trace` (tool, arguments,
-short result, ms), `coverage`, `freshness`, `limits`, and a `grounding` result. The skin shows only
-the answer, "How do I know?" (the claims as sources in SAP terms, plus which areas were learned how
-long ago) and, for history questions, the steps table.
-For "how did the risk change" questions also `history`: the distinct score steps (date, score from → to,
-cause, older engine) built by the app straight from Graphene's history, never written by the model
-(operator, 2026-11-16).
+`answer` (markdown), `system_facts[]`: every statement about THIS system, each citing tool results by
+number (`results: [N]`); the app fills in Graphene's real `evidence_ids` from those results (the model
+never types ids). Plus `tool_trace` (tool, arguments, short result, ms), `coverage`, `freshness`,
+`limits`, `grounding`, and the presentation outcome. For "how did the risk change" questions also
+`history`: the distinct score steps (date, score from → to, cause, older method), rendered by the app
+as a table under the answer straight from Graphene's history, never written by the model.
 
-**Grounding check** runs after every answer (silently, operator 2026-11-17): if any object/transport
-name, number or date in the answer or its sources is not in this question's tool results, or the
-wording rules are broken (product name in the partner skin, "trained", tool names, JSON words), the
-skin shows "I'm not certain about that one. Can you rephrase or name a specific object?" instead.
-The reasons go to the log (`presentation`), never to the UI. A source with a field name is left out.
+**Silent grounding** (operator 2026-11-17) checks only statements about this system: the declared
+system facts in full; in the answer, system-only names (Z*/Y* objects, transports, pseudonyms) and the
+numbers/dates of sentences about this system. Backing = this chat's Graphene results + the user's own
+messages (+ the dotted kernel form). Not backed → the model rewrites the answer once (the draft is
+never shown); still not backed → that sentence or table row is held back with a short note; nothing
+left → "I'm not certain about that one. Can you rephrase or name a specific object?". The outcome
+(passed, rewritten, held back, fallback) goes to the log and `?debug=1`, never to the UI.
 
 ## How this app improves: the operator's testing loop
 
@@ -97,13 +110,16 @@ Rules for each fix:
    fix commit.
 2. Add or update a case in `tests/golden_questions.yaml` so it can't come back.
 3. `make test` (mocked Claude, real Graphene MCP) must pass before any commit.
-4. `make eval` runs the golden questions against the real API: run it before tagging, and
-   report the cost estimate first.
-5. Small commits on a branch, merge when the operator approves, tag `whitelabel-vN` (before 2026-11-17: `partner-demo-vN`).
+4. **Eval cost rule (operator 2026-11-17).** The full eval (`make eval`: every golden question,
+   ~$0.55) runs **only before a tag**. While fixing, run only the affected questions:
+   `make eval-cases CASES="id ..."`, capped at **$1 per run** (the runner stops before it would pass
+   the cap). Report the cost estimate first (`make eval-estimate [CASES=…]`) and the actual cost after.
+5. Small commits on a branch, merge when the operator approves (after a look in the browser), tag
+   `graphene-ui-vN` (earlier: `partner-demo-vN`, `whitelabel-v1`).
 
 ## Golden questions (start with these)
 
-Each runs in both skins (`make eval`); `tests/golden_questions.yaml` has the full list (Q1–Q9).
+`tests/golden_questions.yaml` has the full list (Q1–Q10) and the test-only cases.
 
 1. "What breaks if I change ZS4_IOT_DATA?" → 9 affected objects, 2 RFC entry points,
    1 dynamic call (candidate).
@@ -112,8 +128,18 @@ Each runs in both skins (`make eval`); `tests/golden_questions.yaml` has the ful
    ZGR_PRICE_SYNC (runs daily, 12 runs in window).
 4. "What uses table ZFAKE_TABLE?" → "I don't know a table called ZFAKE_TABLE in this system, and
    I won't guess."
-5. "What haven't you learned yet?" → stages not learned (from status), stated limits.
+5. "What information isn't available for this system yet?" (was "What haven't you learned yet?",
+   changed 2026-11-18) → "I don't have Configuration, Access, … for this system yet" (from status) +
+   what is never read; no stage counts or numbers.
 6–9. SAP_BASIS version, what would lower ZUZK900008's risk, system monitoring, SM21 (the stated gap).
+10. SAP Note 3778530 (CVE-2026-76964), pasted (`tests/fixtures/note_3778530_excerpt.txt`, used exactly),
+   + "Is this relevant to our system?" → "Yes, this note applies to your system. Your system runs
+   kernel 7.53 (release 753) at patch level 700. According to the note, kernel 7.53 is fixed from patch
+   1616 onward, so your system is affected." → **What to do** (patch 1616+, the note's workarounds) →
+   **Worth checking** (Web Dispatcher via SMICM; confirm the patch level in System → Status). No
+   invented patch levels.
+11. Identity ("What are you?", "How do you know all this about my system?") → the one line, no tool
+   call. "Which kernel are we running?" → from the engine, never asked of the user.
 
 Expected numbers come from Graphene; if Graphene's numbers change after a learn run, update
 the expectations from Graphene's own output, never by hand-guessing.

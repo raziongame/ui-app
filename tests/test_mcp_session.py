@@ -11,8 +11,9 @@ from conftest import ask
 
 def test_health_reports_one_live_session(client):
     h = client.get("/api/health").json()
-    g = h["graphene"]
-    assert g["connected"] and g["server"] == "graphene"
+    g = h["engine"]
+    assert g["connected"] and g["ready"]
+    assert "/graphene/" not in str(h) and "graphene-mcp" not in str(h)  # engine install paths stay masked
     assert g["tools"] == ["find_object", "impact", "assess_transport", "status", "operations",
                           "system_profile"]  # Graphene v14 (1.33.0)
     assert g["spawn_count"] == 1
@@ -21,7 +22,7 @@ def test_health_reports_one_live_session(client):
 def test_session_reused_across_questions(client):
     g = client.app.state.graphene
     pid_before, spawns_before = g.pid, g.spawn_count
-    for q in ("What uses table ZFAKE_TABLE?", "What haven't you learned yet?"):
+    for q in ("What uses table ZFAKE_TABLE?", "What information isn't available for this system yet?"):
         out, _ = ask(client, q)
         assert out is not None
     assert g.pid == pid_before and g.spawn_count == spawns_before == 1
