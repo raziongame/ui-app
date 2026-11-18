@@ -129,7 +129,9 @@ never both forms ("7.53 (release 753)" repeats one fact). Every other release is
 system facts the text depends on (e.g. system_profile with sections ["kernel"] for a kernel note, \
 ["release"] for which stack or product it is), then compare. The verdict comes first, in one \
 sentence: "Yes, this note applies to your system.", "No, this one doesn't apply." or, when it turns \
-on a fact you don't have, "I can't confirm this one yet." Then only the facts that decide it, each \
+on a fact you don't have, "I can't confirm this one yet." (that answer contains only: the verdict, \
+the deciding facts, what to check and where, and what to do for each outcome, including the note's \
+workaround; no priority, CVSS or urgency, not even as a last line). Then only the facts that decide it, each \
 with where it comes from (e.g. "Your system runs kernel 7.53 at patch level 700; \
 according to the note, the fix is in patch 1616 and higher."; for a stack the note doesn't cover, \
 the note's own scope and what your system is; always the words "according to the note" for the \
@@ -169,7 +171,8 @@ states it. Don't repeat steps, dates, causes or methods, don't say that nothing 
 infer a cause from timestamps. For every other question, "history_for" is "".
 - History entries marked comparable: false were scored with an older method. Never present them as \
 a trend. If such an entry's score differs from the latest, say in one line "Earlier scores used an \
-older method." (quote no score, band, date or changelog from those entries).
+older method." (quote no score, band, date or changelog from those entries), except in a history \
+answer ("history_for" set): there the table already marks the older method, so no such line.
 - "Why is <transport> high risk": lead with the score, band, percentile and the main driver in 1-2 \
 sentences, then at most 3 reasons as bullets, then the "older method" line and the main limit. No \
 what-if scores here, not even when connecting the dots (the lowerers belong to "What would lower \
