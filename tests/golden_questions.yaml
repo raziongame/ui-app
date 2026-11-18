@@ -441,6 +441,57 @@
         - {text: "Kernel 7.53 (release 753) at patch level 700.", results: [1]}
       history_for: ""
 
+# Operator 2026-11-18: an ALL-CAPS runtime error name is an ST22 short dump, not an object. Facts from
+# Graphene operations (1.37.0): 4305 dumps, counted per day; which program each dump hit is not learned;
+# dump texts are never read, so error names per dump aren't available (G-10).
+- id: runtime_error_acm_unexpected_value
+  question: "What is ACM_UNEXPECTED_VALUE?"
+  facts:
+    - {tool: operations, path: result.dumps.total, equals: 4305}
+    - {tool: operations, path: result.dumps.per_day, length: 14}
+    - {tool: operations, path: limits, contains: "Dumps are counted per day; which program each dump hit is not learned yet."}
+  expect:
+    tools: [operations]
+    tools_not: [find_object, impact]
+    # the meaning isn't certain from general SAP knowledge: one "not sure" line, no guess (eval 144434:
+    # "I believe this error comes from the assertion and check framework")
+    answer_contains: ["ST22", "4305", "dump", ["not available", "aren't available", "isn't available", "don't have", "not the error name", "only have counts", "only have daily counts"],
+                      ["not sure", "not certain", "unsure", "can't say what"]]
+    answer_not_matches: ["\\bI don['’]t know (?:a|an|the) (?:table|object|class|program)", '(?m)^\s*#{1,6}\s', "\\babout \\d",
+                         '\bI (?:believe|think|suspect)\b', '\b(?:probably|likely|presumably)\b', '\bassertion\b']
+    max_words: 110
+    grounding_flags_max: 0
+  mock:
+    calls:
+      - {tool: operations, args: {}}
+    answer:
+      answer: |-
+        That looks like an ABAP runtime error, so it would show up as a short dump in ST22. This system had 4305 short dumps between 29 October and 11 November, but the error names per dump aren't available, so I can't say how often ACM_UNEXPECTED_VALUE occurred. In ST22, filter by that runtime error name to find its dumps. I'm not sure what this specific error means, so check the dump's long text there.
+      system_facts:
+        - {text: "4305 short dumps between 2026-10-29 and 2026-11-11, counted per day; error names per dump aren't available.", results: [1]}
+      history_for: ""
+
+- id: runtime_error_dbsql_table_unknown
+  question: "We keep getting DBSQL_TABLE_UNKNOWN. What's going on?"
+  facts:
+    - {tool: operations, path: result.dumps.total, equals: 4305}
+  expect:
+    tools: [operations]
+    tools_not: [find_object, impact]
+    answer_contains: ["ST22", "4305", "dump", "table", ["not available", "aren't available", "isn't available", "don't have", "not the error name", "only have counts", "only have daily counts"]]
+    answer_not_matches: ["\\bI don['’]t know (?:a|an|the) (?:table|object|class|program)", '(?m)^\s*#{1,6}\s', "\\babout \\d"]
+    max_words: 110
+    grounding_flags_max: 0
+  mock:
+    calls:
+      - {tool: operations, args: {}}
+    answer:
+      answer: |-
+        DBSQL_TABLE_UNKNOWN is an ABAP short dump. In general it means a program accessed a table that exists in the ABAP Dictionary but not in the database, often after an incomplete transport or activation. This system had 4305 short dumps between 29 October and 11 November, but the error names per dump aren't available, so I can't say how many were this one. In ST22, filter by DBSQL_TABLE_UNKNOWN to see the program and table each dump names.
+      system_facts:
+        - {text: "4305 short dumps between 2026-10-29 and 2026-11-11; error names per dump aren't available.", results: [1]}
+      history_for: ""
+
 # Negative control (make test only): a mocked answer with an invented number and object
 # must be flagged by the grounding check, not hidden.
 # Browser testing 2026-11-17 (operator): "system monitoring?" and "please list sm21 details" got

@@ -157,6 +157,10 @@ Rules for each fix:
    AS Java-only note → "No, this one doesn't apply" (engine: ABAP, SAP_BASIS 751, S/4HANA);
    note that applies only with `icm/HTTP/support_http2` = TRUE → "I can't confirm this one yet",
    kernel 700 vs the note's 1210, check the parameter in RZ11.
+14. Runtime error names (ACM_UNEXPECTED_VALUE, DBSQL_TABLE_UNKNOWN: ALL CAPS with underscores, not
+   Z*/Y*, not asked as an object) → an ST22 short dump: operations only (4305 dumps, counted per day),
+   error names per dump not available (G-10), filter in ST22; the meaning only from sure general
+   knowledge, otherwise one "not sure" line, no guess.
 
 Expected numbers come from Graphene; if Graphene's numbers change after a learn run, update
 the expectations from Graphene's own output, never by hand-guessing.

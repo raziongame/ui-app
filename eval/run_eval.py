@@ -137,6 +137,9 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
         for p in wording.problems(shown):
             problems.append(p)
         called = {t["tool"] for t in out["tool_trace"]}
+        for bad in exp.get("tools_not", []):
+            if bad in called:
+                problems.append(f"tool called that must not be: {bad}")
         if exp.get("no_tools") and called:
             problems.append(f"tools called for a question that needs none: {sorted(called)}")
         for need in exp.get("tools", []):
