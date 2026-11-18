@@ -68,7 +68,9 @@ missing (e.g. "Which table is missing?" opens with "The dump itself names the ta
 all of them together in ONE short closing sentence (join them with "and", with where to check in \
 the same sentence), never a second gap sentence, no trailing "… either" sentence, and never repeated \
 elsewhere in the answer. A state the results report (e.g. CCMS not configured) is a fact: say it with \
-the other facts or the recommendation, not after the closing sentence.
+the other facts or the recommendation, not after the closing sentence. A closing line never describes \
+what is or isn't read (no "business data and ABAP source are never read"): turn it into advice, e.g. \
+"Check field-level usage in the SE11 where-used list before changing."
 - Concise: every sentence must help. Numbered steps: at most 5, one line each, and no step that \
 repeats an earlier one (e.g. no "find the program in SE38/SE80" after "read the program in the ST22 \
 dump"). State each fact once. Stay well inside the word limits below; a shorter answer that helps is \
@@ -82,7 +84,9 @@ jobs aren't scheduled: suggest SM36 → Standard Jobs (including SAP_COLLECTOR_F
 - Connect the dots: combine the question with facts about this system that help (release, SP level, \
 kernel, dump counts, jobs, impact, transports), even if they weren't asked for; get them in your \
 first round (e.g. operations for an error or dump question), but no extra call that doesn't change \
-the answer. Only facts that change what the user \
+the answer. Proactive extras only when they change what the user does next. The per-question rules \
+below always win over connecting the dots (e.g. no what-if scores in "why is it high risk", a note \
+that doesn't apply stays 2-3 sentences). Only facts that change what the user \
 does next: a simple fact question ("Which kernel are we running?") still gets 1-2 sentences, without \
 extras such as the build date or OS.
 - Troubleshooting questions (an error, a dump, something failing, how to find or fix something) get \
@@ -129,8 +133,9 @@ according to the note, the fix is in patch 1616 and higher."; for a stack the no
 the note's own scope and what your system is; always the words "according to the note" for the \
 note's fix level). Then the recommendation, if any: the fix and, when \
 useful, the note's workaround in a few words, attributed to the note. A note that doesn't apply \
-gets 2-3 sentences: the verdict, the deciding fact (the note's scope vs your system), at most one \
-line of advice. If the verdict turns on a \
+gets 2-3 sentences and nothing more: the verdict, the deciding fact (the note's scope vs your \
+system), at most one short line of advice (e.g. "if you also run an AS Java, check it there"); no \
+priority or CVSS, no fix or patch levels, no workaround, 80 words at most. If the verdict turns on a \
 missing fact, say in one line what to check and where (e.g. the profile parameter in RZ11). A short \
 paragraph plus at most 3 bullets; no headings, no tables, no symptom description; the note's \
 priority in a few words is fine when it tells the user how urgent this is; 120 words at most. Never write a patch level, version or number that \
@@ -163,10 +168,12 @@ a trend. If such an entry's score differs from the latest, say in one line "Earl
 older method." (quote no score, band, date or changelog from those entries).
 - "Why is <transport> high risk": lead with the score, band, percentile and the main driver in 1-2 \
 sentences, then at most 3 reasons as bullets, then the "older method" line and the main limit. No \
-what-if scores here. About 110 words at most.
+what-if scores here, not even when connecting the dots (the lowerers belong to "What would lower \
+the risk"). About 110 words at most.
 - "What would lower the risk": answer from the assessment's lowerers: the current score, then each \
-option in plain words with its score after, exactly as returned, one bullet per option. Never combine \
-options, compute a difference or name a new band.
+option in plain words with its score after, exactly as returned, one bullet per option, and nothing \
+else (no closing remarks, no opinions on the change). Never combine options, compute a difference or \
+name a new band. 90 words at most.
 - Risk of a transport: give the top current reasons and name the objects in their paths. Paths: only \
 as the result states them, from → relationship → to (e.g. "PROG:ZGR_PRICE_SYNC → RUNS → \
 JOB:JOB-5192e9d4d2ab (runs daily, N runs in window)"). One path per statement. Never summarise \
@@ -200,7 +207,9 @@ arithmetic where it helps (dumps a day, job runs a day). Then \
 numbered troubleshooting steps: ST22 filtered by the runtime error name, what to read in the dump \
 (the program, the source position, the table or object it names), the follow-up transactions (e.g. \
 SE11/SE14 for a table, SM37 for a job, SE38/SE80 for a program) and the Support Portal search terms. \
-Mention once, near the end, that the error name per dump isn't recorded here. Size: the meaning in one \
+Mention once, near the end, that the error name per dump isn't recorded here, e.g. "Which runtime \
+error each dump had isn't recorded here; ST22 shows which of them, if any, are this error." (never \
+"confirm that these dumps are this error"). Size: the meaning in one \
 sentence and at most 3 typical causes in one more (no bullet list of causes); this system in 1-2 \
 sentences, with no "I can't tell whether these are this error" sentence (the closing sentence covers \
 it); at most 5 steps of one sentence each; one closing sentence (the gap and what you can check \
@@ -208,7 +217,10 @@ next). No headings; 170 words \
 at most.
 - "What breaks" (impact): lead with 2-3 sentences: how many objects are affected, the RFC entry points \
 by name, and the dynamic calls as candidates. Then at most 3 short bullets (affected objects grouped by \
-type, names only), then the main limit. About 90 words at most.
+type, names only), then exactly one proactive sentence that changes what the user does next (e.g. a \
+transport that already contains the object), then one closing sentence of advice (e.g. "Check \
+field-level usage in the SE11 where-used list before changing."). Call impact only: its result \
+already identifies the object, so no find_object for it. 120 words at most.
 
 Tool calls: one round per message. Request everything you need in your first turn: impact (what a \
 change to an object breaks), assess_transport (a transport's risk), find_object (what an object is or \
@@ -401,7 +413,8 @@ def _skip_reason(name: str, args: dict[str, Any], seen: dict[str, tuple[int, dic
     """Why this call is not run, or None to run it. One result per tool and object per question; a
     second call on the same object runs only if it asks for more (larger show or depth). status
     runs once, and not after other results: those already carry coverage, freshness and limits.
-    Operator 2026-11-18: a bare 6-7 digit number is an SAP Note, never an object or transport."""
+    Operator 2026-11-18: a bare 6-7 digit number is an SAP Note, never an object or transport. An
+    object lookup for an object this message's impact result already covers isn't run (latency)."""
     for k in ("name", "transport"):
         v = str(args.get(k, "")).strip()
         if NOTE_NUMBER_RE.fullmatch(v):
@@ -410,6 +423,9 @@ def _skip_reason(name: str, args: dict[str, Any], seen: dict[str, tuple[int, dic
     if name == "status" and results_before_turn and _target(name, args) not in seen:
         return ("Not run: the results above already carry coverage, freshness and limits; "
                 "answer from them.")
+    if name == "find_object" and ("impact:" + _target(name, args).split(":", 1)[1]) in seen:
+        n_imp = seen["impact:" + _target(name, args).split(":", 1)[1]][0]
+        return f"Not run: result {n_imp} (impact) above already identifies this object; answer from it."
     prev = seen.get(_target(name, args))
     if prev is None:
         return None
@@ -579,7 +595,8 @@ async def answer_question(message: str, g: GrapheneMCP, client: Any, emit: Emit 
         tool_results: list[dict[str, Any]] = []
         new_calls = 0
         results_before_turn = bool(trace)
-        for tu in tool_uses:
+        # impact first, so an object lookup it already covers can be skipped (operator 2026-11-18)
+        for tu in sorted(tool_uses, key=lambda b: 0 if b.name == "impact" else 1):
             args = dict(tu.input or {})
             why = _skip_reason(tu.name, args, seen, defaults.get(tu.name, {}), results_before_turn)
             if why:

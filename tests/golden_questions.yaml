@@ -20,32 +20,45 @@
 #            final answer that must pass the grounding check against the real results
 
 - id: impact_zs4_iot_data
-  question: "What breaks if I change ZS4_IOT_DATA?"
+  question: What breaks if I change ZS4_IOT_DATA?
   facts:
-    - {tool: impact, path: result.total_affected, equals: 9}
-    - {tool: impact, path: result.entry_points, equals: ["FUNC:ZS4_IOT_INSERT_DATA", "FUNC:ZS4_IOT_READ_DATA"]}
-    - {tool: impact, path: result.dynamic_calls, length: 1}
-    - {tool: impact, path: limits, contains: "1 dynamic call touches this object or what it affects: their targets are candidates, so the impact may be larger."}
+  - {tool: impact, path: result.total_affected, equals: 9}
+  - tool: impact
+    path: result.entry_points
+    equals: ['FUNC:ZS4_IOT_INSERT_DATA', 'FUNC:ZS4_IOT_READ_DATA']
+  - {tool: impact, path: result.dynamic_calls, length: 1}
+  - {tool: impact, path: limits, contains: '1 dynamic call touches this object or what it affects: their targets are candidates, so the impact may be larger.'}
   expect:
     tools: [impact]
-    max_seconds: 12  # operator 2026-11-16: large impact result; others keep the 10 s target
-    # Operator 2026-11-16: no higher limit; shorter answer (2-3 sentence summary + compact list,
-    # full detail in the evidence panel). Eval 13.5 s had ~150 words.
-    max_words: 110
-    answer_contains: ["9", "ZS4_IOT_INSERT_DATA", "ZS4_IOT_READ_DATA", ["RFC", "entry point"], "dynamic", "candidate"]
+    max_seconds: 12
+    max_words: 130
+    answer_contains:
+    - '9'
+    - ZS4_IOT_INSERT_DATA
+    - ZS4_IOT_READ_DATA
+    - [RFC, entry point]
+    - dynamic
+    - candidate
     grounding_flags_max: 0
+    tools_not: [find_object]
+    answer_not_matches: ['\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
   mock:
     calls:
-      - {tool: impact, args: {name: ZS4_IOT_DATA}}
+    - tool: impact
+      args: {name: ZS4_IOT_DATA}
     answer:
-      answer: |-
-        If you change table ZS4_IOT_DATA, 9 objects are affected: 5 CDS views, 2 function modules, 1 function group and 1 class.
+      answer: 'If you change table ZS4_IOT_DATA, 9 objects are affected: 5 CDS views, 2 function modules, 1 function group and 1 class.
+
         - 2 of them are RFC entry points: ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA.
-        - 1 dynamic call (from ZCL_ZS4_IOT_PROJ_DPC_EXT to ZS4_IOT_INSERT_DATA) is a candidate, not a fact, so the impact may be larger.
+
+        - 1 dynamic call (from ZCL_ZS4_IOT_PROJ_DPC_EXT to ZS4_IOT_INSERT_DATA) is a candidate, not a fact, so the impact may be larger.'
       system_facts:
-        - {text: "Table ZS4_IOT_DATA has 9 dependent objects.", results: [1]}
-        - {text: "Function modules ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA use ZS4_IOT_DATA and are RFC-enabled.", results: [1]}
-        - {text: "Class ZCL_ZS4_IOT_PROJ_DPC_EXT calls ZS4_IOT_INSERT_DATA dynamically (a candidate).", results: [1]}
+      - text: Table ZS4_IOT_DATA has 9 dependent objects.
+        results: [1]
+      - text: Function modules ZS4_IOT_INSERT_DATA and ZS4_IOT_READ_DATA use ZS4_IOT_DATA and are RFC-enabled.
+        results: [1]
+      - text: Class ZCL_ZS4_IOT_PROJ_DPC_EXT calls ZS4_IOT_INSERT_DATA dynamically (a candidate).
+        results: [1]
 
 - id: risk_zuzk900008
   question: "Why is ZUZK900008 high risk?"
@@ -480,7 +493,7 @@
     - ['4034', '4,034']
     - [suggests, suggest]
     - confirm
-    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\)]
+    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
     first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
     max_gap_mentions: 1
     steps_min: 3
@@ -523,7 +536,7 @@
     - ['4034', '4,034']
     - table
     - [SE11, SE14]
-    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), \bSE38\b|\bSE80\b]
+    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), \bSE38\b|\bSE80\b, '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
     first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
     max_gap_mentions: 1
     steps_min: 3
@@ -593,7 +606,7 @@
     - ST22
     - [SE11, SE14]
     - dictionary
-    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), \bSE38\b|\bSE80\b]
+    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), \bSE38\b|\bSE80\b, '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
     first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
     max_gap_mentions: 1
     steps_min: 3
@@ -678,7 +691,7 @@
     answer_contains:
     - '42'
     - ['4034', '4,034']
-    answer_not_matches: ['\bI([''’]ll| will) (check|look)', \blet me (check|look), '(?m)^\s*#{1,6}\s', '(?mi)^[\W_]*(?:main\s+)?gaps?\b[^.\n]*:', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), \babout \d]
+    answer_not_matches: ['\bI([''’]ll| will) (check|look)', \blet me (check|look), '(?m)^\s*#{1,6}\s', '(?mi)^[\W_]*(?:main\s+)?gaps?\b[^.\n]*:', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), \babout \d, '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
     first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
     max_gap_mentions: 1
     max_words: 200
@@ -718,7 +731,7 @@
     answer_contains:
     - ST22
     - ['4034', '4,034']
-    answer_not_matches: ['\bI([''’]ll| will) (check|look)', '\b\d{1,2}:\d{2}\b', '(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\)]
+    answer_not_matches: ['\bI([''’]ll| will) (check|look)', '\b\d{1,2}:\d{2}\b', '(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
     first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
     max_gap_mentions: 1
     steps_min: 3
@@ -755,7 +768,7 @@
   expect:
     tools: [operations]
     answer_contains: [SM21]
-    answer_not_matches: ['\bI([''’]ll| will) (check|look)', \blet me (check|look), '\b\d{1,2}:\d{2}\b', '(?m)^\s*#{1,6}\s', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\)]
+    answer_not_matches: ['\bI([''’]ll| will) (check|look)', \blet me (check|look), '\b\d{1,2}:\d{2}\b', '(?m)^\s*#{1,6}\s', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
     first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
     max_gap_mentions: 1
     steps_min: 3
@@ -880,7 +893,7 @@
   question: "What breaks if I change ZS4_IOT_DATA?"
   test_only: true
   expect_rounds: 1
-  expect_trace: [impact, status, impact]
+  expect_trace: [impact, impact, status]  # impact calls run first in a turn (operator 2026-11-18)
   expect_skipped: 2
   mock:
     calls:  # a list = several calls in one turn

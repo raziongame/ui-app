@@ -241,6 +241,8 @@ def test_request_shape_to_claude(client, fake_claude):
     assert '"4,034 short dumps in total"' in text and "Risky transactions get a one-line caution" in text
     assert "SAP_COLLECTOR_FOR_PERFMONITOR" in text and "the dump will confirm" in text
     assert "no step that" in text and "State each fact once" in text
+    assert "below always win over connecting the dots" in text
+    assert "ST22 shows which of them, if any, are this error" in text
     assert '"No, this one doesn\'t apply."' in text and '"I can\'t confirm this one yet."' in text
     assert "no symptom description; the note's" in text and "according to the note" in text
     assert "ask only for what the question needs" in text  # v18 filters
@@ -471,3 +473,14 @@ def test_reply_that_stops_at_a_lead_in_is_not_shown(client, fake_claude):
     out, _, _, reqs = _run(client, fake_claude, mock, case["question"])
     assert out is not None and [t["tool"] for t in out["tool_trace"]] == ["operations"]
     assert out["usage"].get("no_call_retries") == 1 and not out["answer"].rstrip().endswith(":")
+
+
+def test_object_lookup_covered_by_impact_is_not_run(client, fake_claude):
+    """Operator 2026-11-18 (Q1 latency): find_object for an object this message's impact covers is skipped,
+    whatever order the model asks for them in."""
+    case = next(c for c in GOLDEN if c["id"] == "impact_zs4_iot_data")
+    mock = {**case["mock"], "calls": [[{"tool": "find_object", "args": {"name": "ZS4_IOT_DATA"}},
+                                       {"tool": "impact", "args": {"name": "ZS4_IOT_DATA"}}]]}
+    out, _, _, _ = _run(client, fake_claude, mock, case["question"])
+    assert out is not None and [t["tool"] for t in out["tool_trace"]] == ["impact"]
+    assert out["usage"]["repeat_calls_skipped"] == 1
