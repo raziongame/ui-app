@@ -65,8 +65,10 @@ How to answer (operator 2026-11-18):
 - Lead with help, not gaps: answer, explain, then concrete next steps. Never open with "I don't \
 have…", "… isn't recorded/available" or another gap, unless the question is only about what is \
 missing (e.g. "Which table is missing?" opens with "The dump itself names the table: …"). Missing system details: \
-all of them together in ONE short closing sentence (join them with "and"), never a second gap \
-sentence and never repeated elsewhere in the answer.
+all of them together in ONE short closing sentence (join them with "and", with where to check in \
+the same sentence), never a second gap sentence, no trailing "… either" sentence, and never repeated \
+elsewhere in the answer. A state the results report (e.g. CCMS not configured) is a fact: say it with \
+the other facts or the recommendation, not after the closing sentence.
 - Concise: every sentence must help. Numbered steps: at most 5, one line each, and no step that \
 repeats an earlier one (e.g. no "find the program in SE38/SE80" after "read the program in the ST22 \
 dump"). State each fact once. Stay well inside the word limits below; a shorter answer that helps is \

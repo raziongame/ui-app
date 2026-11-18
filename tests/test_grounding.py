@@ -125,3 +125,17 @@ def test_exact_derivations_with_their_source_numbers_are_backed():
     for t, tok in bad.items():
         c = grounding.check_system(t, [], r, [], [], set())
         assert tok in [f["token"] for f in c["flags"]], (t, c)
+
+
+
+def test_eval_counts_either_sentences_as_gap_mentions():
+    """Operator 2026-11-18: the one-sentence closing check also catches "… either"."""
+    import importlib.util, pathlib, re as _re
+    spec = importlib.util.spec_from_file_location("run_eval", pathlib.Path(__file__).resolve().parents[1] / "eval/run_eval.py")
+    m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+    closing = ("Which program each dump hit isn't recorded here, and neither is the system log. Check the system log "
+               "in SM21. CCMS isn't configured on this system either.")
+    sentences = [x for x in _re.split(r"(?<=[.!?])\s+", closing) if x]
+    assert [bool(m.GAP_RE.search(x)) for x in sentences] == [True, False, True]
+    one = "Which program each dump hit and the system log aren't recorded here; check them in ST22 and SM21."
+    assert m.GAP_RE.search(one) and not m.GAP_RE.search("Check the system log in SM21.")

@@ -30,7 +30,9 @@ from app import agent, contract, config, present, wording  # noqa: E402
 # A sentence that states a missing system detail (operator 2026-11-18: at most once, never first).
 GAP_RE = re.compile(r"\b(?:I don['’]t have|I do not have|isn['’]t recorded|aren['’]t recorded|not recorded"
                     r"|isn['’]t available|aren['’]t available|not available|I can['’]t (?:say|tell|see|show)"
-                    r"|isn['’]t either|aren['’]t either|neither|(?:isn['’]t|aren['’]t) (?:being )?collected)\b", re.I)
+                    r"|isn['’]t either|aren['’]t either|neither|(?:isn['’]t|aren['’]t) (?:being )?collected"
+                    # operator 2026-11-18: "CCMS isn't configured on this system either." continues the gap list
+                    r"|(?:isn['’]t|aren['’]t|is not|are not|not)\b[^.!?]*\beither)\b", re.I)
 from app.mcp_client import GrapheneMCP  # noqa: E402
 
 # Claude Sonnet 5.5, $ per million tokens (Anthropic first-party pricing).
