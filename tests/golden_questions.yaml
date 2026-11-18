@@ -500,7 +500,7 @@
     - ['4034', '4,034']
     - [suggests, suggest]
     - confirm
-    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
+    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '(?<!which of )\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
     first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
     max_gap_mentions: 1
     steps_min: 3
@@ -543,7 +543,7 @@
     - ['4034', '4,034']
     - table
     - [SE11, SE14]
-    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), \bSE38\b|\bSE80\b, '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
+    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '(?<!which of )\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), \bSE38\b|\bSE80\b, '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
     first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
     max_gap_mentions: 1
     steps_min: 3
@@ -614,7 +614,7 @@
     - ST22
     - [SE11, SE14]
     - dictionary
-    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), \bSE38\b|\bSE80\b, '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
+    answer_not_matches: ['(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '(?<!which of )\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), \bSE38\b|\bSE80\b, '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
     first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
     max_gap_mentions: 1
     steps_min: 3
@@ -699,7 +699,7 @@
     answer_contains:
     - '42'
     - ['4034', '4,034']
-    answer_not_matches: ['\bI([''’]ll| will) (check|look)', \blet me (check|look), '(?m)^\s*#{1,6}\s', '(?mi)^[\W_]*(?:main\s+)?gaps?\b[^.\n]*:', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), \babout \d, '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
+    answer_not_matches: ['\bI([''’]ll| will) (check|look)', \blet me (check|look), '(?m)^\s*#{1,6}\s', '(?mi)^[\W_]*(?:main\s+)?gaps?\b[^.\n]*:', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '(?<!which of )\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), \babout \d, '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
     first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
     max_gap_mentions: 1
     max_words: 200
@@ -739,7 +739,7 @@
     answer_contains:
     - ST22
     - ['4034', '4,034']
-    answer_not_matches: ['\bI([''’]ll| will) (check|look)', '\b\d{1,2}:\d{2}\b', '(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
+    answer_not_matches: ['\bI([''’]ll| will) (check|look)', '\b\d{1,2}:\d{2}\b', '(?m)^\s*#{1,6}\s', '\bI don[''’]t have (?:the |any |your |this system''s )?(?:ABAP )?(?:dictionary|data dictionary|table definitions|tables|code|custom code|source code|code relationships|transports|jobs|CDS)', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '(?<!which of )\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
     first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
     max_gap_mentions: 1
     steps_min: 3
@@ -776,7 +776,7 @@
   expect:
     tools: [operations]
     answer_contains: [SM21]
-    answer_not_matches: ['\bI([''’]ll| will) (check|look)', \blet me (check|look), '\b\d{1,2}:\d{2}\b', '(?m)^\s*#{1,6}\s', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
+    answer_not_matches: ['\bI([''’]ll| will) (check|look)', \blet me (check|look), '\b\d{1,2}:\d{2}\b', '(?m)^\s*#{1,6}\s', hitting the same, '\bthe same (?:missing )?(?:error|table|dump)s?\b', '(?<!which of )\b(?:these|all|the|those) (?:4,?034 )?(?:short )?dumps (?:are|were) (?:all )?(?:DBSQL|ACM|this error|the same)', '\b4,?034 (?:DBSQL|ACM)\w*', 7\.53 \(release 753\), '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
     first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
     max_gap_mentions: 1
     steps_min: 3
