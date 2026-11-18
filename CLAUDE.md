@@ -145,10 +145,17 @@ Rules for each fix:
    fix commit.
 2. Add or update a case in `tests/golden_questions.yaml` so it can't come back.
 3. `make test` (mocked Claude, real Graphene MCP) must pass before any commit.
-4. **Eval cost rule (operator 2026-11-17).** The full eval (`make eval`: every golden question,
-   ~$0.55) runs **only before a tag**. While fixing, run only the affected questions:
-   `make eval-cases CASES="id ..."`, capped at **$1 per run** (the runner stops before it would pass
-   the cap). Report the cost estimate first (`make eval-estimate [CASES=…]`) and the actual cost after.
+4. **Eval cost rule (operator 2026-11-17, figures 2026-11-18).** The full eval (`make eval`: every
+   golden question, 23 today, **~$1.10–1.25**, stops at $1.50) runs **only before a tag**. While
+   fixing, run only the affected questions: `make eval-cases CASES="id ..."`, capped at **$1 per run**
+   (the runner stops before it would pass the cap). Report the cost estimate first
+   (`make eval-estimate [CASES=…]`) and the actual cost after. `python eval/run_eval.py --rescore
+   eval/results/<file>.json` re-checks saved answers with the current checks, no API calls.
+   **Tag rule (operator 2026-11-18):** tag when the full eval passes, or when at most **3** cases fail
+   and every failure is style only (length or sentence/gap count). Zero tolerance for anything else:
+   facts, grounding, applies/doesn't-apply verdicts, priority/urgency (and tools, content, latency):
+   any of those → stop and show the operator. Failed cases may be re-run and the combined latest
+   answers re-scored; the runner prints the verdict ("TAG OK per rule" / "NO TAG").
 5. Small commits on a branch, merge when the operator approves (after a look in the browser), tag
    `graphene-ui-vN` (earlier: `partner-demo-vN`, `whitelabel-v1`).
 
