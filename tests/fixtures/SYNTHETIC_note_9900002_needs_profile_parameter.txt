@@ -1,0 +1,23 @@
+9900002 - Denial of Service in SAP NetWeaver AS ABAP (Internet Communication Manager, HTTP/2)
+SAP Security Note, Version: 3, Released On: 2026.11.12
+Component: BC-CST-IC   Priority: High   CVSS v3.0 Base Score: 7.5
+
+Symptom
+An unauthenticated attacker can send specially crafted HTTP/2 requests that make the ICM unavailable.
+
+Reason and Prerequisites
+Systems are only affected if HTTP/2 support is enabled in the ICM (profile parameter icm/HTTP/support_http2 = TRUE). Systems with HTTP/2 support disabled are not affected, whatever their kernel patch level.
+
+Solution
+The correction is delivered with the kernel patch level listed in "Support Packages & Patches". All higher patch levels also contain the correction.
+
+Workaround
+Set profile parameter icm/HTTP/support_http2 = FALSE and restart the ICM.
+
+Software Components (From - To)
+KERNEL 7.53 - 7.53
+KERNEL 7.77 - 7.77
+
+Support Package Patches
+SAP KERNEL 7.53 64-BIT UNICODE   SP1210   001210
+SAP KERNEL 7.77 64-BIT UNICODE   SP650    000650

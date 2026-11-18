@@ -82,3 +82,12 @@ def test_dates_in_words_are_checked_like_iso_dates():
     assert ok["ok"], ok
     bad = grounding.check_system("Kernel details as of 6 November.", [], r, [], [], set())
     assert [f["token"] for f in bad["flags"]] == ["6 November"]
+
+
+
+def test_escaped_newlines_become_line_breaks():
+    """eval 2026-11-18: the model wrote "\\n\\n" as text in a note answer."""
+    from app.wording import fix_escaped_newlines as f
+    assert f("Yes.\\n\\n- Update the kernel.") == "Yes.\n\n- Update the kernel."
+    assert f("Use `a\\nb` here.") == "Use `a\\nb` here."
+    assert f("No escapes.\nFine.") == "No escapes.\nFine."

@@ -224,12 +224,15 @@ def test_request_shape_to_claude(client, fake_claude):
     assert "never about yourself" in text and '"I\'ve learned"' in text and '"trained"' in text
     assert "\"I'm here to help with your SAP system; what would you like to check?\"" in text
     assert "Never ask the user for a detail about their system that a tool can give" in text
-    assert '"Worth checking"' in text and '(never "What I don\'t know")' in text
+    # operator 2026-11-18 (answer style): no fixed template or standard headings
+    assert "No fixed template and no standard headings" in text and "### " not in text
+    assert "Mention a missing fact only when it changes the answer" in text
     assert "you can check it in SM21" in text and "as of 5 November" in text
     assert "General SAP knowledge" in text and "never as a fact about this system" in text
     assert "say so naturally and where to check it" in text  # an unknown system fact
     assert 'write "kernel 7.53 (release 753)"' in text and "SAP_BASIS 751, never 7.51" in text
-    assert "According to the note, kernel 7.53 is fixed from patch 1616 onward" in text and "### What to do" in text
+    assert '"No, this one doesn\'t apply."' in text and '"I can\'t confirm this one yet."' in text
+    assert "no CVSS score, priority or symptom" in text and "according to the note" in text
     assert "ask only for what the question needs" in text  # v18 filters
     assert "I don't know a table called ZFAKE_TABLE in this system, and I won't guess." in text
     assert '(e.g. "SP 0")' in text and "goes only in \"system_facts\", never in the answer" in text
