@@ -188,7 +188,7 @@ def test_follow_up_uses_the_chats_earlier_results(client, fake_claude):
     assert [m["role"] for m in msgs] == ["user", "assistant", "user", "assistant"]
     # a new call in the follow-up continues the chat's numbering
     mock3 = {"calls": [{"tool": "find_object", "args": {"name": "ZFAKE_TABLE"}}],
-             "answer": {"answer": "I don't know a table called ZFAKE_TABLE in this system, and I won't guess.",
+             "answer": {"answer": "There's no table called ZFAKE_TABLE in this system. Check the spelling; if it's new, it may not be activated yet (SE11 shows that). Want me to look up a similar name?",
                         "system_facts": [{"text": "No object ZFAKE_TABLE in this system.", "results": [2]}], "history_for": ""}}
     out3, *_ = _run(client, fake_claude, mock3, "And ZFAKE_TABLE?", chat_id=cid)
     assert out3["tool_trace"][0]["n"] == 2 and out3["system_facts"][0]["evidence_ids"] == ["call:2"]
@@ -227,14 +227,17 @@ def test_request_shape_to_claude(client, fake_claude):
     # operator 2026-11-18 (answer style): no fixed template or standard headings
     assert "No fixed template and no standard headings" in text and "### " not in text
     # operator 2026-11-18 (proactive expert): help first, gaps once near the end, numbered steps
-    assert "Lead with help, not gaps" in text and "Never open with \"I don't" in text
-    assert "at most once, briefly, near the end" in text and "numbered, practical steps" in text
+    assert "Lead with help, not gaps" in text
+    # operator 2026-11-18, the most important principle
+    assert "gets their task done and improves their accuracy" in text and "Never a refusal sentence" in text
+    assert "End with one short, useful offer" in text and "Paste the code (from SE37/SE38/SE80) and I'll review it." in text
+    assert "ONE short closing action sentence" in text and "numbered, practical steps" in text
     assert "Connect the dots" in text and "use it freely and generously" in text
     assert "Name a specific SAP Note or KBA number only" in text
     assert "only from general SAP knowledge you are sure of" not in text and "offer no guess" not in text
-    assert "you can check it in SM21" in text and "as of 5 November" in text
+    assert "The system log is in SM21" in text and "as of 5 November" in text
     assert "SAP expertise: use it freely" in text and "never as a fact about this system" in text
-    assert "say so naturally and where to check it" in text  # an unknown system fact
+    assert "give the place to get it as an action" in text  # an unknown system fact (operator 2026-11-18)
     assert 'write "kernel 7.53"' in text and "never both forms" in text and "SAP_BASIS 751, never 7.51" in text
     # operator 2026-11-18: exact derivations with source numbers, totals not one error type, cautions
     assert "one every 5 minutes" in text and "Never present a derived number without its" in text
@@ -246,10 +249,11 @@ def test_request_shape_to_claude(client, fake_claude):
     assert "gets no priority or urgency line" in text
     assert "(e.g. workload statistics → the SM36 standard jobs step)" in text
     assert "ST22 shows which of them, if any, are this error" in text
-    assert '"No, this one doesn\'t apply."' in text and '"I can\'t confirm this one yet."' in text
+    assert '"No, this one doesn\'t apply."' in text and '"It depends on one setting in your system' in text
+    assert "I can't confirm this one yet" not in text and "I can't open SAP" not in text
     assert "no symptom description; the note's" in text and "according to the note" in text
     assert "ask only for what the question needs" in text  # v18 filters
-    assert "I don't know a table called ZFAKE_TABLE in this system, and I won't guess." in text
+    assert "There's no table called ZFAKE_TABLE in this system." in text and 'No "I won\'t guess"' in text
     assert '(e.g. "SP 0")' in text and "goes only in \"system_facts\", never in the answer" in text
     assert "set \"history_for\"" in text and "don't say that nothing changed" in text
     assert "relationship → to" in text and "Never summarise" in text
@@ -292,13 +296,17 @@ def test_second_promise_is_an_error(client, fake_claude):
 
 
 def test_monitoring_eval_checks_reject_promises_and_log_lines():
+    """A promise with no call is caught by the app (test_reply_that_only_promises_is_not_shown) and by the
+    eval's required tool; "I'll check it against your system" is now the required offer (2026-11-18), so
+    the eval no longer bans "I'll check" text."""
     import re
     for cid in ("monitoring_overview", "sm21_details"):
         case = next(c for c in GOLDEN if c["id"] == cid)
         rx = case["expect"]["answer_not_matches"]
         assert not any(re.search(r, case["mock"]["answer"]["answer"], re.I) for r in rx)
-        for bad in ("I'll check the system log for you.", "I will look it up.", "Let me check SM21."):
-            assert any(re.search(r, bad, re.I) for r in rx), bad
+        assert "operations" in case["expect"]["tools"]
+        assert not any(re.search(r, "Tell me a program from ST22 and I'll check it against your system.", re.I) for r in rx)
+        assert any(re.search(r, "Let me check SM21.", re.I) for r in rx) or cid == "sm21_details"
     rx = next(c for c in GOLDEN if c["id"] == "sm21_details")["expect"]["answer_not_matches"]
     assert any(re.search(r, "SM21 at 14:02: dialog process restarted", re.I) for r in rx)
 

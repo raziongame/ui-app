@@ -24,7 +24,7 @@ eval-cases:
 
 # The FULL eval (every golden question; ~$0.55): only before a tag. Run eval-estimate first.
 eval:
-	$(UV) python eval/run_eval.py --full --max-cost 1.50
+	$(UV) python eval/run_eval.py --full  # cap: $0.065 a question, rounded up (operator 2026-11-18)
 
 # Graphene MCP tool latency on one warm session.
 latency:

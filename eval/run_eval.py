@@ -44,7 +44,15 @@ OUT_FINAL = 1500
 
 RESULTS_DIR = ROOT / "eval" / "results"
 ONLY: set[str] = set()
-MAX_COST = [1.00]  # $ per run (operator 2026-11-17); make eval (full, before a tag) passes its own cap
+MAX_COST = [1.00]  # $ per fix run (operator 2026-11-17)
+# Operator 2026-11-18: the full eval's cap scales with its size: $0.065 a question, rounded up to the
+# next 10 cents (28 questions -> $1.90), unless --max-cost is given.
+FULL_COST_PER_QUESTION = 0.065
+
+
+def full_cap(n_questions: int) -> float:
+    import math
+    return math.ceil(round(n_questions * FULL_COST_PER_QUESTION * 10, 6)) / 10
 TARGET_S = 10.0  # operator 2026-11-16: under 10 s per answer (a case may set expect.max_seconds)
 
 
@@ -117,6 +125,15 @@ FIX_RE = re.compile(r"\b(?:schedul\w*|activat\w*|configur\w*|enabl\w*|Standard J
 TX_RE = re.compile(r"\b(?:[A-Z]{2,4}\d{2}[A-Z]?|PFCG|STMS|SMICM|SMQ[12])\b")
 
 
+# Operator 2026-11-18 (principle 1 and 4), checked on every answer: the first sentence is never a
+# refusal or limitation, and one of the last two sentences is an offer of what to do next.
+FIRST_REFUSAL_RE = re.compile(r"^\W*(?:I can['’]t|I cannot|I can not|I don['’]t have|I do not have|I['’]m (?:not able|unable)"
+                              r"|I am (?:not able|unable)|Unfortunately|Sorry)\b"
+                              r"|\b(?:isn['’]t|aren['’]t|is not|are not|not) (?:permitted|recorded|available)\b", re.I)
+OFFER_RE = re.compile(r"\b(?:I can|I['’]ll|I will|Want me to|Shall I|Should I|Do you want me|Would you like me|Paste|Send me"
+                      r"|Share|Give me|Tell me|what would you like)\b", re.I)
+
+
 def gap_sentences(prose: str) -> list[str]:
     out = []
     for line in prose.splitlines():
@@ -138,6 +155,10 @@ def is_style(problem: str) -> bool:
 
 
 def tag_verdict(results: list[dict]) -> str:
+    slow = [r["id"] for r in results if any(str(n).startswith("warning: slow") for n in r.get("notes") or [])]
+    slow += [r["id"] for r in results if any(p.startswith("slow:") for p in r.get("problems") or [])]
+    if len(slow) >= 2:
+        return f"NO TAG: {len(slow)} cases over their time limit in one run: {slow}"
     failed = [r for r in results if not r.get("ok")]
     substance = [r["id"] for r in failed if r.get("error") or any(not is_style(p) for p in r.get("problems", []))]
     style = [r["id"] for r in failed if r["id"] not in substance]
@@ -146,6 +167,21 @@ def tag_verdict(results: list[dict]) -> str:
     if len(style) > 3:
         return f"NO TAG: {len(style)} style-only failures > 3: {style}"
     return f"TAG OK per rule: {len(style)} style-only failure(s) {style}"
+
+
+# Operator 2026-11-18: length and sentence-count limits are soft: up to 20% over is a warning (a note),
+# only above that a failure. Facts, grounding, verdicts, priority and the offer rule stay strict.
+SOFT_TOLERANCE = 0.20
+LATENCY_SOFT_MAX_S = 15.0
+
+
+def soft_limit(value: int, limit: int | None, what: str, problems: list[str], notes: list[str]) -> None:
+    if not limit or value <= limit:
+        return
+    if value <= limit * (1 + SOFT_TOLERANCE):
+        notes.append(f"warning: {value} {what} > {limit} (within 20%)")
+    else:
+        problems.append(f"answer has {value} {what} > {limit}")
 
 
 def check(c: dict, out: dict, shown: str, secs: float) -> tuple[list[str], list[str]]:
@@ -190,6 +226,15 @@ def check(c: dict, out: dict, shown: str, secs: float) -> tuple[list[str], list[
         if not sentences or not any(str(o).lower() in sentences[0].lower() for o in opts):
             problems.append(f"first sentence lacks {opts!r}")
     # operator 2026-11-18 (proactive expert): help first, numbered steps, a gap at most once
+    if sentences and FIRST_REFUSAL_RE.search(sentences[0]):
+        problems.append(f"first sentence is a refusal or limitation: {sentences[0][:80]!r}")
+    tail = [x for x in re.split(r"(?<=[.!?:])\s+|\n+", prose.strip()) if x.strip()][-2:]
+    if not any(OFFER_RE.search(x) for x in tail):
+        problems.append("no offer of what to do next at the end")
+    # operator 2026-11-18: missing details are a closing line, never a numbered step
+    for line in prose.splitlines():
+        if re.match(r"^\s*\d+[.)]\s", line) and GAP_RE.search(line):
+            problems.append(f"missing detail inside a numbered step: {line.strip()[:70]!r}")
     for rx in exp.get("first_sentence_not_matches", []):
         if sentences and re.search(rx, sentences[0], re.I):
             problems.append(f"first sentence matches {rx!r}: {sentences[0][:80]!r}")
@@ -199,8 +244,7 @@ def check(c: dict, out: dict, shown: str, secs: float) -> tuple[list[str], list[
     gaps = gap_sentences(prose)
     if "max_gap_mentions" in exp and len(gaps) > exp["max_gap_mentions"]:
         problems.append(f"gap mentioned in {len(gaps)} sentences > {exp['max_gap_mentions']}: {[g[:50] for g in gaps]}")
-    if exp.get("max_sentences") and len(sentences) > exp["max_sentences"]:
-        problems.append(f"answer has {len(sentences)} sentences > {exp['max_sentences']}")
+    soft_limit(len(sentences), exp.get("max_sentences"), "sentences", problems, notes)
     if exp.get("no_change_only_at_end"):
         for sent in sentences[:-1]:
             if re.search(r"nothing (has )?changed|no changes?\b|unchanged|same score", sent, re.I):
@@ -214,16 +258,21 @@ def check(c: dict, out: dict, shown: str, secs: float) -> tuple[list[str], list[
             problems.append("history table: 'nothing changed' line missing or wrong")
     elif hist.get("steps"):
         problems.append(f"history table shown for {hist.get('transport')} (not a history question)")
-    if exp.get("max_words") and len(prose.split()) > exp["max_words"]:
-        problems.append(f"answer has {len(prose.split())} words > {exp['max_words']}")
+    soft_limit(len(prose.split()), exp.get("max_words"), "words", problems, notes)
     for rx in exp.get("answer_matches", []):  # operator 2026-11-18: content that must be there
         if not re.search(rx, prose, re.I):
             problems.append(f"answer doesn't match {rx!r}")
     for rx in exp.get("answer_not_matches", []):
         if re.search(rx, prose, re.I):
             problems.append(f"answer matches {rx!r}")
-    if secs > exp.get("max_seconds", TARGET_S):
-        problems.append(f"slow: {secs:.1f} s > {exp.get('max_seconds', TARGET_S)} s")
+    # operator 2026-11-18: one case up to 15 s is a soft warning; above 15 s fails; 2+ slow cases in one
+    # run block a tag (tag_verdict)
+    limit_s = exp.get("max_seconds", TARGET_S)
+    if secs > limit_s:
+        if secs <= LATENCY_SOFT_MAX_S:
+            notes.append(f"warning: slow {secs:.1f} s > {limit_s} s (up to {LATENCY_SOFT_MAX_S:g} s)")
+        else:
+            problems.append(f"slow: {secs:.1f} s > {limit_s} s")
     if [t["tool"] for t in out["tool_trace"]].count("status") > 1:
         problems.append("status called more than once")
     return problems, notes
@@ -241,8 +290,8 @@ def rescore(path: str) -> int:
             results.append(r)
             print(f"{r['id'][:42]:42} {'FAIL' if not r.get('ok') else 'PASS':>6} {'-':>6}  (no answer saved / not a golden case)")
             continue
-        problems, _ = check(c, r, r["shown"], r.get("seconds", 0.0))
-        results.append({**r, "ok": not problems, "problems": problems})
+        problems, notes = check(c, r, r["shown"], r.get("seconds", 0.0))
+        results.append({**r, "ok": not problems, "problems": problems, "notes": notes})
         print(f"{r['id'][:42]:42} {'PASS' if r.get('ok') else 'FAIL':>6} {'PASS' if not problems else 'FAIL':>6}  "
               + "; ".join(problems))
     print(f"\n{sum(1 for x in results if x.get('ok'))}/{len(results)} pass now · {tag_verdict(results)}")
@@ -260,9 +309,23 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
                   + ", ".join(x["id"] for x in left))
             failures += len(left)
             break
+        ctx, pre_cost = None, 0.0
+        if c.get("previous"):  # operator 2026-11-18: follow-ups ("what is this?") need the chat before them
+            try:
+                out0 = await agent.answer_with_timeout(c["previous"], g, client)
+            except agent.AnswerError as e:
+                out0 = None
+                pre_cost = dollars(e.usage)
+            if out0 is not None:
+                shown0 = present.finalize(out0)
+                pre_cost = dollars(out0["usage"])
+                ctx = agent.ChatContext(history=[{"role": "user", "content": c["previous"]},
+                                                 {"role": "assistant", "content": shown0}],
+                                        results=[st for (_, _, st) in out0["new_results"]],
+                                        user_texts=[c["previous"]])
         t0 = time.time()
         try:
-            out = await agent.answer_with_timeout(c["question"], g, client)
+            out = await agent.answer_with_timeout(c["question"], g, client, ctx=ctx)
         except agent.AnswerError as e:
             cost = dollars(e.usage)
             total_cost += cost
@@ -276,7 +339,7 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
         shown = present.finalize(out)  # what the user sees (silent grounding applied)
         secs = time.time() - t0
         problems, notes = check(c, out, shown, secs)
-        cost = dollars(out["usage"])
+        cost = dollars(out["usage"]) + pre_cost
         total_cost += cost
         worst = max(worst, cost)
         failures += bool(problems)
@@ -309,13 +372,18 @@ async def main() -> int:
     ap.add_argument("--only", nargs="*", default=[], help="golden case ids to run")
     ap.add_argument("--full", action="store_true", help="every golden question (only before a tag)")
     ap.add_argument("--rescore", metavar="RESULT_JSON", help="re-check a saved result file, no API calls")
-    ap.add_argument("--max-cost", type=float, default=MAX_COST[0], help="$ cap for this run (default 1.00)")
+    ap.add_argument("--max-cost", type=float, default=None,
+                    help="$ cap for this run (default 1.00; --full: $0.065 a question, rounded up)")
     args = ap.parse_args()
     if args.rescore:
         return rescore(args.rescore)
     if not args.estimate and not args.full and not args.only:
         sys.exit("Name the affected questions (--only id ...), or --full before a tag (operator cost rule).")
-    MAX_COST[0] = args.max_cost
+    if args.max_cost is not None:
+        MAX_COST[0] = args.max_cost
+    elif args.full:
+        MAX_COST[0] = full_cap(len(cases()))
+    print(f"cost cap ${MAX_COST[0]:.2f}")
     ONLY.update(args.only)
     g = GrapheneMCP(config.GRAPHENE_MCP_COMMAND, call_timeout_s=config.TOOL_TIMEOUT_S)
     await g.start()

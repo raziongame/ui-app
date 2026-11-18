@@ -76,6 +76,11 @@ def _datetime_forms(s: str) -> set[str]:
     # dates in words and times as a result writes them (e.g. a kernel build date "Sep  1 2020 21:43:19")
     out |= {re.sub(r"\s+", " ", m.group(0)) for m in NATURAL_DATE_RE.finditer(s)}
     out |= {m.group(0) for m in TIME_RE.finditer(s)}
+    # SAP's compact dates (e.g. last_changed "20161027") back "2016-10-27" and "27 October 2016"
+    for m in re.finditer(r"(?<!\d)((?:19|20)\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)", s):
+        d = f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+        out.add(d)
+        out |= _natural_forms(d)
     for m in DATETIME_RE.finditer(s):
         d, hm, sec, frac, tz = m.group(1), m.group(2), m.group(3) or "", m.group(4) or "", m.group(5) or ""
         out.add(d)
@@ -166,7 +171,7 @@ def check(texts: dict[str, str], results: list[dict[str, Any]], evidence_used: l
 # Z/Y names need a digit or underscore (so "YES" in a table is not an object) unless typed (PROG:ZPRICE).
 SYSTEM_NAME_RE = re.compile(
     r"(?<![A-Za-z0-9_/])(?:[A-Z]{2,5}:[ZY][A-Z0-9_]{2,}|(?=[ZY][A-Z]*[_0-9])[ZY][A-Z0-9_]{2,}"
-    r"|/[A-Z0-9_]+/[A-Z0-9_]+|[A-Z0-9]{3}K\d{6})(?![A-Za-z0-9_])")
+    r"|/[A-Z0-9_]+/[A-Z0-9_]+|[A-Z0-9]{3}K\d{6})(?![A-Za-z0-9_*])")  # "ZS4_IOT*" is a search pattern (2026-11-18)
 # Sentences that speak about this system: their numbers and dates must be backed too.
 SYSTEM_MARKER_RE = re.compile(
     r"\b(?:your|our)\s+(?:SAP\s+)?(?:system|kernel|landscape|release|version|patch|database|server|instance)s?\b"
@@ -195,6 +200,12 @@ def _derivable(tok: str, operands: list[float]) -> bool:
             if any(abs(round(o, dec) - v) < 1e-9 for o in outs):
                 return True
     return False
+
+
+# Operator 2026-11-18: SAP's own namespaces are general SAP knowledge (e.g. the Gateway error log
+# /IWFND/ERROR_LOG), not objects of this system; customer namespaces stay checked.
+SAP_NAMESPACE_RE = re.compile(r"^/(?:IWFND|IWBEP|IWCOR|IWNGW|UI2|UI5|UIF|SAP[A-Z0-9_]*|BOBF|SDF|SSF|BDL|SCWM|SCMTMS"
+                              r"|SCDL|AIF|ASU|BEV1|DMF|PLMB|SCMB|SPE|NWBC|S4PPM|SMB|SRMSMC|OPT|XNFE|BI0|BA1|FTI)/")
 
 
 def kernel_display_forms(results: list[dict[str, Any]]) -> set[str]:
@@ -258,6 +269,8 @@ def check_system(answer: str, facts: list[str], results: list[dict[str, Any]], u
         for m in rx.finditer(text):
             n = m.group(0)
             bare = n.split(":", 1)[1] if ":" in n else n
+            if SAP_NAMESPACE_RE.match(bare):
+                continue
             checked += 1
             if n not in names and bare not in names:
                 flags.append({"token": n, "kind": "name", "where": where})
