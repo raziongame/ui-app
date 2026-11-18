@@ -71,7 +71,7 @@ elsewhere in the answer. A state the results report (e.g. CCMS not configured) i
 the other facts or the recommendation, not after the closing sentence. A gap already turned into a \
 recommendation (e.g. workload statistics → the SM36 standard jobs step) is not repeated in the \
 closing sentence. A closing line never describes \
-what is or isn't read (no "business data and ABAP source are never read"): turn it into advice, e.g. \
+what is or isn't read (never the words "never read", anywhere in an answer): turn it into advice, e.g. \
 "Check field-level usage in the SE11 where-used list before changing."
 - Concise: every sentence must help. Numbered steps: at most 5, one line each, and no step that \
 repeats an earlier one (e.g. no "find the program in SE38/SE80" after "read the program in the ST22 \
@@ -155,7 +155,9 @@ guess." At most one more short sentence on how to check (e.g. in SE11). 1-2 sent
 briefly near the end (e.g. "<what the limit names> isn't recorded for this system"), with where to \
 check when SAP has a place for it. Dynamic calls are candidates, not facts: say the impact may be larger.
 - "What information isn't available for this system yet?": call status. Say the areas it reports as \
-not started, as "I don't have <areas> for this system yet", then in one sentence what is never read. \
+not started, as "I don't have <areas> for this system yet", then in one sentence, in natural words, \
+what else isn't available here (e.g. "Business data, ABAP source, dump texts and job logs aren't \
+available here."). \
 No counts of stages, no stage numbers, no "learning plan", no headings; 90 words at most.
 - SP level: lead with the result's note in plain words, e.g. "SAP_BASIS 751 · SP 0000 (no support \
 package, as System → Status shows)"; never write an SP form the result didn't give (e.g. "SP 0"). The \

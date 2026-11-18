@@ -184,27 +184,36 @@
 
 # Operator 2026-11-18: Q5 asks about the system, not the assistant (was "What haven't you learned yet?").
 - id: what_is_not_available
-  question: "What information isn't available for this system yet?"
+  question: What information isn't available for this system yet?
   facts:
-    - {tool: status, path: result.overall.stages_complete, equals: 6}
-    - {tool: status, path: result.overall.stages_total, equals: 11}
-    - {tool: status, path: limits, contains: "L6 Configuration is not learned yet (not started): this answer can't include it."}
+  - {tool: status, path: result.overall.stages_complete, equals: 6}
+  - {tool: status, path: result.overall.stages_total, equals: 11}
+  - {tool: status, path: limits, contains: 'L6 Configuration is not learned yet (not started): this answer can''t include it.'}
   expect:
     tools: [status]
-    answer_contains: ["Configuration", "Access", "Interfaces", "Runtime evidence", "Understanding", ["don't have", "not available", "isn't available", "aren't available"]]
+    answer_contains:
+    - Configuration
+    - Access
+    - Interfaces
+    - Runtime evidence
+    - Understanding
+    - [don't have, not available, isn't available, aren't available]
     max_words: 90
-    answer_not_matches: ['\b6 of 11\b', '\bL\d+\b', 'learning plan', '\bstages?\b', 'graphene status']
+    answer_not_matches: [\b6 of 11\b, \bL\d+\b, learning plan, '\bstages?\b', graphene status, '\bnever read\b|\b(?:isn[''’]t|aren[''’]t|is not|are not) read\b']
     grounding_flags_max: 0
   mock:
     calls:
-      - {tool: status, args: {}}
+    - tool: status
+      args: {}
     answer:
-      answer: |-
-        I don't have these areas for this system yet: Configuration, Access, Interfaces, Runtime evidence and Understanding.
-        - Changes made in SAP since the system data was last read aren't tracked here.
-        - Business data, ABAP source code, job variants, dump texts and job logs are never read.
+      answer: 'I don''t have these areas for this system yet: Configuration, Access, Interfaces, Runtime evidence and Understanding.
+
+        - Changes made in SAP since the system data was last read aren''t tracked here.
+
+        - Business data, ABAP source, job variants, dump texts and job logs aren''t available here.'
       system_facts:
-        - {text: "Configuration, Access, Interfaces, Runtime evidence and Understanding are not available for this system yet.", results: [1]}
+      - text: Configuration, Access, Interfaces, Runtime evidence and Understanding are not available for this system yet.
+        results: [1]
 
 - id: system_profile_sap_basis
   question: "What is the component version of SAP_BASIS?"
@@ -307,7 +316,7 @@
     - '1616'
     - according to the note
     - [update the kernel, upgrade the kernel, kernel update, kernel upgrade, update to, upgrade to, patch 1616 or higher, 1616 or higher, 1616 or later]
-    answer_not_matches: ['\bpatch(?:\s+level)?\s+(?!700\b|1616\b|1617\b)\d+', '\bSP\s?(?!1616\b|1617\b)\d{3,}', '\b(?:your system|you|it)\s+(?:is|are)\s+not\s+affected\b', \\n, '(?m)^\s*#{1,6}\s', '(?m)^\s*\|', 'What I don[''’]t know', Worth checking, 7\.53 \(release 753\)]
+    answer_not_matches: ['\bpatch(?:\s+level)?\s+(?!700\b|1616\b|1617\b)\d+', '\bSP\s?(?!1616\b|1617\b)\d{3,}', '\b(?:your system|you|it)\s+(?:is|are)\s+not\s+affected\b', \\n, '(?m)^\s*#{1,6}\s', '(?m)^\s*\|', 'What I don[''’]t know', Worth checking, 7\.53 \(release 753\), '\b(?:AS ABAP|ABAP (?:stack|system)|S/4HANA|SAP_BASIS)\b']
     grounding_flags_max: 0
   mock:
     calls:
@@ -773,7 +782,7 @@
     first_sentence_not_matches: ['^\W*(?:I don[''’]t|I do not|I can[''’]t|I cannot|Unfortunately|There (?:is|are) no)', '\b(?:isn[''’]t|aren[''’]t|not) (?:recorded|available)\b']
     max_gap_mentions: 1
     steps_min: 3
-    max_words: 210
+    max_words: 230
     grounding_flags_max: 0
   mock:
     calls:

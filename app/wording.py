@@ -15,6 +15,8 @@ FORBIDDEN_WORDING_RE = re.compile(
 INTERNAL_RE = re.compile(r"\b(?:find_object|assess_transport|system_profile|MCP|call:\d+|result \d+|tool_trace|evidence_ids?)\b")
 # Operator 2026-11-18: dates in words only; "Not available", never a "Gaps" label.
 NUMERIC_DATE_RE = re.compile(r"(?<![\w.-])(?:\d{4}-\d{2}-\d{2}|\d{4}\.\d{2}\.\d{2}|\d{1,2}\.\d{1,2}\.\d{4})(?![\w-])")
+# Operator 2026-11-18: no "never read" wording anywhere; say what isn't available instead.
+NEVER_READ_RE = re.compile(r"\bnever (?:read|accessed)\b|\b(?:isn['’]t|aren['’]t|is not|are not) read\b", re.I)
 GAPS_LABEL_RE = re.compile(r"(?mi)^[\W_]*(?:main\s+)?gaps?\b[^.\n]*:")
 # A reply that only promises to look something up (browser testing 2026-11-17).
 # "Paste its text here and I'll check it against your system" (SAP Note number, 2026-11-18) is not one.
@@ -33,6 +35,7 @@ def problems(text: str) -> list[str]:
     out += [f"internal: {m.group(0)}" for m in INTERNAL_RE.finditer(text)]
     out += [f"numeric date: {m.group(0)}" for m in NUMERIC_DATE_RE.finditer(text)]
     out += [f"label: {m.group(0).strip()}" for m in GAPS_LABEL_RE.finditer(text)]
+    out += [f"wording: {m.group(0)}" for m in NEVER_READ_RE.finditer(text)]
     out += [f"field name / JSON word: {w}" for w in developer_words(_strip_code(text))]
     return out
 
