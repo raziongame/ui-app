@@ -44,7 +44,15 @@ OUT_FINAL = 1500
 
 RESULTS_DIR = ROOT / "eval" / "results"
 ONLY: set[str] = set()
-MAX_COST = [1.00]  # $ per run (operator 2026-11-17); make eval (full, before a tag) passes its own cap
+MAX_COST = [1.00]  # $ per fix run (operator 2026-11-17)
+# Operator 2026-11-18: the full eval's cap scales with its size: $0.065 a question, rounded up to the
+# next 10 cents (28 questions -> $1.90), unless --max-cost is given.
+FULL_COST_PER_QUESTION = 0.065
+
+
+def full_cap(n_questions: int) -> float:
+    import math
+    return math.ceil(round(n_questions * FULL_COST_PER_QUESTION * 10, 6)) / 10
 TARGET_S = 10.0  # operator 2026-11-16: under 10 s per answer (a case may set expect.max_seconds)
 
 
@@ -341,13 +349,18 @@ async def main() -> int:
     ap.add_argument("--only", nargs="*", default=[], help="golden case ids to run")
     ap.add_argument("--full", action="store_true", help="every golden question (only before a tag)")
     ap.add_argument("--rescore", metavar="RESULT_JSON", help="re-check a saved result file, no API calls")
-    ap.add_argument("--max-cost", type=float, default=MAX_COST[0], help="$ cap for this run (default 1.00)")
+    ap.add_argument("--max-cost", type=float, default=None,
+                    help="$ cap for this run (default 1.00; --full: $0.065 a question, rounded up)")
     args = ap.parse_args()
     if args.rescore:
         return rescore(args.rescore)
     if not args.estimate and not args.full and not args.only:
         sys.exit("Name the affected questions (--only id ...), or --full before a tag (operator cost rule).")
-    MAX_COST[0] = args.max_cost
+    if args.max_cost is not None:
+        MAX_COST[0] = args.max_cost
+    elif args.full:
+        MAX_COST[0] = full_cap(len(cases()))
+    print(f"cost cap ${MAX_COST[0]:.2f}")
     ONLY.update(args.only)
     g = GrapheneMCP(config.GRAPHENE_MCP_COMMAND, call_timeout_s=config.TOOL_TIMEOUT_S)
     await g.start()

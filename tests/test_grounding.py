@@ -192,3 +192,10 @@ def test_product_name_check_ignores_upper_case_sap_text():
     from app.wording import problems
     assert problems("Graphene says so.") and problems("graphene says so.")
     assert problems('Its description is "GRAPHENE DEMO - IoT data change".') == []
+
+
+
+def test_full_eval_cap_scales_with_questions():
+    """Operator 2026-11-18: $0.065 a question, rounded up to the next 10 cents."""
+    m = _run_eval_module()
+    assert m.full_cap(28) == 1.9 and m.full_cap(23) == 1.5 and m.full_cap(20) == 1.3 and m.full_cap(10) == 0.7
