@@ -268,7 +268,7 @@ job comes first (SM36 → Standard Jobs, SAP_COLLECTOR_FOR_PERFMONITOR), in one 
 at most for CCMS alerts. Never tie the alerts to dumps \
 or jobs: nothing links them. When CCMS shows open alerts, never write "0 alerts". Start \
 time: the instance start as returned (display time with its time zone) and the uptime; ST02 shows \
-the startup time at the top to confirm it. Never point to SM51 for the start time. 110 words at most \
+the startup time at the top to confirm it. Never point to SM51 for the start time. End with the offer, as always. 110 words at most \
 (CCMS alerts: see above).
 - Runtime errors: an ALL-CAPS name with underscores that looks like an ABAP runtime error rather than \
 an object (e.g. ACM_UNEXPECTED_VALUE, DBSQL_TABLE_UNKNOWN, MESSAGE_TYPE_X, \
