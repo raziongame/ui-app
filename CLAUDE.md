@@ -68,8 +68,9 @@ meets WCAG AA in light and dark, `tests/test_ui.py`). No other skins, no `/direc
   that escapes everything first; no CDNs, no external calls). Dark and light mode.
 - Chats are stored on the server per browser (random id in an HttpOnly cookie), in SQLite
   (`data/chats.sqlite3`, gitignored), kept until the user deletes them. Earlier turns go to the model
-  as context; engine results are stored per chat and keep their numbers, so follow-ups may cite them.
-- Graphene 1.37.0 (handshake, 2026-11-18). `system_profile`: only the sections or components a
+  as context, each question with the engine results behind its answer (operator 2026-11-19); results
+  are stored per chat and keep their numbers, so follow-ups may cite them and never disown a backed answer.
+- Graphene 1.38.0 (handshake, 2026-11-19; operations adds ST02 buffers, CCMS open alerts, the instance start). `system_profile`: only the sections or components a
   question needs (v18 filters).
 - Runs as the systemd user service `sap-assistant` (README "Service").
 - Reached from the operator's laptop with
@@ -224,6 +225,12 @@ Rules for each fix:
    Which table is missing?" → "which table was missing at runtime isn't recorded", ST22, then the
    dictionary check offered. "Give me a short monitoring report, with sections." → labels OK, "Not
    available", never "Gaps".
+16. Buffers, CCMS / RZ20 alerts, restarts (operator 2026-11-19) → operations: "How are the SAP buffers
+   doing?" → 13 buffers, 0 swaps, lowest IRBD 49.66% (Graphene; the operator expected 48.34%, G-11), ST02 for
+   each buffer; "Are there any red alerts in RZ20?" → 10 red of 23 open (Performance Overview), highest
+   response time 9605 ms vs 3000; start time 1 November 10:05 (UTC+1), 18.3 days, ST02 to confirm, never
+   SM51. Restart → buffers in one chat must never retract the backed restart answer: earlier turns go to the
+   model with their results, and the answers are never disowned unless a new result contradicts them.
 
 Expected numbers come from Graphene; if Graphene's numbers change after a learn run, update
 the expectations from Graphene's own output, never by hand-guessing.

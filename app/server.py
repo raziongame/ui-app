@@ -78,14 +78,21 @@ def set_cookie(resp: Response, gid: str) -> None:
 
 
 def model_context(store: Store, chat_id: str) -> agent.ChatContext:
-    """Earlier turns as text (failed turns left out), the chat's engine results, the user's texts."""
-    history, user_texts = [], []
-    for m in store.messages(chat_id):
+    """Earlier turns as text (failed turns left out), the chat's engine results, the user's texts.
+    Each user turn carries the result numbers behind its answer (operator 2026-11-19), so the model sees
+    what an earlier answer was based on and never disowns it."""
+    history: list[dict[str, Any]] = []
+    user_texts: list[str] = []
+    for m in store.messages(chat_id, with_meta=True):
         if m["error"]:
             continue
         history.append({"role": m["role"], "content": m["content"]})
         if m["role"] == "user":
             user_texts.append(m["content"])
+        else:
+            ns = [t["n"] for t in (m.get("meta") or {}).get("tool_trace", []) if isinstance(t.get("n"), int)]
+            if ns and len(history) >= 2 and history[-2]["role"] == "user":
+                history[-2]["results"] = ns
     return agent.ChatContext(history=history, results=store.results(chat_id), user_texts=user_texts)
 
 

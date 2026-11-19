@@ -266,7 +266,8 @@ def test_request_shape_to_claude(client, fake_claude):
     assert "never add a gap the results don't state" in text
     assert 'Never approximate a number' in text or 'no "about", "around", "roughly"' in text
     assert "Never write evidence ids: the app takes them from those results." in text
-    assert "Results from earlier in this chat keep their numbers" in text
+    assert "they keep their numbers, stay valid and may be cited" in text
+    assert "never retract, disown" in text and "Never point to SM51 for the start time" in text
 
 
 def test_reply_that_only_promises_is_not_shown(client, fake_claude):
@@ -495,3 +496,75 @@ def test_object_lookup_covered_by_impact_is_not_run(client, fake_claude):
     out, _, _, _ = _run(client, fake_claude, mock, case["question"])
     assert out is not None and [t["tool"] for t in out["tool_trace"]] == ["impact"]
     assert out["usage"]["repeat_calls_skipped"] == 1
+
+
+def test_follow_up_sees_earlier_results_and_never_retracts(client, fake_claude):
+    """Operator 2026-11-19 (critical): restart → buffers in one chat; the buffers answer disowned the backed
+    restart answer. The follow-up now gets the earlier results with the message they answered, and a
+    retraction draft is rewritten (never shown)."""
+    case = next(c for c in GOLDEN if c["id"] == "instance_last_restart")
+    out1, *_ = _run(client, fake_claude, case["mock"], case["question"])
+    assert out1["presentation"]["outcome"] == "passed", out1["grounding"]
+    cid = out1["chat_id"]
+    clean = {"answer": "Your buffers look healthy: 13 buffers with 0 swaps, and the lowest hit ratio is IRBD at "
+                       "49.66%. ST02 shows each buffer's hit ratio. Want me to check the open alerts too?",
+             "system_facts": [{"text": "13 buffers, 0 swaps; lowest hit ratio IRBD 49.66%.", "results": [1]}],
+             "history_for": ""}
+    retracting = {**clean, "answer": clean["answer"] + " Also, my earlier answer about the restart time was not "
+                  "based on anything I looked up, so please disregard it."}
+    mock = {"calls": [], "answers": [retracting, clean]}
+    out2, _, _, reqs = _run(client, fake_claude, mock, "How are the SAP buffers doing?", chat_id=cid)
+    first = reqs[0]["messages_snapshot"]
+    assert [m["role"] for m in first] == ["user", "assistant", "user"]
+    assert first[0]["content"].startswith(case["question"])
+    assert "[Results for this message, from earlier in this chat; still valid]" in first[0]["content"]
+    assert '\nresult 1: {"tool":"operations"' in first[0]["content"] and '"uptime_days":18.3' in first[0]["content"]
+    assert "Results for this message" not in first[2]["content"]  # the new question stays as typed
+    # an earlier operations result answers it: no nudge to call again; the earlier result backs the facts
+    assert "operations_nudges" not in out2["usage"]
+    assert out2["system_facts"][0]["evidence_ids"] == ["call:1"]
+    assert out2["presentation"]["outcome"] == "rewritten" and out2["usage"]["rewrites"] == 1
+    assert "disregard" not in out2["shown"] and "not based on" not in out2["shown"]
+
+
+def test_buffers_alerts_restart_without_a_call_get_one_nudge(client, fake_claude):
+    """Operator 2026-11-19: "How are the SAP buffers doing?" was answered with no call. Buffers, CCMS / RZ20
+    alerts and the instance start are in operations: one note to call it."""
+    from app.agent import OPS_TOPIC_RE
+    case = next(c for c in GOLDEN if c["id"] == "buffers_st02")
+    out, _, _, reqs = _run(client, fake_claude, {**case["mock"], "skip_call_turns": 1}, case["question"])
+    assert out is not None and [t["tool"] for t in out["tool_trace"]] == ["operations"]
+    assert out["usage"]["operations_nudges"] == 1
+    for text in ("How are the SAP buffers doing?", "Any red alerts in RZ20?", "When was the system last restarted?",
+                 "What's the uptime?", "Show me ST02", "Are there buffer swaps?", "CCMS status?",
+                 "When did the instance last start?"):
+        assert OPS_TOPIC_RE.search(text), text
+    for text in ("What breaks if I change ZS4_IOT_DATA?", "Which kernel are we running?", "What is SAP_BASIS?",
+                 "Why is ZUZK900008 high risk?"):
+        assert not OPS_TOPIC_RE.search(text), text
+
+
+def test_retraction_and_refusal_wording_is_flagged():
+    """Operator 2026-11-19: the reported reply, word for word, is caught; a plain follow-up is not."""
+    from app.wording import problems
+    bad = ("Buffer statistics (hit ratios, swaps, free space) come from ST02, and I can't pull them from here. "
+           "Also, my earlier answer about the restart time was not based on anything I looked up: I had not "
+           "checked it, so please disregard it.")
+    kinds = problems(bad)
+    assert any(k.startswith("wording: I can't pull") for k in kinds)
+    assert sum(k.startswith("retraction:") for k in kinds) >= 2
+    assert problems("The instance started on 1 November; ST02 confirms it. Want me to check the buffers?") == []
+
+
+def test_earlier_results_beyond_the_budget_are_named_not_repeated():
+    from app import agent
+    big = {"tool": "system_profile", "result": {"x": "y" * (agent.EARLIER_RESULTS_BUDGET + 10)}}
+    small = {"tool": "operations", "result": {"buffers": {"swaps": 0}}}
+    ctx = agent.ChatContext(history=[{"role": "user", "content": "q1", "results": [1]},
+                                     {"role": "assistant", "content": "a1"},
+                                     {"role": "user", "content": "q2", "results": [2]},
+                                     {"role": "assistant", "content": "a2"}],
+                            results=[big, small])
+    msgs = agent._history_messages(ctx)
+    assert "result 1: (system_profile; still valid, not repeated here" in msgs[0]["content"]
+    assert 'result 2: {"tool":"operations"' in msgs[2]["content"]

@@ -319,7 +319,8 @@ async def run(g: GrapheneMCP, client: anthropic.AsyncAnthropic) -> int:
             if out0 is not None:
                 shown0 = present.finalize(out0)
                 pre_cost = dollars(out0["usage"])
-                ctx = agent.ChatContext(history=[{"role": "user", "content": c["previous"]},
+                ctx = agent.ChatContext(history=[{"role": "user", "content": c["previous"],
+                                                  "results": [t["n"] for t in out0["tool_trace"]]},
                                                  {"role": "assistant", "content": shown0}],
                                         results=[st for (_, _, st) in out0["new_results"]],
                                         user_texts=[c["previous"]])

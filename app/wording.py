@@ -21,8 +21,14 @@ TOOL_TALK_RE = re.compile(r"\b(?:look ?ups? (?:work|only|are limited)|by name or
                           r"|can(?:no|['’])t list|cannot list|only (?:look up|search) by name)\b", re.I)
 # Operator 2026-11-18 (principle 2 and 5): no refusal sentence, never what is "recorded" or "permitted".
 REFUSAL_RE = re.compile(r"\bI (?:can['’]t|cannot|can not|am not able to|['’]m not able to|am unable to|['’]m unable to) "
-                        r"(?:open|see|access|read|list|show|view|check|review|get)\b"
+                        r"(?:open|see|access|read|list|show|view|check|review|get|pull|fetch|retrieve)\b"
                         r"|\b(?:isn['’]t|aren['’]t|is not|are not|not|never) (?:recorded|permitted)\b", re.I)
+# Operator 2026-11-19: never retract or disown an earlier answer that was backed (browser: "my earlier answer
+# about the restart time was not based on anything I looked up … disregard it").
+RETRACTION_RE = re.compile(r"\b(?:please )?disregard (?:it|that|this|my|the (?:earlier|previous))\b"
+                           r"|\b(?:wasn['’]t|was not|isn['’]t|is not) based on anything\b"
+                           r"|\bI (?:had not|hadn['’]t|did not|didn['’]t) (?:actually )?(?:check|look(?:ed)? up|verif)\w*"
+                           r"|\bmy (?:earlier|previous|last) answer (?:was|is) (?:wrong|incorrect|not (?:based|backed|checked))", re.I)
 NEVER_READ_RE = re.compile(r"\bnever (?:read|accessed)\b|\b(?:isn['’]t|aren['’]t|is not|are not) read\b", re.I)
 GAPS_LABEL_RE = re.compile(r"(?mi)^[\W_]*(?:main\s+)?gaps?\b[^.\n]*:")
 # A reply that only promises to look something up (browser testing 2026-11-17).
@@ -48,6 +54,7 @@ def problems(text: str) -> list[str]:
     out += [f"wording: {m.group(0)}" for m in NEVER_READ_RE.finditer(text)]
     out += [f"wording: {m.group(0)}" for m in TOOL_TALK_RE.finditer(text)]
     out += [f"wording: {m.group(0)}" for m in REFUSAL_RE.finditer(text)]
+    out += [f"retraction: {m.group(0)}" for m in RETRACTION_RE.finditer(text)]
     out += [f"field name / JSON word: {w}" for w in developer_words(_strip_code(text))]
     return out
 
