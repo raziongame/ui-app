@@ -194,8 +194,8 @@ Each entry: question, what Graphene returned, what's expected. Graphene `1.30.0`
   transactions by pseudonym": no buffers, CCMS or instance start.
 - **Expected:**
   1. Per buffer: hit ratio, swaps, free space / directory entries (what ST02 shows), not only the lowest one.
-  2. IRBD: Graphene says 49.66%, the operator expected 48.34%. Please confirm which is right for the L5 v6
-     snapshot (a later live ST02 reading, or a different calculation?). The app shows Graphene's value.
+  2. ~~IRBD: Graphene says 49.66%, the operator expected 48.34%.~~ **Closed 2026-11-19 (operator):**
+     Graphene's value is the truth (hit ratios change over time); golden cases use Graphene's output.
   3. The `operations` description names buffers (ST02), CCMS open alerts (RZ20) and the instance start, so
      routing doesn't depend on the app's own prompt.
   4. `alerts.total` (0) vs `ccms.open` (23): say what `alerts.total` counts, or drop it now that CCMS is read.

@@ -851,21 +851,26 @@
   - {tool: operations, path: result.ccms.highest.threshold, equals: 3000}
   expect:
     tools: [operations]
-    answer_contains: [RZ20, ['9605', '9,605']]
+    answer_contains: [RZ20, ['9605', '9,605'], SGEN, ['SM36', Standard Jobs]]
     answer_matches: ['\b10 red\b|\b10 (?:of (?:them|the \d+) |open )?(?:alerts )?(?:are )?red\b|\bred alerts?[^.]{0,30}\b10\b']
-    answer_not_matches: ['\b0 (?:open )?alerts\b', '\bno (?:open |red )?alerts\b', '\bCCMS (?:is )?not configured\b', '\bSM51\b', '(?m)^\s*#{1,6}\s']
-    max_words: 110
+    # operator 2026-11-19: the highest alert (1 November 15:52) came the day of the 10:05 restart: say so, with
+    # the cause as SAP expertise (compiling on first use → SGEN); no ST03N (no workload statistics here)
+    answer_not_matches: ['\b0 (?:open )?alerts\b', '\bno (?:open |red )?alerts\b', '\bCCMS (?:is )?not configured\b', '\bSM51\b', '(?m)^\s*#{1,6}\s', '\bST03N?\b', '\b(?:is|was|were|are) caused by\b']
+    answer_matches: ['(?is)(?:restart|start(?:ed)?\b|startup).{0,200}\b10:05\b|\b10:05\b.{0,200}(?:restart|start(?:ed)?\b|startup)', '(?i)\b(?:typically|usually|this pattern (?:usually|typically) means|commonly|often)\b']
+    max_words: 150
     grounding_flags_max: 0
   mock:
     calls:
     - tool: operations
       args: {}
     answer:
-      answer: Yes, 10 red alerts are open in the Performance Overview monitor, alongside 13 yellow ones (23 open in total). By kind, the 23 are 10 response time, 10 load and generation time and 3 DB request time alerts; the highest is a response time of 9605 ms against a 3000 ms threshold on 1 November. Only 2 of them fall in the observed window, so most are older peaks. In RZ20, analyse them and complete the old ones so new peaks stand out. Want me to go through the response-time alerts?
+      answer: 'Yes, 10 red alerts are open in the Performance Overview monitor, alongside 13 yellow ones (23 open in total). By kind, the 23 are 10 response time, 10 load and generation time and 3 DB request time alerts; the highest is a response time of 9605 ms against a 3000 ms threshold at 15:52 on 1 November, the day of the 10:05 restart. Load and generation time alerts after a restart typically mean programs being compiled on first use, so run SGEN after restarts and kernel changes. Workload statistics need the collector job first (SM36 → Standard Jobs). In RZ20, analyse the alerts and complete the old ones. Want me to go through the response-time alerts?'
       system_facts:
       - text: 23 open CCMS alerts in the Performance Overview monitor, 10 red and 13 yellow; 2 in the observed window.
         results: [1]
-      - text: By kind 10 ResponseTime, 10 Load+GenTime, 3 DBRequestTime; highest ResponseTime 9605 ms against a threshold of 3000 ms on 2026-11-01.
+      - text: By kind 10 ResponseTime, 10 Load+GenTime, 3 DBRequestTime; highest ResponseTime 9605 ms against a threshold of 3000 ms on 2026-11-01 15:52 display time.
+        results: [1]
+      - text: The instance started on 2026-11-01 10:05 display time (UTC+1).
         results: [1]
       history_for: ''
 

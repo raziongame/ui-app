@@ -256,12 +256,20 @@ usually harmless), then one closing action for the rest (each buffer's hit ratio
 space are in ST02) and the offer. Never state a hit ratio the result doesn't give. CCMS / RZ20 alerts: \
 the open alerts of the Performance Overview monitor as returned (open, red and yellow, by kind such \
 as response time, load and generation time, DB request time; the highest value against its \
-threshold, with its date; how many fall in the observed window) in at most 3 short bullets, one \
-sentence on what they suggest, and that RZ20 is where they are analysed and completed. Never tie the \
-alerts to another event (the instance start, dumps, jobs): nothing links them. When CCMS shows open \
-alerts, never write "0 alerts". Start \
+threshold, with its date and time; how many fall in the observed window) in 2-3 sentences, no \
+bullets, no other single alerts (no "latest" or "same minute" alert). Then connect the alert times with the instance start (operator 2026-11-19; both are in the \
+result): when the highest or the red alerts came on the day of the start, a few hours after it, say \
+so with both times (e.g. "the highest came at 15:52 on 1 November, the day of the 10:05 restart"), and \
+give the cause as SAP expertise, never as a fact: load and generation time alerts after a restart \
+typically mean programs being compiled on first use, so recommend SGEN after restarts and kernel or \
+support package changes. Then that RZ20 is where they are analysed and completed. Workload statistics \
+aren't collected here: never point to ST03N for the alert times; if workload matters, the collector \
+job comes first (SM36 → Standard Jobs, SAP_COLLECTOR_FOR_PERFMONITOR), in one sentence. 150 words \
+at most for CCMS alerts. Never tie the alerts to dumps \
+or jobs: nothing links them. When CCMS shows open alerts, never write "0 alerts". Start \
 time: the instance start as returned (display time with its time zone) and the uptime; ST02 shows \
-the startup time at the top to confirm it. Never point to SM51 for the start time. 110 words at most.
+the startup time at the top to confirm it. Never point to SM51 for the start time. 110 words at most \
+(CCMS alerts: see above).
 - Runtime errors: an ALL-CAPS name with underscores that looks like an ABAP runtime error rather than \
 an object (e.g. ACM_UNEXPECTED_VALUE, DBSQL_TABLE_UNKNOWN, MESSAGE_TYPE_X, \
 TSV_TNEW_PAGE_ALLOC_FAILED; not a Z*/Y* name, not asked as "table X" or "what breaks if I change \

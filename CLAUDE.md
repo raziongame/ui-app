@@ -226,9 +226,11 @@ Rules for each fix:
    dictionary check offered. "Give me a short monitoring report, with sections." → labels OK, "Not
    available", never "Gaps".
 16. Buffers, CCMS / RZ20 alerts, restarts (operator 2026-11-19) → operations: "How are the SAP buffers
-   doing?" → 13 buffers, 0 swaps, lowest IRBD 49.66% (Graphene; the operator expected 48.34%, G-11), ST02 for
-   each buffer; "Are there any red alerts in RZ20?" → 10 red of 23 open (Performance Overview), highest
-   response time 9605 ms vs 3000; start time 1 November 10:05 (UTC+1), 18.3 days, ST02 to confirm, never
+   doing?" → 13 buffers, 0 swaps, lowest IRBD 49.66% (Graphene's value is the truth; hit ratios change over
+   time), ST02 for each buffer; "Are there any red alerts in RZ20?" → 10 red of 23 open (Performance
+   Overview), highest response time 9605 ms vs 3000 at 15:52 on 1 November, the day of the 10:05 restart
+   (the link from engine times; the cause as SAP expertise: compiling on first use → SGEN after restarts
+   and kernel changes), collector job via SM36 → Standard Jobs, no ST03N; start time 1 November 10:05 (UTC+1), 18.3 days, ST02 to confirm, never
    SM51. Restart → buffers in one chat must never retract the backed restart answer: earlier turns go to the
    model with their results, and the answers are never disowned unless a new result contradicts them.
 
