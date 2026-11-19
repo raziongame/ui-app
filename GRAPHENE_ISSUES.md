@@ -180,3 +180,25 @@ Each entry: question, what Graphene returned, what's expected. Graphene `1.30.0`
 - **App behaviour meanwhile:** it treats such names as short dumps, gives the total and window, says the
   error names per dump aren't available, points to ST22 (filter by the runtime error name), and explains
   the error only from general SAP knowledge it is sure of (otherwise one "not sure" line, no guess).
+
+## G-11 · Operations (1.38.0): buffers only as a summary; tool description; two alert counts — OPEN
+
+- **Found:** 2026-11-19, operator browser test after Graphene 1.38.0 (handshake 1.38.0, L5 v6 finished
+  2026-11-19 15:50 UTC).
+- **Question:** "How are the SAP buffers doing?" (expected by the operator: real hit ratios, IRBD 48.34% low,
+  0 swaps); "Are there any red alerts in RZ20?"; "When was the system last restarted?".
+- **What Graphene returned:** `operations` → `result.buffers: {"count": 13, "swaps": 0, "lowest_hit_ratio":
+  {"name": "IRBD", "pct": 49.66}, "not_applicable": ["CALE", "OTR"]}`; `result.instance.start` (display
+  2026-11-01 10:05:02 UTC+1, uptime 18.3 days); `result.ccms` (23 open, 10 red, 13 yellow) next to
+  `result.alerts.total: 0`. The tool description still reads "job runs and failures, short dumps, alerts, top
+  transactions by pseudonym": no buffers, CCMS or instance start.
+- **Expected:**
+  1. Per buffer: hit ratio, swaps, free space / directory entries (what ST02 shows), not only the lowest one.
+  2. ~~IRBD: Graphene says 49.66%, the operator expected 48.34%.~~ **Closed 2026-11-19 (operator):**
+     Graphene's value is the truth (hit ratios change over time); golden cases use Graphene's output.
+  3. The `operations` description names buffers (ST02), CCMS open alerts (RZ20) and the instance start, so
+     routing doesn't depend on the app's own prompt.
+  4. `alerts.total` (0) vs `ccms.open` (23): say what `alerts.total` counts, or drop it now that CCMS is read.
+- **App behaviour meanwhile:** buffers, CCMS/RZ20 and start-time questions call operations (prompt rule +
+  one nudge for a reply with no call); answers give the summary exactly (13 buffers, 0 swaps, IRBD 49.66%)
+  and send the user to ST02 for each buffer's ratio; never "0 alerts" when CCMS shows open ones.

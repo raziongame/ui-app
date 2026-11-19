@@ -246,6 +246,30 @@ open with help: how to get it in SAP as numbered steps (the transaction, the fil
 for), connected with what this system shows (e.g. its dump counts and window); then one closing \
 action sentence and the offer. Never list log entries, dumps, job names or alerts the results don't have; \
 140 words at most. The operations result's own limits already state its gaps: no status call for them.
+- Buffers, CCMS alerts and restarts (operator 2026-11-19: SAP buffers / ST02, hit ratios, swaps; CCMS / \
+RZ20 alerts; when the system or an instance last started or restarted, uptime) are in operations: call \
+it, unless an operations result from earlier in this chat already answers it. Buffers: the verdict \
+first, then the returned numbers exactly (how many buffers, the swaps, the lowest hit ratio by name and \
+percent, buffers that don't apply), what they mean from SAP experience (0 swaps means no buffer is \
+too small; a low hit ratio on a rarely used buffer such as IRBD, the initial records buffer, is \
+usually harmless), then one closing action for the rest (each buffer's hit ratio, swaps and free \
+space are in ST02) and the offer. Never state a hit ratio the result doesn't give. CCMS / RZ20 alerts: \
+the open alerts of the Performance Overview monitor as returned (open, red and yellow, by kind such \
+as response time, load and generation time, DB request time; the highest value against its \
+threshold, with its date and time; how many fall in the observed window) in 2-3 sentences, no \
+bullets, no other single alerts (no "latest" or "same minute" alert). Then connect the alert times with the instance start (operator 2026-11-19; both are in the \
+result): when the highest or the red alerts came on the day of the start, a few hours after it, say \
+so with both times (e.g. "the highest came at 15:52 on 1 November, the day of the 10:05 restart"), and \
+give the cause as SAP expertise, never as a fact: load and generation time alerts after a restart \
+typically mean programs being compiled on first use, so recommend SGEN after restarts and kernel or \
+support package changes. Then that RZ20 is where they are analysed and completed. Workload statistics \
+aren't collected here: never point to ST03N for the alert times; if workload matters, the collector \
+job comes first (SM36 → Standard Jobs, SAP_COLLECTOR_FOR_PERFMONITOR), in one sentence. 150 words \
+at most for CCMS alerts. Never tie the alerts to dumps \
+or jobs: nothing links them. When CCMS shows open alerts, never write "0 alerts". Start \
+time: the instance start as returned (display time with its time zone) and the uptime; ST02 shows \
+the startup time at the top to confirm it. Never point to SM51 for the start time. End with the offer, as always. 110 words at most \
+(CCMS alerts: see above).
 - Runtime errors: an ALL-CAPS name with underscores that looks like an ABAP runtime error rather than \
 an object (e.g. ACM_UNEXPECTED_VALUE, DBSQL_TABLE_UNKNOWN, MESSAGE_TYPE_X, \
 TSV_TNEW_PAGE_ALLOC_FAILED; not a Z*/Y* name, not asked as "table X" or "what breaks if I change \
@@ -281,8 +305,12 @@ limits, so call status only when the question is about what information is avail
 answer would say something isn't available and no other result shows it. A second call \
 on the same object runs only if it asks for more (larger show or depth). Calls that break these rules \
 are not run. At most {max_calls} calls. Never reply that you will check or look something up: make \
-the call in this turn. A general SAP question needs no call. Results from earlier in this chat keep \
-their numbers and stay valid.
+the call in this turn. A general SAP question needs no call. Results from earlier in this chat are \
+shown with the message they answered ("Results for this message"); they keep their numbers, stay \
+valid and may be cited. Your earlier answers in this chat were checked against those results before \
+they were shown (operator 2026-11-19): never retract, disown or "correct" an earlier answer, and never \
+say it wasn't looked up, unless a new result in this chat contradicts it; then give the new value \
+plainly with where it comes from.
 
 Dates (operator 2026-11-18): always in words, e.g. "29 October to 11 November", "5 November"; the \
 year only when it matters. Never a numeric date such as 2026-10-29, 29.10.2026 or 2026.11.10, not \
@@ -357,6 +385,13 @@ RUNTIME_NOTE = ("The message names {name}, which looks like an ABAP runtime erro
                 "rule says; if it isn't, answer as before.")
 
 # Silent grounding (operator 2026-11-17): one rewrite when a statement about this system isn't backed.
+# Operator 2026-11-19 (Graphene 1.38.0): buffers (ST02), CCMS / RZ20 alerts and the instance start are in
+# operations; "How are the SAP buffers doing?" was answered with no call ("I can't pull them from here").
+OPS_TOPIC_RE = re.compile(r"\b(?:buffers?|ST02|hit ratios?|swaps?|RZ20|CCMS|alerts?|restart(?:ed|s)?|uptime|up time"
+                          r"|start(?:ed|up)? time|last (?:start(?:ed)?|boot(?:ed)?)|been up)\b", re.I)
+OPS_NOTE = ("The message asks about {topic}, which this system's operations result covers (buffers from ST02, "
+            "CCMS / RZ20 alerts, the instance start). Call operations now and answer from its result.")
+
 REWRITE_NOTE = ("Your draft answer is below. These parts state something about this system that is not "
                 "in your tool results or the user's messages, or break the wording rules: {problems}. "
                 "Write the answer again without them: where you don't know a fact about this system, say "
@@ -519,18 +554,51 @@ def _system_note(messages: list[dict[str, Any]], text: str) -> None:
 class ChatContext:
     """What the model gets from earlier in the chat: the turns as text, and the engine results
     (numbered from 1 across the chat, stored on the server) that follow-ups may cite."""
-    history: list[dict[str, str]] = field(default_factory=list)  # [{"role": "user"|"assistant", "content": ...}]
+    # [{"role": "user"|"assistant", "content": ..., "results": [N, ...] on a user turn}]: the result numbers
+    # behind the answer to that user message (operator 2026-11-19: the model must see what was backed).
+    history: list[dict[str, Any]] = field(default_factory=list)
     results: list[dict[str, Any] | None] = field(default_factory=list)
     user_texts: list[str] = field(default_factory=list)
 
 
+# Earlier results go back to the model with the message they answered, newest first within this budget;
+# older ones beyond it are named but not repeated (system_profile can be ~60 KB).
+EARLIER_RESULTS_BUDGET = 60_000
+
+
+def _earlier_results_text(ctx: ChatContext) -> dict[int, str]:
+    """{result number: the text the model sees for it}, as "result N: {json}" like a fresh tool result."""
+    out: dict[int, str] = {}
+    left = EARLIER_RESULTS_BUDGET
+    for n in range(len(ctx.results), 0, -1):
+        st = ctx.results[n - 1]
+        if st is None:
+            out[n] = f"result {n}: (the call failed)"
+            continue
+        body = json.dumps(st, separators=(",", ":"), ensure_ascii=False)
+        if len(body) <= left:
+            out[n] = f"result {n}: {body}"
+            left -= len(body)
+        else:
+            tool = st.get("tool", "a tool") if isinstance(st, dict) else "a tool"
+            out[n] = (f"result {n}: ({tool}; still valid, not repeated here to save space; call it again "
+                      "if you need its details)")
+    return out
+
+
 def _history_messages(ctx: ChatContext) -> list[dict[str, Any]]:
     msgs: list[dict[str, Any]] = []
+    texts = _earlier_results_text(ctx) if ctx.results else {}
     for m in ctx.history:
+        content = m["content"]
+        ns = [n for n in (m.get("results") or []) if n in texts]
+        if m["role"] == "user" and ns:
+            content += ("\n\n[Results for this message, from earlier in this chat; still valid]\n"
+                        + "\n".join(texts[n] for n in ns))
         if msgs and msgs[-1]["role"] == m["role"]:  # keep strict alternation (e.g. after a failed turn)
-            msgs[-1]["content"] += "\n\n" + m["content"]
+            msgs[-1]["content"] += "\n\n" + content
         else:
-            msgs.append({"role": m["role"], "content": m["content"]})
+            msgs.append({"role": m["role"], "content": content})
     if msgs and msgs[0]["role"] != "user":
         msgs = msgs[1:]
     if msgs and msgs[-1]["role"] == "user":  # an earlier message without an answer
@@ -557,7 +625,7 @@ async def answer_question(message: str, g: GrapheneMCP, client: Any, emit: Emit 
     defaults = {t.name: {k: v.get("default") for k, v in (t.input_schema.get("properties") or {}).items()
                          if isinstance(v, dict) and "default" in v} for t in g.tools}
     force_answer = False
-    nudged = rewritten = runtime_nudged = False
+    nudged = rewritten = runtime_nudged = ops_nudged = False
     first_draft_flags: list[dict[str, str]] = []
     rounds = 0
     claude_ms = 0
@@ -617,6 +685,13 @@ async def answer_question(message: str, g: GrapheneMCP, client: Any, emit: Emit 
                 runtime_nudged = True
                 usage["runtime_error_nudges"] = usage.get("runtime_error_nudges", 0) + 1
                 _system_note(messages, RUNTIME_NOTE.format(name=rt.group(0)))
+                continue
+            ops = OPS_TOPIC_RE.search(message) if len(message) < 2000 else None
+            had_ops = any(isinstance(r, dict) and r.get("tool") == "operations" for r in ctx.results)
+            if not trace and not force_answer and ops and not had_ops and not ops_nudged:
+                ops_nudged = True
+                usage["operations_nudges"] = usage.get("operations_nudges", 0) + 1
+                _system_note(messages, OPS_NOTE.format(topic=ops.group(0)))
                 continue
             all_results = ctx.results + new_results
             user_texts = ctx.user_texts + [message]
